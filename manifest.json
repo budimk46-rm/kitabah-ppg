@@ -1,0 +1,10 @@
+{
+  "name": "Kitabah Kurikulum Generus",
+  "short_name": "Kitabah",
+  "description": "Aplikasi Pengaturan Awal Kitabah",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FAF6EC",
+  "theme_color": "#28503F",
+  "orientation": "portrait"
+}
