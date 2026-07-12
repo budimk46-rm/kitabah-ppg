@@ -13,9 +13,16 @@ const SB_HEADERS = {
 // Generic REST API helper
 async function sbFetch(path, options = {}) {
   const url = `${SUPABASE_URL}/rest/v1/${path}`;
+  const method = options.method || 'GET';
+  const extraHeaders = {};
+  // Tambah Range header hanya untuk GET supaya bisa ambil lebih dari 1000 baris
+  if (method === 'GET') {
+    extraHeaders['Range-Unit'] = 'items';
+    extraHeaders['Range'] = '0-9999';
+  }
   const res = await fetch(url, {
     ...options,
-    headers: { ...SB_HEADERS, ...(options.headers || {}) },
+    headers: { ...SB_HEADERS, ...extraHeaders, ...(options.headers || {}) },
   });
   if (!res.ok) {
     const err = await res.text();
@@ -85,9 +92,9 @@ const sbDesa = {
 
 // ============ MATERI ============
 const sbMateri = {
-  getAll: () => sbFetch('materi?select=*&order=jenjang,semester,bab,no'),
+  getAll: () => sbFetch('materi?select=*&order=jenjang,semester,bab,no&limit=2000'),
   getByJenjang: (jenjang, semester) =>
-    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=bab,no`),
+    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=bab,no&limit=500`),
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   insert: (data) => sbFetch('materi', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
   delete: (id) => sbFetch(`materi?id=eq.${id}`, { method: 'DELETE' }),
