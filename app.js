@@ -18,6 +18,67 @@ const ROLE_LABELS = {
   kelompok: 'Pengelola Kelompok',
 };
 
+const TINGKATAN_LABELS = {
+  caberawit: 'Caberawit',
+  pra_remaja: 'Pra Remaja',
+  remaja: 'Remaja',
+  pra_nikah: 'Pra Nikah',
+};
+
+const TINGKATAN_COLORS = {
+  caberawit: 'badge-green',
+  pra_remaja: 'badge-gold',
+  remaja: 'badge-rose',
+  pra_nikah: 'badge-gray',
+};
+
+// Hitung tingkatan otomatis dari tanggal lahir
+// Tahun ajaran mulai Juli — usia dihitung per 1 Juli tahun berjalan
+function hitungTingkatan(tglLahir) {
+  if (!tglLahir) return '';
+  const lahir = new Date(tglLahir);
+  const refDate = new Date();
+  // Referensi: 1 Juli tahun berjalan
+  const juli = new Date(refDate.getFullYear(), 6, 1);
+  let usia = juli.getFullYear() - lahir.getFullYear();
+  const bulanLahir = lahir.getMonth();
+  const tglLahirNum = lahir.getDate();
+  if (bulanLahir > 6 || (bulanLahir === 6 && tglLahirNum > 1)) usia--;
+  if (usia < 13) return 'caberawit';
+  if (usia < 16) return 'pra_remaja';
+  if (usia < 19) return 'remaja';
+  return 'pra_nikah';
+}
+
+// Hitung usia saat ini
+function hitungUsia(tglLahir) {
+  if (!tglLahir) return null;
+  const lahir = new Date(tglLahir);
+  const now = new Date();
+  let usia = now.getFullYear() - lahir.getFullYear();
+  if (now.getMonth() < lahir.getMonth() ||
+     (now.getMonth() === lahir.getMonth() && now.getDate() < lahir.getDate())) {
+    usia--;
+  }
+  return usia;
+}
+
+// Hitung generus yang akan naik level tahun depan (per 1 Juli tahun depan)
+function hitungNaikLevel(tglLahir) {
+  if (!tglLahir) return null;
+  const lahir = new Date(tglLahir);
+  const tahunDepan = new Date().getFullYear() + 1;
+  const juli = new Date(tahunDepan, 6, 1);
+  let usia = juli.getFullYear() - lahir.getFullYear();
+  if (lahir.getMonth() > 6 || (lahir.getMonth() === 6 && lahir.getDate() > 1)) usia--;
+  // Usia kritis yang menandai naik level
+  if (usia === 7)  return 'Masuk SD';
+  if (usia === 13) return 'Naik Pra Remaja';
+  if (usia === 16) return 'Naik Remaja';
+  if (usia === 19) return 'Naik Pra Nikah';
+  return null;
+}
+
 // PPG Logo sebagai Base64 mini placeholder — diganti nanti dengan logo asli
 const LOGO_PLACEHOLDER = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><circle cx="30" cy="30" r="30" fill="%231B3A2C"/><text x="30" y="38" text-anchor="middle" fill="%23C19A4B" font-size="20" font-family="Arial" font-weight="bold">PPG</text></svg>';
 
@@ -1065,11 +1126,6 @@ async function renderSantri() {
 
   function render() {
     const kelompokList = App.cache.kelompok || [];
-    const kelompokOptsHtml = kelompokList.map(k =>
-      `<option value="${k.id}" ${k.id === selectedKelompokId ? 'selected' : ''}>
-        ${escHtml(k.nama)} (${escHtml(k.desa?.nama || k.desa_id)})
-      </option>`
-    ).join('');
 
     const kelasOptsHtml = kelasOptions.map(k =>
       `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>${kelasLabel(k)}</option>`
@@ -1079,27 +1135,35 @@ async function renderSantri() {
 
     const tableHtml = santriList.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Nama Santri / Generus</th><th>NIS</th><th>L/P</th><th>Aksi</th></tr></thead>
-        <tbody>${santriList.map((s, i) => `
-          <tr>
+        <thead><tr><th>#</th><th>Nama Lengkap</th><th>Tgl Lahir</th><th>Usia</th><th>Tingkatan</th><th>L/P</th><th>Nama Ortu</th><th>Tahun Depan</th><th>Aksi</th></tr></thead>
+        <tbody>${santriList.map((s, i) => {
+          const tingkatan = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+          const usia = hitungUsia(s.tgl_lahir);
+          const naikLevel = hitungNaikLevel(s.tgl_lahir);
+          return `<tr>
             <td>${i + 1}</td>
             <td><b>${escHtml(s.nama)}</b></td>
-            <td>${escHtml(s.nis || '—')}</td>
-            <td><span class="badge ${s.jenis_kel === 'L' ? 'badge-green' : 'badge-rose'}">${s.jenis_kel === 'L' ? 'L' : s.jenis_kel === 'P' ? 'P' : '—'}</span></td>
+            <td>${s.tgl_lahir ? fmtDateShort(s.tgl_lahir) : '—'}</td>
+            <td>${usia !== null ? usia + ' th' : '—'}</td>
+            <td>${tingkatan ? `<span class="badge ${TINGKATAN_COLORS[tingkatan]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[tingkatan]||tingkatan)}</span>` : '—'}</td>
+            <td><span class="badge ${s.jenis_kel==='L'?'badge-green':'badge-rose'}">${s.jenis_kel||'—'}</span></td>
+            <td>${escHtml(s.nama_ortu||'—')}</td>
+            <td>${naikLevel ? `<span class="badge badge-gold">${escHtml(naikLevel)}</span>` : '—'}</td>
             <td>
-              <div style="display:flex; gap:6px;">
+              <div style="display:flex; gap:4px;">
                 <button class="btn-icon" onclick="STR_edit(${JSON.stringify(JSON.stringify(s))})" title="Edit">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
                 </button>
                 <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Hapus">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
                 </button>
               </div>
             </td>
-          </tr>`).join('')}
+          </tr>`;
+        }).join('')}
         </tbody>
       </table></div>` :
-      '<div class="empty-state"><p class="empty-title">Belum ada santri</p><p class="empty-desc">Tambahkan data santri untuk kelas ini.</p></div>';
+      '<div class="empty-state"><p class="empty-title">Belum ada generus</p><p class="empty-desc">Tambahkan data generus untuk kelas ini.</p></div>';
 
     main.innerHTML = `
       <div class="page-header">
@@ -1113,12 +1177,24 @@ async function renderSantri() {
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
           ${isAdmin ? `
+          <div style="flex:0 0 auto; min-width:160px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Filter Desa</label>
+            <select id="strDesaFilter" onchange="STR_filterDesa(this.value)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Semua Desa</option>
+              ${['Barat 1','Barat 2','Tengah 1','Tengah 2','Timur 1','Timur 2'].map(d =>
+                `<option value="Desa ${d}">Desa ${d}</option>`).join('')}
+            </select>
+          </div>
           <div style="flex:1; min-width:200px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
-            <select onchange="STR_loadKelompok(this.value)"
+            <select id="strKelompokSel" onchange="STR_loadKelompok(this.value)"
               style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
               <option value="">Pilih kelompok...</option>
-              ${kelompokOptsHtml}
+              ${(App.cache.kelompok||[]).map(k =>
+                `<option value="${k.id}" data-desa="${escHtml(k.desa?.nama||k.desa_id)}" ${k.id===selectedKelompokId?'selected':''}>
+                  ${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}
+                </option>`).join('')}
             </select>
           </div>` : ''}
           <div style="flex:1; min-width:180px;">
@@ -1142,6 +1218,17 @@ async function renderSantri() {
     `;
   }
 
+  window.STR_filterDesa = (desaNama) => {
+    const sel = document.getElementById('strKelompokSel');
+    if (!sel) return;
+    Array.from(sel.options).forEach(opt => {
+      if (!opt.value) return; // placeholder
+      opt.hidden = desaNama ? opt.dataset.desa !== desaNama : false;
+    });
+    // Reset pilihan kelompok kalau yang dipilih jadi hidden
+    const current = sel.options[sel.selectedIndex];
+    if (current && current.hidden) { sel.value = ''; STR_loadKelompok(''); }
+  };
   window.STR_loadKelompok = async (id) => { await loadKelas(id); };
   window.STR_loadKelas = async (id) => { if (id) await loadSantri(id); };
   window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
@@ -1538,39 +1625,121 @@ function openAddSantriModal(kelasId, existingSantri, onSaved) {
     el = document.createElement('div');
     el.id = 'santriModal';
     el.className = 'modal-overlay';
-    el.innerHTML = `<div class="modal"><div class="modal-head"><h3 class="modal-title" id="santriModalTitle">Tambah Santri</h3><button class="modal-close" onclick="closeModal('santriModal')">✕</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>Nama Lengkap</label><input id="santriNama"></div>
-        <div class="form-row">
-          <div class="form-group"><label>NIS (opsional)</label><input id="santriNis"></div>
-          <div class="form-group"><label>Jenis Kelamin</label><select id="santriJK"><option value="">Pilih...</option><option value="L">Laki-laki (L)</option><option value="P">Perempuan (P)</option></select></div>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-outline" onclick="closeModal('santriModal')">Batal</button>
-        <button class="btn btn-green" id="santriSaveBtn">Simpan</button>
-      </div>
-    </div>`;
     document.body.appendChild(el);
   }
-  document.getElementById('santriModalTitle').textContent = existingSantri ? 'Edit Data Santri' : 'Tambah Santri Baru';
-  document.getElementById('santriNama').value = existingSantri?.nama || '';
-  document.getElementById('santriNis').value = existingSantri?.nis || '';
-  document.getElementById('santriJK').value = existingSantri?.jenis_kel || '';
-  document.getElementById('santriSaveBtn').onclick = async () => {
-    const nama = document.getElementById('santriNama').value.trim();
-    if (!nama) { showToast('Nama wajib diisi', true); return; }
-    const data = { nama, nis: document.getElementById('santriNis').value.trim() || null, jenis_kel: document.getElementById('santriJK').value || null };
-    if (existingSantri) {
-      await SB.santri.update(existingSantri.id, data);
-      showToast('Data santri diperbarui');
-    } else {
-      await SB.santri.insert({ ...data, kelas_id: kelasId, aktif: true });
-      showToast('Santri ditambahkan');
-    }
-    closeModal('santriModal');
-    onSaved();
+
+  const s = existingSantri;
+  const tingkatanAuto = s?.tgl_lahir ? hitungTingkatan(s.tgl_lahir) : '';
+  const tingkatanVal = s?.tingkatan_override ? s.tingkatan : tingkatanAuto;
+
+  el.innerHTML = `<div class="modal modal-lg">
+    <div class="modal-head">
+      <h3 class="modal-title">${s ? 'Edit Data Generus' : 'Tambah Generus Baru'}</h3>
+      <button class="modal-close" onclick="closeModal('santriModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>Nama Lengkap *</label>
+          <input id="strNama" value="${escHtml(s?.nama||'')}" placeholder="Nama lengkap generus">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tanggal Lahir *</label>
+          <input type="date" id="strTglLahir" value="${s?.tgl_lahir||''}" onchange="STR_autoTingkatan(this.value)">
+        </div>
+        <div class="form-group">
+          <label>Jenis Kelamin</label>
+          <select id="strJK">
+            <option value="">Pilih...</option>
+            <option value="L" ${s?.jenis_kel==='L'?'selected':''}>Laki-laki (L)</option>
+            <option value="P" ${s?.jenis_kel==='P'?'selected':''}>Perempuan (P)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tingkatan</label>
+          <select id="strTingkatan" onchange="STR_overrideTingkatan()">
+            <option value="">— otomatis dari tgl lahir —</option>
+            <option value="caberawit" ${tingkatanVal==='caberawit'?'selected':''}>Caberawit (PAUD TK – SD 6)</option>
+            <option value="pra_remaja" ${tingkatanVal==='pra_remaja'?'selected':''}>Pra Remaja (SMP)</option>
+            <option value="remaja" ${tingkatanVal==='remaja'?'selected':''}>Remaja (SMA)</option>
+            <option value="pra_nikah" ${tingkatanVal==='pra_nikah'?'selected':''}>Pra Nikah (Lulus SMA)</option>
+          </select>
+          <div id="strTingkatanInfo" style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">
+            ${tingkatanAuto ? 'Otomatis: <b>' + (TINGKATAN_LABELS[tingkatanAuto]||tingkatanAuto) + '</b>' : 'Isi tanggal lahir untuk kalkulasi otomatis'}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nama Orang Tua (Ayah/Ibu)</label>
+          <input id="strOrtu" value="${escHtml(s?.nama_ortu||'')}" placeholder="Nama ayah atau ibu">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>NIS (opsional)</label>
+          <input id="strNis" value="${escHtml(s?.nis||'')}" placeholder="Nomor Induk Santri">
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('santriModal')">Batal</button>
+      <button class="btn btn-green" id="strSaveBtn">${s ? 'Simpan Perubahan' : 'Tambah Generus'}</button>
+    </div>
+  </div>`;
+
+  // Auto-hitung tingkatan saat tgl lahir diubah
+  window.STR_autoTingkatan = (tgl) => {
+    const t = hitungTingkatan(tgl);
+    const info = document.getElementById('strTingkatanInfo');
+    if (info) info.innerHTML = t
+      ? 'Otomatis: <b>' + (TINGKATAN_LABELS[t]||t) + '</b>'
+      : 'Tanggal lahir tidak valid';
+    // Kalau belum di-override, kosongkan select supaya pakai auto
+    const sel = document.getElementById('strTingkatan');
+    if (sel && !sel.dataset.overridden) sel.value = '';
   };
+  window.STR_overrideTingkatan = () => {
+    const sel = document.getElementById('strTingkatan');
+    if (sel) sel.dataset.overridden = sel.value ? '1' : '';
+  };
+
+  document.getElementById('strSaveBtn').onclick = async () => {
+    const nama = document.getElementById('strNama').value.trim();
+    const tgl_lahir = document.getElementById('strTglLahir').value || null;
+    const jenis_kel = document.getElementById('strJK').value || null;
+    const nama_ortu = document.getElementById('strOrtu').value.trim() || null;
+    const nis = document.getElementById('strNis').value.trim() || null;
+    const selTingkatan = document.getElementById('strTingkatan');
+    const tingkatan_override = !!selTingkatan.value;
+    const tingkatan = selTingkatan.value || hitungTingkatan(tgl_lahir) || null;
+
+    if (!nama) { showToast('Nama lengkap wajib diisi', true); return; }
+    if (!tgl_lahir) { showToast('Tanggal lahir wajib diisi', true); return; }
+
+    const btn = document.getElementById('strSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+
+    const data = { nama, tgl_lahir, jenis_kel, nama_ortu, nis, tingkatan, tingkatan_override };
+
+    try {
+      if (s) {
+        await SB.santri.update(s.id, data);
+        showToast('Data generus diperbarui');
+      } else {
+        await SB.santri.insert({ ...data, kelas_id: kelasId, aktif: true });
+        showToast('Generus berhasil ditambahkan');
+      }
+      closeModal('santriModal');
+      onSaved();
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
+    btn.disabled = false; btn.textContent = s ? 'Simpan Perubahan' : 'Tambah Generus';
+  };
+
   openModal('santriModal');
 }
 

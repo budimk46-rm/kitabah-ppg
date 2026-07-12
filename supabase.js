@@ -123,7 +123,9 @@ const sbSantri = {
   getByKelas: (kelasId) =>
     sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=*&order=nama`),
   getByKelompok: (kelompokId) =>
-    sbFetch(`santri?kelas_id=in.(select id from kelas where kelompok_id='${kelompokId}')&aktif=eq.true&select=*,kelas(jenjang)&order=nama`),
+    sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
+  getAll: () =>
+    sbFetch(`santri?aktif=eq.true&select=*,kelas(kelompok_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`),
   insert: (data) => sbFetch('santri', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
   update: (id, data) => sbFetch(`santri?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   softDelete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ aktif: false }) }),
