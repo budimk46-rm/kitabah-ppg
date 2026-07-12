@@ -576,7 +576,8 @@ async function renderKurikulum() {
     // Jenjang selector — scroll horizontal di mobile
     const jenjangBarHtml = JENJANG_ORDER.map(j => {
       const isActive = j === currentJenjang;
-      return `<button onclick="KUR_setJenjang('${j.replace(/'/g,"\\'")}'"
+      const jSafe = j.replace(/'/g, "\\'");
+      return `<button onclick="KUR_setJenjang('${jSafe}')"
         style="padding:8px 14px; border-radius:20px; white-space:nowrap; flex-shrink:0;
           background:${isActive?'var(--green)':'var(--white)'};
           color:${isActive?'#fff':'var(--ink-soft)'};
