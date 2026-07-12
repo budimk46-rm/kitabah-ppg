@@ -461,7 +461,10 @@ async function renderKurikulum() {
     const months = currentSem === '1' ? SEM1_MONTHS : SEM2_MONTHS;
     const monthsToShow = currentMonth ? [currentMonth] : months;
 
-    let filtered = rows.filter(r => r.jenjang === currentJenjang && r.semester === currentSem);
+    let filtered = rows.filter(r =>
+      r.jenjang === currentJenjang &&
+      String(r.semester) === String(currentSem)
+    );
     if (searchQ) {
       const q = searchQ.toLowerCase();
       filtered = filtered.filter(r =>
@@ -470,10 +473,20 @@ async function renderKurikulum() {
     }
 
     const jenjangSidebarHtml = JENJANG_ORDER.map(j => {
-      const cnt = rows.filter(r => r.jenjang === j && r.semester === currentSem).length;
-      return `<div class="nav-item ${j === currentJenjang ? 'active' : ''}" onclick="KUR_setJenjang('${j.replace(/'/g,"\\'")}')">
+      const cnt = rows.filter(r => r.jenjang === j && String(r.semester) === String(currentSem)).length;
+      const isActive = j === currentJenjang;
+      return `<div onclick="KUR_setJenjang('${j.replace(/'/g,"\\'")}'"
+        style="display:flex; align-items:center; justify-content:space-between;
+          padding:9px 12px; border-radius:8px; cursor:pointer; margin-bottom:2px;
+          background:${isActive ? 'var(--green)' : 'transparent'};
+          color:${isActive ? '#fff' : 'var(--ink)'};
+          font-size:13px; font-weight:${isActive ? '700' : '600'};
+          transition:all .15s;"
+        onmouseover="if(this.dataset.active!=='1'){this.style.background='var(--green-soft)';this.style.color='var(--green)';}"
+        onmouseout="if(this.dataset.active!=='1'){this.style.background='transparent';this.style.color='var(--ink)';}"
+        data-active="${isActive ? '1' : '0'}">
         <span>${escHtml(j)}</span>
-        <span style="font-size:11px; opacity:.7;">${cnt}</span>
+        <span style="font-size:11px; opacity:.6; font-weight:600;">${cnt}</span>
       </div>`;
     }).join('');
 
@@ -588,8 +601,8 @@ async function renderKurikulum() {
       </div>`;
   }
 
-  // Expose state setters to global
-  window.KUR_setJenjang = (j) => { currentJenjang = j; render(); };
+  // Expose state setters ke global
+  window.KUR_setJenjang = (j) => { currentJenjang = j; currentSem = '1'; currentMonth = null; render(); };
   window.KUR_setSem = (s) => { currentSem = s; currentMonth = null; render(); };
   window.KUR_setMonth = (m) => { currentMonth = m; render(); };
   window.KUR_search = (q) => { searchQ = q; render(); };
