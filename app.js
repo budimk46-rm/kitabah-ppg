@@ -681,11 +681,9 @@ async function renderKurikulum() {
         s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
         s.onload = resolve;
         s.onerror = () => {
-          // Fallback CDN
           const s2 = document.createElement('script');
           s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
-          s2.onload = resolve;
-          s2.onerror = reject;
+          s2.onload = resolve; s2.onerror = reject;
           document.head.appendChild(s2);
         };
         document.head.appendChild(s);
@@ -695,144 +693,217 @@ async function renderKurikulum() {
     try {
       const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
       const doc = await PDFDocument.create();
-      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-      const fontReg = await doc.embedFont(StandardFonts.Helvetica);
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg  = await doc.embedFont(StandardFonts.Helvetica);
 
-      const W = 595, H = 842; // A4
-      const ML = 40, MR = 40, MT = 50;
+      // A4 landscape untuk lebih lebar
+      const PW = 842, PH = 595;
+      const ML = 36, MR = 36, MT = 44, MB = 36;
       const GREEN = rgb(0.106, 0.227, 0.173);
       const GOLD  = rgb(0.757, 0.604, 0.294);
-      const GRAY  = rgb(0.4, 0.4, 0.4);
+      const GRAY  = rgb(0.5, 0.5, 0.5);
+      const WHITE = rgb(1, 1, 1);
+      const CREAM = rgb(0.98, 0.97, 0.94);
 
-      let page = doc.addPage([W, H]);
-      let y = H - MT;
+      // Lebar kolom tabel
+      const COL_NO    = 24;
+      const COL_TOPIK = 130;
+      const COL_POIN  = 22;
+      const COL_POIN_TITLE = 120;
+      // Sisa dibagi untuk kolom bulan
+      const nMonths = monthsToShow.length;
+      const tableW  = PW - ML - MR;
+      const COL_BULAN = Math.floor((tableW - COL_NO - COL_TOPIK - COL_POIN - COL_POIN_TITLE) / nMonths);
 
-      const newPage = () => {
-        page = doc.addPage([W, H]);
-        y = H - MT;
+      let page, y;
+
+      const addPage = () => {
+        page = doc.addPage([PW, PH]);
+        y = PH - MT;
+      };
+      addPage();
+
+      // ---- Fungsi utilitas ----
+      const wrap = (text, maxW, size, font) => {
+        const words = String(text || '').split(' ');
+        const lines = []; let cur = '';
+        for (const w of words) {
+          const test = cur ? cur + ' ' + w : w;
+          if (font.widthOfTextAtSize(test, size) > maxW) {
+            if (cur) lines.push(cur);
+            cur = w;
+          } else cur = test;
+        }
+        if (cur) lines.push(cur);
+        return lines.length ? lines : [''];
       };
 
-      const checkY = (needed) => { if (y < needed + 40) newPage(); };
-
-      // Header
-      const drawHeader = () => {
-        page.drawText('PENGGERAK PEMBINA GENERUS', { x: ML, y, font: fontBold, size: 13, color: GREEN });
-        y -= 16;
-        page.drawText('SIDOARJO UTARA', { x: ML, y, font: fontBold, size: 11, color: GREEN });
-        y -= 10;
-        page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 1.5, color: GREEN });
-        y -= 6;
-        page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 0.5, color: GREEN });
-        y -= 18;
-        page.drawText('TARGET PENCAPAIAN MATERI GENERUS', { x: ML, y, font: fontBold, size: 11, color: GREEN });
-        y -= 16;
-        const bulanLabel = monthsToShow.length === 1 ? `Bulan ${monthsToShow[0]}` : `Semester ${ks.sem}`;
-        page.drawText(`${ks.jenjang} · ${bulanLabel}`, { x: ML, y, font: fontReg, size: 9, color: GRAY });
-        y -= 16;
-        page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 0.5, color: GREEN });
-        y -= 12;
+      const checkSpace = (need) => {
+        if (y - need < MB + 30) {
+          // Footer sebelum ganti halaman
+          page.drawText(`Halaman ${doc.getPageCount()} · ${ks.jenjang} · PPG Sidoarjo Utara`,
+            { x: ML, y: MB, font: fReg, size: 7, color: GRAY });
+          addPage();
+          drawTableHeader();
+        }
       };
 
-      drawHeader();
+      // ---- Header dokumen ----
+      const drawDocHeader = () => {
+        page.drawText('PENGGERAK PEMBINA GENERUS — SIDOARJO UTARA',
+          { x: ML, y, font: fBold, size: 11, color: GREEN });
+        y -= 14;
+        const bulanLabel = monthsToShow.length === 1 ? `Bulan ${monthsToShow[0]}` : `Semester ${ks.sem} (${months[0]} – ${months[months.length-1]})`;
+        page.drawText(`Target Pencapaian Materi  ·  ${ks.jenjang}  ·  ${bulanLabel}`,
+          { x: ML, y, font: fReg, size: 9, color: GRAY });
+        y -= 8;
+        page.drawLine({ start:{x:ML,y}, end:{x:PW-MR,y}, thickness:1.5, color:GREEN });
+        y -= 16;
+      };
+      drawDocHeader();
 
+      // ---- Header tabel ----
+      const drawTableHeader = () => {
+        const ROW_H = 16;
+        // Background hijau
+        page.drawRectangle({ x:ML, y:y-ROW_H+4, width:tableW, height:ROW_H, color:GREEN });
+        let cx = ML;
+        const th = (txt, w) => {
+          page.drawText(txt, { x:cx+3, y:y-ROW_H+7, font:fBold, size:7.5, color:WHITE });
+          cx += w;
+        };
+        th('No', COL_NO);
+        th('Topik', COL_TOPIK);
+        th('', COL_POIN);
+        th('Keterangan', COL_POIN_TITLE);
+        monthsToShow.forEach(m => th(m, COL_BULAN));
+        y -= ROW_H + 2;
+      };
+      drawTableHeader();
+
+      // ---- Render baris ----
       // Group by bab
-      const groups = {};
-      const babOrder = [];
+      const groups = {}, babOrder = [];
       filtered.forEach(r => {
-        const k = (r.bab || '') + '||' + (r.bab_title || '');
-        if (!groups[k]) { groups[k] = { bab: r.bab, title: r.bab_title, items: [] }; babOrder.push(k); }
-        groups[k].items.push(r);
+        const k = (r.bab||'') + '||' + (r.bab_title||'');
+        if (!groups[k]) { groups[k] = { bab:r.bab, title:r.bab_title, byTopik:{}, topikOrder:[] }; babOrder.push(k); }
+        const g = groups[k];
+        const tk = (r.no||'') + '||' + (r.topik||'');
+        if (!g.byTopik[tk]) { g.byTopik[tk] = { no:r.no, topik:r.topik, rows:[] }; g.topikOrder.push(tk); }
+        g.byTopik[tk].rows.push(r);
       });
 
-      const wrapText = (text, maxW, fontSize, font) => {
-        const words = String(text || '').split(' ');
-        const lines = [];
-        let line = '';
-        for (const word of words) {
-          const test = line ? line + ' ' + word : word;
-          if (font.widthOfTextAtSize(test, fontSize) > maxW) {
-            if (line) lines.push(line);
-            line = word;
-          } else {
-            line = test;
-          }
-        }
-        if (line) lines.push(line);
-        return lines;
-      };
+      let rowIdx = 0;
 
       for (const bk of babOrder) {
         const g = groups[bk];
-        checkY(30);
+
         // Bab header
-        page.drawRectangle({ x: ML, y: y - 4, width: W - ML - MR, height: 18, color: GREEN });
-        page.drawText(`${g.bab || ''}  ${g.title || ''}`, { x: ML + 6, y: y + 2, font: fontBold, size: 9, color: rgb(1,1,1) });
-        y -= 22;
+        checkSpace(20);
+        page.drawRectangle({ x:ML, y:y-12, width:tableW, height:15, color:rgb(0.9,0.95,0.91) });
+        page.drawText(`${g.bab||''}  ${g.title||''}`,
+          { x:ML+5, y:y-8, font:fBold, size:8.5, color:GREEN });
+        y -= 17;
 
-        for (const item of g.items) {
-          const topikLabel = `${item.no || '•'}.  ${item.topik || ''}${item.poin ? ' - ' + item.poin + '. ' + (item.poin_title || '') : ''}`;
+        for (const tk of g.topikOrder) {
+          const topik = g.byTopik[tk];
+          const subRows = topik.rows;
+          const firstPoin = subRows[0];
 
-          for (const bulan of monthsToShow) {
-            const col = bulan.toLowerCase();
-            const val = item[col] || '';
-            if (!val) continue;
+          // Hitung tinggi baris pertama (topik + poin pertama)
+          const topikLines = wrap(topik.topik, COL_TOPIK - 6, 8, fBold);
+          const poinTLines = wrap(firstPoin.poin_title, COL_POIN_TITLE - 6, 8, fReg);
+          const bulanLines = monthsToShow.map(m => wrap(firstPoin[m.toLowerCase()], COL_BULAN - 6, 8, fReg));
+          const maxLines0 = Math.max(topikLines.length, poinTLines.length, ...bulanLines.map(b => b.length));
+          const ROW_H0 = maxLines0 * 10 + 6;
 
-            checkY(24);
+          checkSpace(ROW_H0);
 
-            // Topik
-            const topikLines = wrapText(topikLabel, 200, 8, fontBold);
-            const valLines = wrapText(val, 300, 8, fontReg);
-            const rowH = Math.max(topikLines.length, valLines.length) * 11 + 8;
+          // Background baris
+          const bg = rowIdx % 2 === 0 ? CREAM : WHITE;
+          page.drawRectangle({ x:ML, y:y-ROW_H0+2, width:tableW, height:ROW_H0, color:bg });
 
-            checkY(rowH);
+          let cx = ML;
 
-            // Background alternating
-            if (g.items.indexOf(item) % 2 === 0) {
-              page.drawRectangle({ x: ML, y: y - rowH + 4, width: W - ML - MR, height: rowH, color: rgb(0.97,0.97,0.97) });
+          // No
+          page.drawText(String(topik.no||'•'), { x:cx+3, y:y-8, font:fBold, size:8, color:GREEN });
+          cx += COL_NO;
+
+          // Topik (span semua poin di bawahnya)
+          topikLines.forEach((l,i) => {
+            page.drawText(l, { x:cx+3, y:y-8-i*10, font:fBold, size:8, color:GREEN });
+          });
+          cx += COL_TOPIK;
+
+          // Poin pertama
+          const drawPoinRow = (r, yStart, withBg) => {
+            let cx2 = ML + COL_NO + COL_TOPIK;
+            if (withBg) {
+              const bg2 = rowIdx % 2 === 0 ? CREAM : WHITE;
+              const ptL = wrap(r.poin_title, COL_POIN_TITLE-6, 8, fReg);
+              const bL  = monthsToShow.map(m => wrap(r[m.toLowerCase()], COL_BULAN-6, 8, fReg));
+              const mxL = Math.max(ptL.length, ...bL.map(b=>b.length));
+              const rh  = mxL*10+6;
+              page.drawRectangle({ x:ML, y:yStart-rh+2, width:tableW, height:rh, color:bg2 });
             }
-
-            // Topik text
-            topikLines.forEach((l, i) => {
-              page.drawText(l, { x: ML + 4, y: y - i * 11, font: fontBold, size: 8, color: GREEN });
+            // Poin huruf
+            page.drawText(r.poin ? r.poin+'.' : '', { x:cx2+2, y:yStart-8, font:fBold, size:8, color:GOLD });
+            cx2 += COL_POIN;
+            // Poin title
+            const ptLines = wrap(r.poin_title, COL_POIN_TITLE-6, 8, fReg);
+            ptLines.forEach((l,i) => page.drawText(l, { x:cx2+3, y:yStart-8-i*10, font:fReg, size:8, color:rgb(0.2,0.2,0.2) }));
+            cx2 += COL_POIN_TITLE;
+            // Bulan
+            monthsToShow.forEach(m => {
+              const bLines = wrap(r[m.toLowerCase()], COL_BULAN-6, 8, fReg);
+              bLines.forEach((l,i) => page.drawText(l, { x:cx2+3, y:yStart-8-i*10, font:fReg, size:8, color:rgb(0.15,0.15,0.15) }));
+              cx2 += COL_BULAN;
             });
+          };
 
-            // Bulan label
-            if (monthsToShow.length > 1) {
-              page.drawText(bulan, { x: ML + 210, y, font: fontBold, size: 7.5, color: GOLD });
-            }
+          drawPoinRow(firstPoin, y, false);
+          y -= ROW_H0;
+          rowIdx++;
 
-            // Nilai
-            const valY = monthsToShow.length > 1 ? y - 9 : y;
-            valLines.forEach((l, i) => {
-              page.drawText(l, { x: ML + 210, y: valY - i * 11, font: fontReg, size: 8, color: rgb(0.2,0.2,0.2) });
-            });
-
-            y -= rowH;
+          // Sub-baris poin berikutnya (b, c, d, ...)
+          for (let si = 1; si < subRows.length; si++) {
+            const r = subRows[si];
+            const ptL = wrap(r.poin_title, COL_POIN_TITLE-6, 8, fReg);
+            const bL  = monthsToShow.map(m => wrap(r[m.toLowerCase()], COL_BULAN-6, 8, fReg));
+            const mxL = Math.max(ptL.length, ...bL.map(b=>b.length));
+            const rh  = mxL*10+6;
+            checkSpace(rh);
+            rowIdx++;
+            drawPoinRow(r, y, true);
+            y -= rh;
           }
+
+          // Garis tipis antar topik
+          page.drawLine({ start:{x:ML,y:y+1}, end:{x:PW-MR,y:y+1}, thickness:0.3, color:rgb(0.85,0.85,0.85) });
         }
-        y -= 6;
+
+        y -= 4;
       }
 
-      // Footer tiap halaman
+      // Footer halaman terakhir
       const pages = doc.getPages();
       pages.forEach((p, i) => {
-        p.drawText(`Halaman ${i + 1} / ${pages.length}  ·  PPG Sidoarjo Utara`, {
-          x: ML, y: 24, font: fontReg, size: 7.5, color: GRAY
-        });
+        p.drawText(`Halaman ${i+1} / ${pages.length}  ·  ${ks.jenjang}  ·  PPG Sidoarjo Utara`,
+          { x: ML, y: MB, font: fReg, size: 7, color: GRAY });
       });
 
-      const pdfBytes = await doc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type:'application/pdf' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
       a.href = url;
-      a.download = `Materi_${ks.jenjang.replace(' ','_')}_${monthsToShow.length === 1 ? monthsToShow[0] : 'Sem'+ks.sem}.pdf`;
+      a.download = `Materi_${ks.jenjang.replace(/ /g,'_')}_${monthsToShow.length===1?monthsToShow[0]:'Sem'+ks.sem}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       showToast('PDF berhasil diunduh ✓');
     } catch(e) {
       showToast('Gagal membuat PDF: ' + e.message, true);
-      console.error(e);
+      console.error('PDF error:', e);
     }
   };
   window.KUR_toggleProgress = async (materiId, bulan, el) => {
