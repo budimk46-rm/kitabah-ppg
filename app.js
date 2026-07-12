@@ -1210,7 +1210,15 @@ async function renderSantri() {
             </div>
           </div>
           ${selectedKelasId ? `
-          <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>` : ''}
+          <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
+          <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()" title="Import dari Excel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import Excel
+          </button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="STR_downloadTemplate()" title="Unduh template Excel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Template Excel
+          </button>
         </div>
       </div>
 
@@ -1238,6 +1246,19 @@ async function renderSantri() {
   window.STR_addSantri = () => openAddSantriModal(selectedKelasId, null, async () => {
     await loadSantri(selectedKelasId);
   });
+
+  // ── Download template Excel ────────────────────────────────
+  window.STR_downloadTemplate = () => {
+    window.open('https://budimk46-rm.github.io/kitabah-ppg/Template_Data_Generus.xlsx', '_blank');
+  };
+
+  // ── Upload Excel ───────────────────────────────────────────
+  window.STR_uploadExcel = () => {
+    if (!selectedKelasId) { showToast('Pilih kelas terlebih dahulu', true); return; }
+    openImportExcelModal(selectedKelasId, selectedKelompokId, async () => {
+      await loadSantri(selectedKelasId);
+    });
+  };
   window.STR_edit = (jsonStr) => {
     const s = JSON.parse(JSON.parse(jsonStr));
     openAddSantriModal(selectedKelasId, s, async () => await loadSantri(selectedKelasId));
@@ -1798,6 +1819,179 @@ function openAddPertemuanModal(kelasId, onSaved) {
     onSaved();
   };
   openModal('pertemuanModal');
+}
+
+
+/* ===== IMPORT EXCEL ===== */
+async function openImportExcelModal(kelasId, kelompokId, onDone) {
+  // Lazy load SheetJS
+  if (!window.XLSX) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  let el = document.getElementById('importExcelModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'importExcelModal';
+    el.className = 'modal-overlay';
+    document.body.appendChild(el);
+  }
+
+  el.innerHTML = `<div class="modal modal-lg">
+    <div class="modal-head">
+      <h3 class="modal-title">Import Data Generus dari Excel</h3>
+      <button class="modal-close" onclick="closeModal('importExcelModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:16px; font-size:13px; color:var(--green);">
+        <b>Petunjuk:</b> Upload file Excel yang sudah diisi sesuai template. Sistem akan memvalidasi tiap baris sebelum menyimpan.
+      </div>
+      <div id="importDropZone"
+        style="border:2px dashed var(--line); border-radius:var(--radius); padding:32px; text-align:center; cursor:pointer; transition:all .15s;"
+        onclick="document.getElementById('importFileInput').click()"
+        ondragover="event.preventDefault(); this.style.borderColor='var(--green)'; this.style.background='var(--green-soft)';"
+        ondragleave="this.style.borderColor='var(--line)'; this.style.background='';"
+        ondrop="event.preventDefault(); this.style.borderColor='var(--line)'; this.style.background=''; handleImportDrop(event);">
+        <div style="font-size:32px; margin-bottom:8px;">📊</div>
+        <div style="font-weight:700; color:var(--green); margin-bottom:4px;">Klik atau drag file Excel di sini</div>
+        <div style="font-size:12px; color:var(--ink-soft);">Format: .xlsx · Template bisa diunduh dari tombol "Template Excel"</div>
+        <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none"
+          onchange="handleImportFile(this.files[0])">
+      </div>
+      <div id="importPreview" style="margin-top:16px; display:none;">
+        <div id="importStats" style="margin-bottom:10px;"></div>
+        <div id="importTable" style="max-height:280px; overflow-y:auto;"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('importExcelModal')">Batal</button>
+      <button class="btn btn-green" id="importSaveBtn" style="display:none;" onclick="doImportSave()">
+        Simpan ke Database
+      </button>
+    </div>
+  </div>`;
+
+  let parsedRows = [];
+
+  window.handleImportDrop = (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file) handleImportFile(file);
+  };
+
+  window.handleImportFile = async (file) => {
+    if (!file) return;
+    document.getElementById('importPreview').style.display = 'none';
+    document.getElementById('importSaveBtn').style.display = 'none';
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = window.XLSX.read(buf, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = window.XLSX.utils.sheet_to_json(ws, {
+        range: 4, defval: '', raw: false, dateNF: 'yyyy-mm-dd',
+      });
+
+      parsedRows = [];
+      raw.forEach((row, i) => {
+        const rowNum = i + 5;
+        const nama     = String(row['Nama Lengkap *'] || '').trim();
+        const tglLahir = String(row['Tanggal Lahir *\n(YYYY-MM-DD)'] || row['Tanggal Lahir *'] || '').trim();
+        const jk       = String(row['Jenis Kelamin *\n(L/P)'] || row['Jenis Kelamin *'] || '').trim().toUpperCase();
+        const tingk    = String(row['Tingkatan\n(isi jika override)'] || row['Tingkatan'] || '').trim().toLowerCase();
+        const ortu     = String(row['Nama Orang Tua *'] || '').trim();
+        const nis      = String(row['NIS\n(opsional)'] || row['NIS'] || '').trim();
+        if (!nama && !tglLahir) return;
+
+        const rowErrors = [];
+        if (!nama) rowErrors.push('Nama kosong');
+        if (!tglLahir || !/^\d{4}-\d{2}-\d{2}$/.test(tglLahir)) rowErrors.push('Format tgl lahir salah (harus YYYY-MM-DD)');
+        if (jk && !['L','P'].includes(jk)) rowErrors.push('Jenis kelamin harus L atau P');
+        if (tingk && !['caberawit','pra_remaja','remaja','pra_nikah'].includes(tingk)) rowErrors.push('Tingkatan tidak valid');
+
+        const tingkatanOtomatis = tglLahir ? hitungTingkatan(tglLahir) : '';
+        const tingkatanFinal = tingk || tingkatanOtomatis;
+        let warningOverride = '';
+        if (tingk && tingkatanOtomatis && tingk !== tingkatanOtomatis) {
+          warningOverride = `⚠ Override (seharusnya: ${TINGKATAN_LABELS[tingkatanOtomatis]||tingkatanOtomatis})`;
+        }
+
+        parsedRows.push({
+          _rowNum: rowNum, _errors: rowErrors, _warning: warningOverride,
+          nama, tgl_lahir: tglLahir, jenis_kel: jk || null,
+          tingkatan: tingkatanFinal || null, tingkatan_override: !!tingk,
+          nama_ortu: ortu || null, nis: nis || null,
+          kelas_id: kelasId, aktif: true,
+        });
+      });
+
+      if (!parsedRows.length) { showToast('Tidak ada data. Pastikan data dimulai baris ke-5.', true); return; }
+
+      const valid = parsedRows.filter(r => !r._errors.length);
+      const invalid = parsedRows.filter(r => r._errors.length);
+
+      document.getElementById('importStats').innerHTML = `
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <span class="badge badge-green">${valid.length} baris valid ✓</span>
+          ${invalid.length ? `<span class="badge badge-rose">${invalid.length} baris error ✗</span>` : ''}
+          <span class="badge badge-gray">${parsedRows.length} total</span>
+        </div>`;
+
+      document.getElementById('importTable').innerHTML = `
+        <table style="width:100%; font-size:12px; border-collapse:collapse;">
+          <thead><tr style="background:var(--green); color:#fff;">
+            <th style="padding:7px;">Baris</th><th style="padding:7px; text-align:left;">Nama</th>
+            <th style="padding:7px;">Tgl Lahir</th><th style="padding:7px;">L/P</th>
+            <th style="padding:7px;">Tingkatan</th><th style="padding:7px; text-align:left;">Status</th>
+          </tr></thead>
+          <tbody>${parsedRows.map(r => {
+            const bg = r._errors.length ? 'var(--rose-soft)' : r._warning ? 'var(--gold-soft)' : '';
+            return `<tr style="background:${bg}; border-bottom:1px solid var(--line);">
+              <td style="padding:6px; text-align:center;">${r._rowNum}</td>
+              <td style="padding:6px;"><b>${escHtml(r.nama)}</b></td>
+              <td style="padding:6px; text-align:center;">${escHtml(r.tgl_lahir)}</td>
+              <td style="padding:6px; text-align:center;">${escHtml(r.jenis_kel||'—')}</td>
+              <td style="padding:6px; text-align:center;">${escHtml(TINGKATAN_LABELS[r.tingkatan]||r.tingkatan||'—')}</td>
+              <td style="padding:6px; font-size:11px; color:${r._errors.length?'var(--rose)':r._warning?'#8a6a24':'var(--green)'};">
+                ${r._errors.length ? '✗ '+r._errors.join(', ') : r._warning || '✓ OK'}
+              </td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+
+      document.getElementById('importPreview').style.display = 'block';
+      if (valid.length) {
+        const btn = document.getElementById('importSaveBtn');
+        btn.style.display = 'flex';
+        btn.textContent = `Simpan ${valid.length} Generus ke Database`;
+      }
+    } catch(e) { showToast('Gagal membaca file: ' + e.message, true); }
+  };
+
+  window.doImportSave = async () => {
+    const valid = parsedRows.filter(r => !r._errors.length);
+    if (!valid.length) return;
+    const btn = document.getElementById('importSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    let berhasil = 0, gagal = 0;
+    for (let i = 0; i < valid.length; i += 20) {
+      const batch = valid.slice(i, i+20).map(r => ({
+        nama: r.nama, tgl_lahir: r.tgl_lahir, jenis_kel: r.jenis_kel,
+        tingkatan: r.tingkatan, tingkatan_override: r.tingkatan_override,
+        nama_ortu: r.nama_ortu, nis: r.nis, kelas_id: r.kelas_id, aktif: true,
+      }));
+      try { await SB.santri.insert(batch); berhasil += batch.length; }
+      catch(e) { gagal += batch.length; console.error(e); }
+    }
+    showToast(`Import selesai: ${berhasil} berhasil${gagal?', '+gagal+' gagal':''}`);
+    closeModal('importExcelModal');
+    onDone();
+  };
+
+  openModal('importExcelModal');
 }
 
 /* ===== SVG ICONS ===== */
