@@ -1891,21 +1891,41 @@ async function openImportExcelModal(kelasId, kelompokId, onDone) {
       const buf = await file.arrayBuffer();
       const wb = window.XLSX.read(buf, { type: 'array', cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = window.XLSX.utils.sheet_to_json(ws, {
-        range: 4, defval: '', raw: false, dateNF: 'yyyy-mm-dd',
-      });
 
+      // Baca semua cell secara raw, mapping kolom:
+      // A=No, B=Nama, C=TglLahir, D=JK, E=Tingkatan, F=Ortu, G=NIS, H=NamaKelas, I=Jenjang, J=Semester
+      // Data mulai baris 5, baris 5-6 adalah CONTOH — kita deteksi otomatis
+      const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1:J36');
       parsedRows = [];
-      raw.forEach((row, i) => {
-        const rowNum = i + 5;
-        const nama     = String(row['Nama Lengkap *'] || '').trim();
-        const tglLahir = String(row['Tanggal Lahir *\n(YYYY-MM-DD)'] || row['Tanggal Lahir *'] || '').trim();
-        const jk       = String(row['Jenis Kelamin *\n(L/P)'] || row['Jenis Kelamin *'] || '').trim().toUpperCase();
-        const tingk    = String(row['Tingkatan\n(isi jika override)'] || row['Tingkatan'] || '').trim().toLowerCase();
-        const ortu     = String(row['Nama Orang Tua *'] || '').trim();
-        const nis      = String(row['NIS\n(opsional)'] || row['NIS'] || '').trim();
-        if (!nama && !tglLahir) return;
 
+      for (let r = 4; r <= range.e.r; r++) { // r=4 → baris ke-5 (0-indexed)
+        const getCell = (col) => {
+          const addr = window.XLSX.utils.encode_cell({ r, c: col });
+          const cell = ws[addr];
+          if (!cell) return '';
+          // Format tanggal jadi YYYY-MM-DD
+          if (cell.t === 'd') {
+            const d = cell.v;
+            return d.getFullYear() + '-' +
+              String(d.getMonth()+1).padStart(2,'0') + '-' +
+              String(d.getDate()).padStart(2,'0');
+          }
+          return String(cell.v || '').trim();
+        };
+
+        const nama     = getCell(1); // Kolom B
+        const tglLahir = getCell(2); // Kolom C
+        const jk       = getCell(3).toUpperCase(); // Kolom D
+        const tingk    = getCell(4).toLowerCase(); // Kolom E
+        const ortu     = getCell(5); // Kolom F
+        const nis      = getCell(6); // Kolom G
+
+        // Skip baris kosong
+        if (!nama && !tglLahir) continue;
+        // Skip baris yang isinya sama persis dengan contoh (deteksi otomatis)
+        if (nama === 'Ahmad Fulan bin Budi' || nama === 'Siti Aminah binti Darto') continue;
+
+        const rowNum = r + 1; // 1-indexed untuk display
         const rowErrors = [];
         if (!nama) rowErrors.push('Nama kosong');
         if (!tglLahir || !/^\d{4}-\d{2}-\d{2}$/.test(tglLahir)) rowErrors.push('Format tgl lahir salah (harus YYYY-MM-DD)');
@@ -1926,7 +1946,7 @@ async function openImportExcelModal(kelasId, kelompokId, onDone) {
           nama_ortu: ortu || null, nis: nis || null,
           kelas_id: kelasId, aktif: true,
         });
-      });
+      }
 
       if (!parsedRows.length) { showToast('Tidak ada data. Pastikan data dimulai baris ke-5.', true); return; }
 
