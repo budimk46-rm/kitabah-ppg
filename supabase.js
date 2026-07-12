@@ -92,7 +92,17 @@ const sbDesa = {
 
 // ============ MATERI ============
 const sbMateri = {
-  getAll: () => sbFetch('materi?select=*&order=jenjang,semester,bab,no&limit=2000'),
+  getAll: async () => {
+    // Ambil per-jenjang untuk menghindari batas 1000 baris
+    const JENJANG = ['PAUD TK','SD 1','SD 2','SD 3','SD 4','SD 5','SD 6',
+      'SMP 1','SMP 2','SMP 3','SMA 1','SMA 2','SMA 3','PRA 1','PRA 2','PRA 3','PRA 4'];
+    const results = await Promise.all(
+      JENJANG.map(j =>
+        sbFetch(`materi?jenjang=eq.${encodeURIComponent(j)}&select=*&order=semester,bab,no&limit=500`)
+      )
+    );
+    return results.flat();
+  },
   getByJenjang: (jenjang, semester) =>
     sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=bab,no&limit=500`),
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
