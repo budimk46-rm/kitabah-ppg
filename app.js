@@ -1719,6 +1719,25 @@ function openAddSantriModal(kelasId, existingSantri, onSaved) {
     if (!nama) { showToast('Nama lengkap wajib diisi', true); return; }
     if (!tgl_lahir) { showToast('Tanggal lahir wajib diisi', true); return; }
 
+    // Validasi: bandingkan tingkatan yang dipilih vs otomatis dari usia
+    if (tingkatan_override && tingkatan) {
+      const tingkatanOtomatis = hitungTingkatan(tgl_lahir);
+      if (tingkatanOtomatis && tingkatan !== tingkatanOtomatis) {
+        const usia = hitungUsia(tgl_lahir);
+        const labelPilih = TINGKATAN_LABELS[tingkatan] || tingkatan;
+        const labelSeharusnya = TINGKATAN_LABELS[tingkatanOtomatis] || tingkatanOtomatis;
+        const lanjut = confirm(
+          `⚠️ Perhatian!\n\n` +
+          `Berdasarkan tanggal lahir, usia generus ini adalah ${usia} tahun.\n` +
+          `Tingkatan yang seharusnya: ${labelSeharusnya}\n` +
+          `Tingkatan yang dipilih: ${labelPilih}\n\n` +
+          `Apakah Anda yakin ingin tetap menggunakan "${labelPilih}"?\n` +
+          `Klik OK untuk lanjut, atau Batal untuk mengubah pilihan.`
+        );
+        if (!lanjut) return;
+      }
+    }
+
     const btn = document.getElementById('strSaveBtn');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
 
