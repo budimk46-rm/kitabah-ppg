@@ -636,6 +636,10 @@ async function renderKurikulum() {
             <input type="search" placeholder="Cari..." value="${escHtml(searchQ)}"
               oninput="KUR_search(this.value)"
               style="padding:8px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; width:140px;">
+            <button class="btn btn-outline btn-sm" onclick="KUR_downloadPDF()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              PDF
+            </button>
             ${isAdmin ? `<button class="btn btn-gold btn-sm" onclick="KUR_addNew()">+ Tambah</button>` : ''}
           </div>
         </div>
@@ -658,6 +662,179 @@ async function renderKurikulum() {
   window.KUR_setSem = async (s) => { App.kurState.sem = s; App.kurState.month = null; App.cache.materi = null; await renderKurikulum(); };
   window.KUR_setMonth = (m) => { App.kurState.month = m; render(); };
   window.KUR_search = (q) => { App.kurState.search = q; render(); };
+
+  window.KUR_downloadPDF = async () => {
+    const ks = App.kurState;
+    const months = ks.sem === '1' ? SEM1_MONTHS : SEM2_MONTHS;
+    const monthsToShow = ks.month ? [ks.month] : months;
+    const filtered = (App.cache.materi || []).filter(r =>
+      r.jenjang === ks.jenjang && String(r.semester) === String(ks.sem)
+    );
+    if (!filtered.length) { showToast('Tidak ada materi untuk di-download', true); return; }
+
+    showToast('Menyiapkan PDF...');
+
+    // Lazy load pdf-lib dari CDN
+    if (!window.PDFLib) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = resolve;
+        s.onerror = () => {
+          // Fallback CDN
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s2.onload = resolve;
+          s2.onerror = reject;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      });
+    }
+
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fontReg = await doc.embedFont(StandardFonts.Helvetica);
+
+      const W = 595, H = 842; // A4
+      const ML = 40, MR = 40, MT = 50;
+      const GREEN = rgb(0.106, 0.227, 0.173);
+      const GOLD  = rgb(0.757, 0.604, 0.294);
+      const GRAY  = rgb(0.4, 0.4, 0.4);
+
+      let page = doc.addPage([W, H]);
+      let y = H - MT;
+
+      const newPage = () => {
+        page = doc.addPage([W, H]);
+        y = H - MT;
+      };
+
+      const checkY = (needed) => { if (y < needed + 40) newPage(); };
+
+      // Header
+      const drawHeader = () => {
+        page.drawText('PENGGERAK PEMBINA GENERUS', { x: ML, y, font: fontBold, size: 13, color: GREEN });
+        y -= 16;
+        page.drawText('SIDOARJO UTARA', { x: ML, y, font: fontBold, size: 11, color: GREEN });
+        y -= 10;
+        page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 1.5, color: GREEN });
+        y -= 6;
+        page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 0.5, color: GREEN });
+        y -= 18;
+        page.drawText('TARGET PENCAPAIAN MATERI GENERUS', { x: ML, y, font: fontBold, size: 11, color: GREEN });
+        y -= 16;
+        const bulanLabel = monthsToShow.length === 1 ? `Bulan ${monthsToShow[0]}` : `Semester ${ks.sem}`;
+        page.drawText(`${ks.jenjang} · ${bulanLabel}`, { x: ML, y, font: fontReg, size: 9, color: GRAY });
+        y -= 16;
+        page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 0.5, color: GREEN });
+        y -= 12;
+      };
+
+      drawHeader();
+
+      // Group by bab
+      const groups = {};
+      const babOrder = [];
+      filtered.forEach(r => {
+        const k = (r.bab || '') + '||' + (r.bab_title || '');
+        if (!groups[k]) { groups[k] = { bab: r.bab, title: r.bab_title, items: [] }; babOrder.push(k); }
+        groups[k].items.push(r);
+      });
+
+      const wrapText = (text, maxW, fontSize, font) => {
+        const words = String(text || '').split(' ');
+        const lines = [];
+        let line = '';
+        for (const word of words) {
+          const test = line ? line + ' ' + word : word;
+          if (font.widthOfTextAtSize(test, fontSize) > maxW) {
+            if (line) lines.push(line);
+            line = word;
+          } else {
+            line = test;
+          }
+        }
+        if (line) lines.push(line);
+        return lines;
+      };
+
+      for (const bk of babOrder) {
+        const g = groups[bk];
+        checkY(30);
+        // Bab header
+        page.drawRectangle({ x: ML, y: y - 4, width: W - ML - MR, height: 18, color: GREEN });
+        page.drawText(`${g.bab || ''}  ${g.title || ''}`, { x: ML + 6, y: y + 2, font: fontBold, size: 9, color: rgb(1,1,1) });
+        y -= 22;
+
+        for (const item of g.items) {
+          const topikLabel = `${item.no || '•'}.  ${item.topik || ''}${item.poin ? ' - ' + item.poin + '. ' + (item.poin_title || '') : ''}`;
+
+          for (const bulan of monthsToShow) {
+            const col = bulan.toLowerCase();
+            const val = item[col] || '';
+            if (!val) continue;
+
+            checkY(24);
+
+            // Topik
+            const topikLines = wrapText(topikLabel, 200, 8, fontBold);
+            const valLines = wrapText(val, 300, 8, fontReg);
+            const rowH = Math.max(topikLines.length, valLines.length) * 11 + 8;
+
+            checkY(rowH);
+
+            // Background alternating
+            if (g.items.indexOf(item) % 2 === 0) {
+              page.drawRectangle({ x: ML, y: y - rowH + 4, width: W - ML - MR, height: rowH, color: rgb(0.97,0.97,0.97) });
+            }
+
+            // Topik text
+            topikLines.forEach((l, i) => {
+              page.drawText(l, { x: ML + 4, y: y - i * 11, font: fontBold, size: 8, color: GREEN });
+            });
+
+            // Bulan label
+            if (monthsToShow.length > 1) {
+              page.drawText(bulan, { x: ML + 210, y, font: fontBold, size: 7.5, color: GOLD });
+            }
+
+            // Nilai
+            const valY = monthsToShow.length > 1 ? y - 9 : y;
+            valLines.forEach((l, i) => {
+              page.drawText(l, { x: ML + 210, y: valY - i * 11, font: fontReg, size: 8, color: rgb(0.2,0.2,0.2) });
+            });
+
+            y -= rowH;
+          }
+        }
+        y -= 6;
+      }
+
+      // Footer tiap halaman
+      const pages = doc.getPages();
+      pages.forEach((p, i) => {
+        p.drawText(`Halaman ${i + 1} / ${pages.length}  ·  PPG Sidoarjo Utara`, {
+          x: ML, y: 24, font: fontReg, size: 7.5, color: GRAY
+        });
+      });
+
+      const pdfBytes = await doc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Materi_${ks.jenjang.replace(' ','_')}_${monthsToShow.length === 1 ? monthsToShow[0] : 'Sem'+ks.sem}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('PDF berhasil diunduh ✓');
+    } catch(e) {
+      showToast('Gagal membuat PDF: ' + e.message, true);
+      console.error(e);
+    }
+  };
   window.KUR_toggleProgress = async (materiId, bulan, el) => {
     if (!App.user.kelompok_id) return;
     el.disabled = true;
