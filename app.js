@@ -26,6 +26,13 @@ const App = {
   user: null,
   session: null,
   currentPage: 'dashboard',
+  // State kurikulum disimpan di level App supaya tidak terjebak closure
+  kurState: {
+    jenjang: 'PAUD TK',
+    sem: '1',
+    month: null,
+    search: '',
+  },
   cache: {
     materi: null,
     kelompok: null,
@@ -448,16 +455,16 @@ async function renderKurikulum() {
     App.cache.myProgress = { set: progressSet, raw: prog };
   }
 
-  // State filter
-  let currentJenjang = JENJANG_ORDER[0];
-  let currentSem = '1';
-  let currentMonth = null;
-  let searchQ = '';
-
-  const isAdmin = App.user.role === 'admin';
-  const isKelompok = App.user.role === 'kelompok' || App.user.role === 'pjp_kelompok';
+  // Gunakan App.kurState supaya state tidak terjebak di closure lama
+  const ks = App.kurState;
 
   function render() {
+    const currentJenjang = ks.jenjang;
+    const currentSem = ks.sem;
+    const currentMonth = ks.month;
+    const searchQ = ks.search;
+    const isAdmin = App.user.role === 'admin';
+    const isKelompok = App.user.role === 'kelompok' || App.user.role === 'pjp_kelompok';
     const months = currentSem === '1' ? SEM1_MONTHS : SEM2_MONTHS;
     const monthsToShow = currentMonth ? [currentMonth] : months;
 
@@ -602,10 +609,10 @@ async function renderKurikulum() {
   }
 
   // Expose state setters ke global
-  window.KUR_setJenjang = (j) => { currentJenjang = j; currentSem = '1'; currentMonth = null; render(); };
-  window.KUR_setSem = (s) => { currentSem = s; currentMonth = null; render(); };
-  window.KUR_setMonth = (m) => { currentMonth = m; render(); };
-  window.KUR_search = (q) => { searchQ = q; render(); };
+  window.KUR_setJenjang = (j) => { App.kurState.jenjang = j; App.kurState.sem = '1'; App.kurState.month = null; render(); };
+  window.KUR_setSem = (s) => { App.kurState.sem = s; App.kurState.month = null; render(); };
+  window.KUR_setMonth = (m) => { App.kurState.month = m; render(); };
+  window.KUR_search = (q) => { App.kurState.search = q; render(); };
   window.KUR_toggleProgress = async (materiId, bulan, el) => {
     if (!App.user.kelompok_id) return;
     el.disabled = true;
