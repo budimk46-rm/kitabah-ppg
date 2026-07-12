@@ -29,8 +29,8 @@ const App = {
   // State kurikulum disimpan di level App supaya tidak terjebak closure
   kurState: {
     jenjang: 'PAUD TK',
-    sem: '1',
-    month: null,
+    sem: (new Date().getMonth() + 1) >= 7 ? '1' : '2', // Juli-Des = Sem 1, Jan-Jun = Sem 2
+    month: new Date().toLocaleDateString('id-ID', {month:'long'}), // default bulan berjalan
     search: '',
   },
   cache: {
@@ -573,44 +573,82 @@ async function renderKurikulum() {
       <p class="empty-desc">Coba ubah jenjang atau kata pencarian</p>
     </div>`;
 
+    // Jenjang selector — scroll horizontal di mobile
+    const jenjangBarHtml = JENJANG_ORDER.map(j => {
+      const isActive = j === currentJenjang;
+      return `<button onclick="KUR_setJenjang('${j.replace(/'/g,"\\'")}'"
+        style="padding:8px 14px; border-radius:20px; white-space:nowrap; flex-shrink:0;
+          background:${isActive?'var(--green)':'var(--white)'};
+          color:${isActive?'#fff':'var(--ink-soft)'};
+          border:1.5px solid ${isActive?'var(--green)':'var(--line)'};
+          font-size:12.5px; font-weight:700; cursor:pointer; transition:all .15s;">
+        ${escHtml(j)}
+      </button>`;
+    }).join('');
+
+    // Bulan selector — bulan berjalan sebagai default
+    const monthBarHtml = `
+      <div onclick="KUR_setMonth(null)" style="padding:7px 13px; border-radius:20px; white-space:nowrap; flex-shrink:0;
+        border:1.5px solid ${currentMonth===null?'var(--green)':'var(--line)'};
+        background:${currentMonth===null?'var(--green)':'var(--white)'};
+        color:${currentMonth===null?'#fff':'var(--ink-soft)'};
+        font-size:12px; font-weight:700; cursor:pointer; transition:all .15s;">
+        Semua Bulan
+      </div>
+      ${months.map(m => `
+        <div onclick="KUR_setMonth('${m}')" style="padding:7px 13px; border-radius:20px; white-space:nowrap; flex-shrink:0;
+          border:1.5px solid ${currentMonth===m?'var(--green)':'var(--line)'};
+          background:${currentMonth===m?'var(--green)':'var(--white)'};
+          color:${currentMonth===m?'#fff':'var(--ink-soft)'};
+          font-size:12px; font-weight:700; cursor:pointer; transition:all .15s;">
+          ${m}${m===currentMonthName()?' ●':''}
+        </div>`).join('')}`;
+
     main.innerHTML = `
-      <div style="display:grid; grid-template-columns:220px 1fr; gap:18px; min-height:calc(100vh - 100px);">
-        <div style="display:flex; flex-direction:column; gap:0;">
-          <div class="card" style="padding:12px;">
-            <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); padding:4px 10px 10px;">Semester</div>
-            <div style="display:flex; gap:6px; padding:0 4px 8px;">
-              <button onclick="KUR_setSem('1')" style="flex:1; padding:8px; border-radius:6px; background:${currentSem==='1'?'var(--green)':'var(--cream-2)'}; color:${currentSem==='1'?'#fff':'var(--ink-soft)'}; font-size:12px; font-weight:700; border:none; cursor:pointer; transition:all .15s;">Sem 1</button>
-              <button onclick="KUR_setSem('2')" style="flex:1; padding:8px; border-radius:6px; background:${currentSem==='2'?'var(--green)':'var(--cream-2)'}; color:${currentSem==='2'?'#fff':'var(--ink-soft)'}; font-size:12px; font-weight:700; border:none; cursor:pointer; transition:all .15s;">Sem 2</button>
+      <div style="max-width:100%;">
+
+        <!-- Bar jenjang: scroll horizontal -->
+        <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:12px;
+          scrollbar-width:none; -ms-overflow-style:none;">
+          ${jenjangBarHtml}
+        </div>
+
+        <!-- Header info + search + semester -->
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <div style="flex:1; min-width:0;">
+            <h1 style="font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--green); margin:0 0 2px;">
+              ${escHtml(currentJenjang)}
+            </h1>
+            <div style="font-size:12px; color:var(--ink-soft);">
+              ${filtered.length} materi ·
+              <button onclick="KUR_setSem('1')" style="background:${currentSem==='1'?'var(--green)':'transparent'}; color:${currentSem==='1'?'#fff':'var(--ink-soft)'}; border:1px solid ${currentSem==='1'?'var(--green)':'var(--line)'}; border-radius:4px; padding:1px 8px; font-size:11px; font-weight:700; cursor:pointer; margin-right:3px;">Sem 1</button>
+              <button onclick="KUR_setSem('2')" style="background:${currentSem==='2'?'var(--green)':'transparent'}; color:${currentSem==='2'?'#fff':'var(--ink-soft)'}; border:1px solid ${currentSem==='2'?'var(--green)':'var(--line)'}; border-radius:4px; padding:1px 8px; font-size:11px; font-weight:700; cursor:pointer;">Sem 2</button>
             </div>
-            <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-soft); padding:8px 10px 10px; border-top:1px solid var(--line);">Jenjang & Kelas</div>
-            <div>${jenjangSidebarHtml}</div>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input type="search" placeholder="Cari..." value="${escHtml(searchQ)}"
+              oninput="KUR_search(this.value)"
+              style="padding:8px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; width:140px;">
+            ${isAdmin ? `<button class="btn btn-gold btn-sm" onclick="KUR_addNew()">+ Tambah</button>` : ''}
           </div>
         </div>
-        <div>
-          <div class="page-header" style="flex-wrap:wrap; gap:10px;">
-            <div>
-              <h1 class="page-title" style="font-size:20px;">${escHtml(currentJenjang)}</h1>
-              <p class="page-subtitle">Semester ${currentSem} · ${months[0]} – ${months[months.length-1]} · ${filtered.length} materi</p>
-            </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-              <input type="search" placeholder="Cari materi..." value="${escHtml(searchQ)}"
-                oninput="KUR_search(this.value)"
-                style="padding:9px 13px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; width:220px;">
-              ${isAdmin ? `<button class="btn btn-gold btn-sm" onclick="KUR_addNew()">+ Tambah Materi</button>` : ''}
-            </div>
-          </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px;">
-            <div onclick="KUR_setMonth(null)" style="padding:7px 13px; border-radius:20px; border:1.5px solid ${currentMonth===null?'var(--green)':'var(--line)'}; background:${currentMonth===null?'var(--green)':'var(--white)'}; color:${currentMonth===null?'#fff':'var(--ink-soft)'}; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s;">Semua Bulan</div>
-            ${months.map(m => `<div onclick="KUR_setMonth('${m}')" style="padding:7px 13px; border-radius:20px; border:1.5px solid ${currentMonth===m?'var(--green)':'var(--line)'}; background:${currentMonth===m?'var(--green)':'var(--white)'}; color:${currentMonth===m?'#fff':'var(--ink-soft)'}; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s;">${m}</div>`).join('')}
-          </div>
-          <div>${cardsHtml}</div>
+
+        <!-- Bar bulan: scroll horizontal, bulan berjalan ditandai -->
+        <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:16px;
+          scrollbar-width:none; -ms-overflow-style:none;">
+          ${monthBarHtml}
         </div>
+
+        <!-- Kartu materi -->
+        <div>${cardsHtml}</div>
       </div>`;
   }
 
   // Expose state setters ke global
-  window.KUR_setJenjang = (j) => { App.kurState.jenjang = j; App.kurState.sem = '1'; App.kurState.month = null; render(); };
-  window.KUR_setSem = (s) => { App.kurState.sem = s; App.kurState.month = null; render(); };
+  // KUR_setJenjang dan KUR_setSem panggil renderKurikulum() ulang
+  // supaya tidak terjebak closure render() dari instance lama
+  window.KUR_setJenjang = async (j) => { App.kurState.jenjang = j; App.kurState.sem = '1'; App.kurState.month = null; await renderKurikulum(); };
+  window.KUR_setSem = async (s) => { App.kurState.sem = s; App.kurState.month = null; await renderKurikulum(); };
   window.KUR_setMonth = (m) => { App.kurState.month = m; render(); };
   window.KUR_search = (q) => { App.kurState.search = q; render(); };
   window.KUR_toggleProgress = async (materiId, bulan, el) => {
