@@ -22,15 +22,21 @@ const ROLE_LABELS = {
 const LOGO_PLACEHOLDER = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><circle cx="30" cy="30" r="30" fill="%231B3A2C"/><text x="30" y="38" text-anchor="middle" fill="%23C19A4B" font-size="20" font-family="Arial" font-weight="bold">PPG</text></svg>';
 
 /* ===== APP STATE ===== */
+// Tentukan bulan dan semester berjalan
+const _nowMonth = new Date().getMonth(); // 0=Jan, 6=Jul
+const _SEM1_M = ['Juli','Agustus','September','Oktober','November','Desember'];
+const _SEM2_M = ['Januari','Februari','Maret','April','Mei','Juni'];
+const _defaultSem = _nowMonth >= 6 ? '1' : '2'; // Juli(6)-Des(11)=Sem1, Jan(0)-Jun(5)=Sem2
+const _defaultMonth = _nowMonth >= 6 ? _SEM1_M[_nowMonth - 6] : _SEM2_M[_nowMonth];
+
 const App = {
   user: null,
   session: null,
   currentPage: 'dashboard',
-  // State kurikulum disimpan di level App supaya tidak terjebak closure
   kurState: {
     jenjang: 'PAUD TK',
-    sem: (new Date().getMonth() + 1) >= 7 ? '1' : '2', // Juli-Des = Sem 1, Jan-Jun = Sem 2
-    month: new Date().toLocaleDateString('id-ID', {month:'long'}), // default bulan berjalan
+    sem: _defaultSem,
+    month: _defaultMonth,
     search: '',
   },
   cache: {
@@ -648,8 +654,8 @@ async function renderKurikulum() {
   // Expose state setters ke global
   // KUR_setJenjang dan KUR_setSem panggil renderKurikulum() ulang
   // supaya tidak terjebak closure render() dari instance lama
-  window.KUR_setJenjang = async (j) => { App.kurState.jenjang = j; App.kurState.sem = '1'; App.kurState.month = null; await renderKurikulum(); };
-  window.KUR_setSem = async (s) => { App.kurState.sem = s; App.kurState.month = null; await renderKurikulum(); };
+  window.KUR_setJenjang = async (j) => { App.kurState.jenjang = j; App.kurState.sem = _defaultSem; App.kurState.month = _defaultMonth; App.cache.materi = null; await renderKurikulum(); };
+  window.KUR_setSem = async (s) => { App.kurState.sem = s; App.kurState.month = null; App.cache.materi = null; await renderKurikulum(); };
   window.KUR_setMonth = (m) => { App.kurState.month = m; render(); };
   window.KUR_search = (q) => { App.kurState.search = q; render(); };
   window.KUR_toggleProgress = async (materiId, bulan, el) => {

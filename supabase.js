@@ -98,13 +98,13 @@ const sbMateri = {
       'SMP 1','SMP 2','SMP 3','SMA 1','SMA 2','SMA 3','PRA 1','PRA 2','PRA 3','PRA 4'];
     const results = await Promise.all(
       JENJANG.map(j =>
-        sbFetch(`materi?jenjang=eq.${encodeURIComponent(j)}&select=*&order=semester,bab,no&limit=500`)
+        sbFetch(`materi?jenjang=eq.${encodeURIComponent(j)}&select=*&order=semester,bab,sub,no&limit=500`)
       )
     );
     return results.flat();
   },
   getByJenjang: (jenjang, semester) =>
-    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=bab,no&limit=500`),
+    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=bab,sub,no&limit=500`),
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   insert: (data) => sbFetch('materi', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
   delete: (id) => sbFetch(`materi?id=eq.${id}`, { method: 'DELETE' }),
