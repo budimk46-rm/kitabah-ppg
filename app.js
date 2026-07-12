@@ -819,10 +819,6 @@ async function renderKurikulum() {
 
           checkSpace(ROW_H0);
 
-          // Background baris
-          const bg = rowIdx % 2 === 0 ? CREAM : WHITE;
-          page.drawRectangle({ x:ML, y:y-ROW_H0+2, width:tableW, height:ROW_H0, color:bg });
-
           let cx = ML;
 
           // No
@@ -838,16 +834,9 @@ async function renderKurikulum() {
           // Poin pertama
           const drawPoinRow = (r, yStart, withBg) => {
             let cx2 = ML + COL_NO + COL_TOPIK;
-            if (withBg) {
-              const bg2 = rowIdx % 2 === 0 ? CREAM : WHITE;
-              const ptL = wrap(r.poin_title, COL_POIN_TITLE-6, 8, fReg);
-              const bL  = monthsToShow.map(m => wrap(r[m.toLowerCase()], COL_BULAN-6, 8, fReg));
-              const mxL = Math.max(ptL.length, ...bL.map(b=>b.length));
-              const rh  = mxL*10+6;
-              page.drawRectangle({ x:ML, y:yStart-rh+2, width:tableW, height:rh, color:bg2 });
-            }
-            // Poin huruf
-            page.drawText(r.poin ? r.poin+'.' : '', { x:cx2+2, y:yStart-8, font:fBold, size:8, color:GOLD });
+            // Tidak ada background untuk baris detail
+            // Poin huruf — warna hitam
+            page.drawText(r.poin ? r.poin+'.' : '', { x:cx2+2, y:yStart-8, font:fBold, size:8, color:rgb(0.1,0.1,0.1) });
             cx2 += COL_POIN;
             // Poin title
             const ptLines = wrap(r.poin_title, COL_POIN_TITLE-6, 8, fReg);
@@ -862,6 +851,8 @@ async function renderKurikulum() {
           };
 
           drawPoinRow(firstPoin, y, false);
+          // Garis tipis bawah baris
+          page.drawLine({ start:{x:ML,y:y-ROW_H0+2}, end:{x:PW-MR,y:y-ROW_H0+2}, thickness:0.25, color:rgb(0.88,0.88,0.88) });
           y -= ROW_H0;
           rowIdx++;
 
@@ -875,6 +866,8 @@ async function renderKurikulum() {
             checkSpace(rh);
             rowIdx++;
             drawPoinRow(r, y, true);
+            // Garis tipis bawah baris
+            page.drawLine({ start:{x:ML,y:y-rh+2}, end:{x:PW-MR,y:y-rh+2}, thickness:0.25, color:rgb(0.88,0.88,0.88) });
             y -= rh;
           }
 
