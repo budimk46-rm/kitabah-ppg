@@ -113,7 +113,7 @@ const sbMateri = {
 // ============ KELAS ============
 const sbKelas = {
   getByKelompok: (kelompokId) =>
-    sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=*&order=jenjang`),
+    sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
   insert: (data) => sbFetch('kelas', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
   delete: (id) => sbFetch(`kelas?id=eq.${id}`, { method: 'DELETE' }),
 };

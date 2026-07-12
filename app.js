@@ -1026,22 +1026,30 @@ async function renderUsers() {
 async function renderSantri() {
   const main = document.getElementById('mainContent');
   const u = App.user;
+  const isAdmin = u.role === 'admin';
 
+  // Load data master kelompok untuk admin
+  if (isAdmin && !App.cache.kelompok) {
+    App.cache.kelompok = await SB.kelompok.getAll();
+  }
+
+  let selectedKelompokId = u.kelompok_id || null;
   let kelasOptions = [];
   let selectedKelasId = null;
   let santriList = [];
 
-  // Load kelas berdasarkan role
-  if (u.role === 'admin') {
-    const kel = await SB.kelompok.getAll();
-    App.cache.kelompok = kel;
-  }
-
-  const myKelompokId = u.kelompok_id;
-  if (myKelompokId) {
-    kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
-  } else if (u.role === 'admin') {
-    // Admin bisa pilih kelompok dulu
+  async function loadKelas(kelompokId) {
+    selectedKelompokId = kelompokId;
+    selectedKelasId = null;
+    santriList = [];
+    if (kelompokId) {
+      kelasOptions = await SB.kelas.getByKelompok(kelompokId);
+      if (kelasOptions.length) await loadSantri(kelasOptions[0].id);
+      else render();
+    } else {
+      kelasOptions = [];
+      render();
+    }
   }
 
   async function loadSantri(kelasId) {
@@ -1050,20 +1058,34 @@ async function renderSantri() {
     render();
   }
 
+  function kelasLabel(k) {
+    const nama = k.nama_kelas ? k.nama_kelas + ' — ' : '';
+    return `${nama}${escHtml(k.jenjang)} Sem ${k.semester}`;
+  }
+
   function render() {
-    const kelasOptsHtml = kelasOptions.map(k =>
-      `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>${escHtml(k.jenjang)} - Sem ${k.semester}</option>`
+    const kelompokList = App.cache.kelompok || [];
+    const kelompokOptsHtml = kelompokList.map(k =>
+      `<option value="${k.id}" ${k.id === selectedKelompokId ? 'selected' : ''}>
+        ${escHtml(k.nama)} (${escHtml(k.desa?.nama || k.desa_id)})
+      </option>`
     ).join('');
+
+    const kelasOptsHtml = kelasOptions.map(k =>
+      `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>${kelasLabel(k)}</option>`
+    ).join('');
+
+    const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
 
     const tableHtml = santriList.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Nama Santri</th><th>NIS</th><th>L/P</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>#</th><th>Nama Santri / Generus</th><th>NIS</th><th>L/P</th><th>Aksi</th></tr></thead>
         <tbody>${santriList.map((s, i) => `
           <tr>
             <td>${i + 1}</td>
             <td><b>${escHtml(s.nama)}</b></td>
             <td>${escHtml(s.nis || '—')}</td>
-            <td><span class="badge ${s.jenis_kel === 'L' ? 'badge-green' : 'badge-rose'}">${s.jenis_kel || '—'}</span></td>
+            <td><span class="badge ${s.jenis_kel === 'L' ? 'badge-green' : 'badge-rose'}">${s.jenis_kel === 'L' ? 'L' : s.jenis_kel === 'P' ? 'P' : '—'}</span></td>
             <td>
               <div style="display:flex; gap:6px;">
                 <button class="btn-icon" onclick="STR_edit(${JSON.stringify(JSON.stringify(s))})" title="Edit">
@@ -1082,26 +1104,48 @@ async function renderSantri() {
     main.innerHTML = `
       <div class="page-header">
         <div>
-          <h1 class="page-title">Data Santri</h1>
-          <p class="page-subtitle">${santriList.length} santri terdaftar</p>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          ${kelasOptions.length ? `
-            <select onchange="STR_loadKelas(this.value)" style="padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
-              <option value="">Pilih Kelas...</option>
-              ${kelasOptsHtml}
-            </select>` : ''}
-          <button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Tambah Kelas</button>
-          ${selectedKelasId ? `<button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>` : ''}
+          <h1 class="page-title">Data Santri / Generus</h1>
+          <p class="page-subtitle">${selectedKelas ? kelasLabel(selectedKelas) + ' · ' : ''}${santriList.length} santri terdaftar</p>
         </div>
       </div>
-      ${selectedKelasId ? tableHtml : '<div class="card"><p class="color-soft">Pilih kelas di atas untuk melihat daftar santri.</p></div>'}
+
+      <!-- Pilihan Kelompok (admin) dan Kelas -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          ${isAdmin ? `
+          <div style="flex:1; min-width:200px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
+            <select onchange="STR_loadKelompok(this.value)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih kelompok...</option>
+              ${kelompokOptsHtml}
+            </select>
+          </div>` : ''}
+          <div style="flex:1; min-width:180px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelas</label>
+            <div style="display:flex; gap:6px;">
+              <select onchange="STR_loadKelas(this.value)"
+                style="flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+                <option value="">Pilih kelas...</option>
+                ${kelasOptsHtml}
+              </select>
+              ${selectedKelompokId || !isAdmin ? `
+              <button class="btn btn-gold btn-sm" onclick="STR_addKelas()" title="Tambah kelas baru">+ Kelas</button>` : ''}
+            </div>
+          </div>
+          ${selectedKelasId ? `
+          <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>` : ''}
+        </div>
+      </div>
+
+      ${selectedKelasId ? tableHtml : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
     `;
   }
 
+  window.STR_loadKelompok = async (id) => { await loadKelas(id); };
   window.STR_loadKelas = async (id) => { if (id) await loadSantri(id); };
-  window.STR_addKelas = () => openAddKelasModal(myKelompokId, async () => {
-    kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
+  window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
+    kelasOptions = await SB.kelas.getByKelompok(selectedKelompokId);
     render();
   });
   window.STR_addSantri = () => openAddSantriModal(selectedKelasId, null, async () => {
@@ -1118,8 +1162,9 @@ async function renderSantri() {
     await loadSantri(selectedKelasId);
   };
 
-  if (kelasOptions.length > 0) {
-    await loadSantri(kelasOptions[0].id);
+  // Inisialisasi: kalau bukan admin, langsung load kelas kelompok sendiri
+  if (!isAdmin && u.kelompok_id) {
+    await loadKelas(u.kelompok_id);
   } else {
     render();
   }
@@ -1426,30 +1471,63 @@ function openEditMateriModal(item, defaultJenjang = '', defaultSem = '1') {
 }
 
 function openAddKelasModal(kelompokId, onSaved) {
+  if (!kelompokId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
   let el = document.getElementById('kelasModal');
   if (!el) {
     el = document.createElement('div');
     el.id = 'kelasModal';
     el.className = 'modal-overlay';
-    el.innerHTML = `<div class="modal"><div class="modal-head"><h3 class="modal-title">Tambah Kelas</h3><button class="modal-close" onclick="closeModal('kelasModal')">✕</button></div>
-      <div class="modal-body">
-        <div class="form-group"><label>Jenjang / Kelas Usia</label><select id="kelasJenjang">${JENJANG_ORDER.map(j => `<option>${j}</option>`).join('')}</select></div>
-        <div class="form-group"><label>Semester</label><select id="kelasSem"><option value="1">Semester 1 (Juli-Des)</option><option value="2">Semester 2 (Jan-Jun)</option></select></div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-outline" onclick="closeModal('kelasModal')">Batal</button>
-        <button class="btn btn-green" id="kelasSaveBtn">Simpan</button>
-      </div>
-    </div>`;
     document.body.appendChild(el);
   }
+  el.innerHTML = `<div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">Tambah Kelas</h3>
+      <button class="modal-close" onclick="closeModal('kelasModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Nama Kelas (bebas sesuai kelompok)</label>
+        <input id="kelasNama" placeholder="contoh: Kelas A, Caberawit 1, Pra Remaja">
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:5px;">Nama lokal kelas di kelompok Anda. Boleh dikosongkan.</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Jenjang Kurikulum</label>
+          <select id="kelasJenjang">
+            ${JENJANG_ORDER.map(j => `<option>${j}</option>`).join('')}
+          </select>
+          <div style="font-size:11.5px; color:var(--ink-soft); margin-top:5px;">Menentukan materi kurikulum yang berlaku untuk kelas ini.</div>
+        </div>
+        <div class="form-group">
+          <label>Semester</label>
+          <select id="kelasSem">
+            <option value="1">Semester 1 (Juli – Desember)</option>
+            <option value="2">Semester 2 (Januari – Juni)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('kelasModal')">Batal</button>
+      <button class="btn btn-green" id="kelasSaveBtn">Simpan Kelas</button>
+    </div>
+  </div>`;
+
   document.getElementById('kelasSaveBtn').onclick = async () => {
+    const nama_kelas = document.getElementById('kelasNama').value.trim();
     const jenjang = document.getElementById('kelasJenjang').value;
     const semester = document.getElementById('kelasSem').value;
-    await SB.kelas.insert({ kelompok_id: kelompokId, jenjang, semester });
-    showToast('Kelas ditambahkan');
-    closeModal('kelasModal');
-    onSaved();
+    const btn = document.getElementById('kelasSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      await SB.kelas.insert({ kelompok_id: kelompokId, nama_kelas, jenjang, semester });
+      showToast('Kelas berhasil ditambahkan');
+      closeModal('kelasModal');
+      onSaved();
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
+    btn.disabled = false; btn.textContent = 'Simpan Kelas';
   };
   openModal('kelasModal');
 }
