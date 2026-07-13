@@ -166,9 +166,9 @@ const sbJurnal = {
 const sbAbsensi = {
   getByPertemuan: (pertemuanId) =>
     sbFetch(`absensi?pertemuan_id=eq.${pertemuanId}&select=*,santri(nama)&order=santri(nama)`),
-  upsertBulk: (rows) => sbFetch('absensi', {
+  upsertBulk: (rows) => sbFetch('absensi?on_conflict=pertemuan_id,santri_id', {
     method: 'POST',
-    headers: {'Prefer': 'resolution=merge-duplicates'},
+    headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},
     body: JSON.stringify(rows)
   }),
 };
