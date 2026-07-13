@@ -2213,7 +2213,7 @@ async function renderRekap() {
       let y = H - MT;
 
       // Header
-      page.drawText('REKAP KBM — PPG SIDOARJO UTARA', { x: ML, y, font: fBold, size: 12, color: GREEN });
+      page.drawText('REKAP KBM - PPG SIDOARJO UTARA', { x: ML, y, font: fBold, size: 12, color: GREEN });
       y -= 16;
       page.drawText(`Kelompok: ${lastKelompokNama}   |   Bulan: ${selectedBulan}   |   Dibuat: ${new Date().toLocaleDateString('id-ID')}`,
         { x: ML, y, font: fReg, size: 9, color: GRAY });
@@ -2227,9 +2227,9 @@ async function renderRekap() {
       const summaryItems = [
         ['Jumlah Kelas Aktif', `${lastKelasStats.length} kelas`],
         ['Total Generus', `${lastTotalSantriAll} orang`],
-        ['Total Pertemuan Bulan Ini', `${lastTotalPertemuanAll}×`],
-        ['Rata-rata Kehadiran', lastAvgHadir !== null ? `${lastAvgHadir}%` : '—'],
-        ['Rata-rata Progress Materi', lastAvgMateri !== null ? `${lastAvgMateri}%` : '—'],
+        ['Total Pertemuan Bulan Ini', `${lastTotalPertemuanAll}x`],
+        ['Rata-rata Kehadiran', lastAvgHadir !== null ? `${lastAvgHadir}%` : '-'],
+        ['Rata-rata Progress Materi', lastAvgMateri !== null ? `${lastAvgMateri}%` : '-'],
       ];
       summaryItems.forEach(([label, val]) => {
         page.drawText(label + ':', { x: ML + 10, y, font: fReg, size: 9, color: rgb(0.2,0.2,0.2) });
@@ -2263,11 +2263,11 @@ async function renderRekap() {
         const bg = idx % 2 === 0 ? rgb(0.97,0.97,0.97) : rgb(1,1,1);
         page.drawRectangle({ x: ML, y: y-4, width: W-ML-MR, height: 15, color: bg });
 
-        const hadir = ks.pctHadir !== null ? ks.pctHadir + '%' : '—';
-        const materi = ks.pctMateri !== null ? ks.pctMateri + '%' : '—';
+        const hadir = ks.pctHadir !== null ? ks.pctHadir + '%' : '-';
+        const materi = ks.pctMateri !== null ? ks.pctMateri + '%' : '-';
         const materiDetail = ks.materiTarget.length > 0
           ? `${ks.materiTercapai.length}/${ks.materiTarget.length}`
-          : '—';
+          : '-';
 
         const hColor = ks.pctHadir === null ? GRAY : ks.pctHadir >= 80 ? GREEN : ks.pctHadir >= 50 ? GOLD : RED;
         const mColor = ks.pctMateri === null ? GRAY : ks.pctMateri >= 80 ? GREEN : ks.pctMateri >= 50 ? GOLD : RED;
@@ -2276,7 +2276,7 @@ async function renderRekap() {
           [cols[0], ks.kelas.nama_kelas || ks.kelas.jenjang, rgb(0.1,0.1,0.1), true],
           [cols[1], ks.kelas.jenjang, GRAY, false],
           [cols[2], String(ks.totalSantri), rgb(0.1,0.1,0.1), false],
-          [cols[3], String(ks.totalPertemuan) + '×', rgb(0.1,0.1,0.1), false],
+          [cols[3], String(ks.totalPertemuan) + 'x', rgb(0.1,0.1,0.1), false],
           [cols[4], hadir, hColor, true],
           [cols[5], materi, mColor, true],
           [cols[6], materiDetail, GRAY, false],
@@ -2288,25 +2288,25 @@ async function renderRekap() {
 
       y -= 10;
       // Keterangan warna
-      page.drawText('Keterangan: ≥80% = Baik   50-79% = Perlu Perhatian   <50% = Kritis',
+      page.drawText('Keterangan: >=80% = Baik   50-79% = Perlu Perhatian   <50% = Kritis',
         { x: ML, y, font: fReg, size: 8, color: GRAY });
 
       // Footer
       doc.getPages().forEach((p, i) => {
-        p.drawText(`Halaman ${i+1}/${doc.getPageCount()} · Rekap KBM ${lastKelompokNama} · ${selectedBulan}`,
+        p.drawText(`Halaman ${i+1}/${doc.getPageCount()} - Rekap KBM ${lastKelompokNama} - ${selectedBulan}`,
           { x: ML, y: 24, font: fReg, size: 7, color: GRAY });
       });
 
       const bytes = await doc.save();
       downloadPdf(bytes, `Rekap_Ringkas_${lastKelompokNama.replace(/ /g,'_')}_${selectedBulan}.pdf`);
-      showToast('PDF Ringkas berhasil diunduh ✓');
+      showToast('PDF Ringkas berhasil diunduh +');
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
       console.error(e);
     }
   };
 
-  // ── PDF DETAIL ──
+  // -- PDF DETAIL --
   window.REKAP_pdfDetail = async () => {
     showToast('Menyiapkan PDF Detail...');
     await loadPdfLib();
@@ -2343,14 +2343,14 @@ async function renderRekap() {
       page.drawLine({ start:{x:ML,y}, end:{x:W-MR,y}, thickness:1.5, color:GREEN });
       y -= 20;
 
-      // Per kelas — detail lengkap
+      // Per kelas - detail lengkap
       for (const ks of lastKelasStats) {
         checkY(60);
 
         // Nama kelas header
         page.drawRectangle({ x: ML, y: y-4, width: W-ML-MR, height: 18, color: GREEN });
         const namaKelas = ks.kelas.nama_kelas || ks.kelas.jenjang;
-        page.drawText(`${namaKelas}  —  ${ks.kelas.jenjang} Sem ${ks.kelas.semester}  |  ${ks.totalSantri} Generus  |  ${ks.totalPertemuan}× Pertemuan`,
+        page.drawText(`${namaKelas}  -  ${ks.kelas.jenjang} Sem ${ks.kelas.semester}  |  ${ks.totalSantri} Generus  |  ${ks.totalPertemuan}x Pertemuan`,
           { x: ML+5, y: y+0, font: fBold, size: 9, color: rgb(1,1,1) });
         y -= 22;
 
@@ -2390,7 +2390,7 @@ async function renderRekap() {
               [sc[3], String(s.i), GOLD, false],
               [sc[4], String(s.s), rgb(0.09,0.63,0.72), false],
               [sc[5], String(s.a), RED, false],
-              [sc[6], s.pct !== null ? s.pct + '%' : '—', pctColor, true],
+              [sc[6], s.pct !== null ? s.pct + '%' : '-', pctColor, true],
             ].forEach(([col, val, color, bold]) => {
               page.drawText(val, { x: col.x+2, y: y-1, font: bold?fBold:fReg, size: 8, color });
             });
@@ -2406,7 +2406,7 @@ async function renderRekap() {
           y -= 12;
           ks.materiTercapai.forEach(m => {
             checkY(12);
-            const label = `✓  ${m.no||'•'}. ${m.topik||''}${m.poin_title?' — '+m.poin_title:''}`;
+            const label = `+ ${m.no||'*'}. ${m.topik||''}${m.poin_title?' - '+m.poin_title:''}`;
             page.drawText(label.slice(0, 90), { x: ML+10, y, font: fReg, size: 7.5, color: rgb(0.1,0.3,0.2) });
             y -= 11;
           });
@@ -2420,7 +2420,7 @@ async function renderRekap() {
           y -= 12;
           materiBlm.forEach(m => {
             checkY(12);
-            const label = `○  ${m.no||'•'}. ${m.topik||''}${m.poin_title?' — '+m.poin_title:''}`;
+            const label = `- ${m.no||'*'}. ${m.topik||''}${m.poin_title?' - '+m.poin_title:''}`;
             page.drawText(label.slice(0, 90), { x: ML+10, y, font: fReg, size: 7.5, color: rgb(0.5,0.2,0.15) });
             y -= 11;
           });
@@ -2431,13 +2431,13 @@ async function renderRekap() {
 
       // Footer semua halaman
       doc.getPages().forEach((p, i) => {
-        p.drawText(`Halaman ${i+1}/${doc.getPageCount()} · Rekap KBM Lengkap — ${lastKelompokNama} — ${selectedBulan}`,
+        p.drawText(`Halaman ${i+1}/${doc.getPageCount()} - Rekap KBM Lengkap - ${lastKelompokNama} - ${selectedBulan}`,
           { x: ML, y: 24, font: fReg, size: 7, color: GRAY });
       });
 
       const bytes = await doc.save();
       downloadPdf(bytes, `Rekap_Detail_${lastKelompokNama.replace(/ /g,'_')}_${selectedBulan}.pdf`);
-      showToast('PDF Detail berhasil diunduh ✓');
+      showToast('PDF Detail berhasil diunduh +');
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
       console.error(e);
