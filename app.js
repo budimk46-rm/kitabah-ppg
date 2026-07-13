@@ -1377,7 +1377,7 @@ async function renderAbsensi() {
     absensiData = {};
     jurnalData = null;
     selectedMateriIds = new Set();
-    renderMain();
+    await renderMain();
   }
 
   async function loadDetail(pId) {
@@ -1391,7 +1391,7 @@ async function renderAbsensi() {
     // Load materi yang sudah dipilih di jurnal ini
     const jurnalMateri = jurnalData ? (jurnalData.jurnal_materi || []) : [];
     selectedMateriIds = new Set(jurnalMateri.map(jm => jm.materi_id));
-    renderMain();
+    await renderMain();
   }
 
   function getMateriForDisplay(bulan) {
@@ -1405,7 +1405,7 @@ async function renderAbsensi() {
     );
   }
 
-  function renderMain() {
+  async function renderMain() {
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const kelasOptHtml = kelasOptions.map(k =>
       `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>
@@ -1455,11 +1455,23 @@ async function renderAbsensi() {
     const allMonths = selectedKelas?.semester === '2' ? SEM2_MONTHS : SEM1_MONTHS;
     const nowMonth = currentMonthName();
     const nowIdx = allMonths.indexOf(nowMonth);
-    // Tampilkan: bulan sebelum, berjalan, sesudah
-    const visibleMonths = allMonths.filter((m, i) =>
-      i >= Math.max(0, nowIdx-1) && i <= Math.min(allMonths.length-1, nowIdx+1)
-    );
-    if (!visibleMonths.includes(nowMonth) && nowIdx >= 0) visibleMonths.push(nowMonth);
+    // Tampilkan bulan sebelum, berjalan, sesudah — dalam urutan benar
+    const visibleMonths = [];
+    if (nowIdx > 0) visibleMonths.push(allMonths[nowIdx - 1]);
+    if (nowIdx >= 0) visibleMonths.push(allMonths[nowIdx]);
+    if (nowIdx < allMonths.length - 1) visibleMonths.push(allMonths[nowIdx + 1]);
+    // Fallback jika bulan berjalan tidak ada di semester ini
+    if (visibleMonths.length === 0) visibleMonths.push(...allMonths.slice(0, 3));
+
+    // Load progress kelompok untuk tanda "sudah pernah disampaikan"
+    const kelompokId4Progress = u.kelompok_id || null;
+    let progressSet = new Set();
+    if (kelompokId4Progress && App.cache.materi) {
+      try {
+        const progData = await SB.progress.getByKelompok(kelompokId4Progress);
+        progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+      } catch(e) {}
+    }
 
     // ── Materi yang bisa dipilih ──
     let materiSectionHtml = '';
@@ -1467,20 +1479,23 @@ async function renderAbsensi() {
       const bulanToShow = jurnalBulan || nowMonth;
       const materiList = getMateriForDisplay(bulanToShow);
 
-      const monthChips = [nowMonth, ...visibleMonths.filter(m => m !== nowMonth)].map(m => `
-        <div onclick="ABS_setJurnalBulan('${m}')"
+      // Chip bulan dalam urutan kronologis
+      const monthChips = visibleMonths.map(m => {
+        const isActive = (jurnalBulan || nowMonth) === m;
+        return `<div onclick="ABS_setJurnalBulan('${m}')"
           style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
-            background:${(jurnalBulan||nowMonth)===m?'var(--green)':'var(--white)'};
-            color:${(jurnalBulan||nowMonth)===m?'#fff':'var(--ink-soft)'};
-            border:1.5px solid ${(jurnalBulan||nowMonth)===m?'var(--green)':'var(--line)'};">
-          ${m}${m===nowMonth?' ●':''}
-        </div>`).join('');
+            background:${isActive ? 'var(--green)' : 'var(--white)'};
+            color:${isActive ? '#fff' : 'var(--ink-soft)'};
+            border:1.5px solid ${isActive ? 'var(--green)' : 'var(--line)'};">
+          ${m}${m === nowMonth ? ' ●' : ''}
+        </div>`;
+      }).join('');
 
       // Group materi by bab
       const byBab = {}; const babOrder = [];
       materiList.forEach(r => {
-        const k = (r.bab||'')+' '+( r.bab_title||'');
-        if (!byBab[k]) { byBab[k]={title:k, items:[]}; babOrder.push(k); }
+        const k = (r.bab || '') + ' ' + (r.bab_title || '');
+        if (!byBab[k]) { byBab[k] = { title: k, items: [] }; babOrder.push(k); }
         byBab[k].items.push(r);
       });
 
@@ -1488,28 +1503,36 @@ async function renderAbsensi() {
       const babsHtml = babOrder.map(bk => {
         const g = byBab[bk];
         const itemsHtml = g.items.map(r => {
-          const dipilih = selectedMateriIds.has(r.id);
-          return `<div onclick="ABS_toggleMateri('${r.id}','${escHtml(r.topik||'')}${r.poin_title?' - '+r.poin_title:''}')"
+          const dipilihHariIni = selectedMateriIds.has(r.id);
+          const sudahPernah = !dipilihHariIni && progressSet.has(r.id + '|' + bulanToShow);
+
+          // Gunakan data-id untuk onclick agar aman dari karakter khusus
+          return `<div data-materi-id="${r.id}" onclick="ABS_toggleMateri(this.dataset.materiId)"
             style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
               border-bottom:1px solid var(--line); cursor:pointer; transition:background .15s;
-              background:${dipilih?'var(--green-soft)':''};"
-            onmouseover="this.style.background='${dipilih?'var(--green-soft)':'var(--cream-2)'}'"
-            onmouseout="this.style.background='${dipilih?'var(--green-soft)':''}'"
-            >
-            <div style="width:22px; height:22px; border-radius:6px; border:2px solid ${dipilih?'var(--green)':'var(--line)'};
-              background:${dipilih?'var(--green)':'transparent'};
-              display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
-              ${dipilih?'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>':''}
+              background:${dipilihHariIni ? 'var(--green-soft)' : sudahPernah ? '#f0f7f2' : ''};">
+            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; margin-top:1px;
+              border:2px solid ${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#7ab896' : 'var(--line)'};
+              background:${dipilihHariIni ? 'var(--green)' : 'transparent'};
+              display:flex; align-items:center; justify-content:center;">
+              ${dipilihHariIni
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>'
+                : sudahPernah
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="#7ab896" stroke-width="2.5" width="11" height="11"><path d="M20 6L9 17l-5-5"/></svg>'
+                : ''}
             </div>
             <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; font-size:13px; color:${dipilih?'var(--green)':'var(--ink)'};">
-                ${r.no||'•'}. ${escHtml(r.topik||'')}
-                ${r.poin?`<span style="color:var(--gold); font-weight:800;"> ${escHtml(r.poin)}.</span> ${escHtml(r.poin_title||'')}` : ''}
+              <div style="font-weight:700; font-size:13px;
+                color:${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#3a7a58' : 'var(--ink)'};">
+                ${r.no || '•'}. ${escHtml(r.topik || '')}
+                ${r.poin ? `<span style="color:var(--gold); font-weight:800;"> ${escHtml(r.poin)}.</span> ${escHtml(r.poin_title || '')}` : ''}
+                ${sudahPernah ? '<span style="font-size:10px; font-weight:600; color:#7ab896; margin-left:6px;">✓ pernah disampaikan</span>' : ''}
               </div>
-              <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(r[col]||'')}</div>
+              <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(r[col] || '')}</div>
             </div>
           </div>`;
         }).join('');
+
         return `<div style="margin-bottom:12px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--line);">
           <div style="background:var(--green); color:#fff; padding:8px 12px; font-size:12px; font-weight:800; text-transform:uppercase;">
             ${escHtml(g.title)}
@@ -1519,6 +1542,9 @@ async function renderAbsensi() {
       }).join('');
 
       const selectedCount = selectedMateriIds.size;
+      const pernahCount = [...(App.cache.materi || [])]
+        .filter(r => progressSet.has(r.id + '|' + bulanToShow) && !selectedMateriIds.has(r.id)).length;
+
       materiSectionHtml = `
         <div class="card" style="margin-top:18px;">
           <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
@@ -1526,9 +1552,12 @@ async function renderAbsensi() {
               <div class="fw-bold color-green" style="font-size:15px;">📚 Materi yang Disampaikan</div>
               <div style="font-size:12px; color:var(--ink-soft);">Klik materi yang sudah disampaikan hari ini</div>
             </div>
-            ${selectedCount ? `<span class="badge badge-green">${selectedCount} dipilih</span>` : ''}
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${selectedCount ? `<span class="badge badge-green">✓ ${selectedCount} dipilih hari ini</span>` : ''}
+              ${pernahCount ? `<span class="badge" style="background:#e8f5ef; color:#3a7a58;">✓ ${pernahCount} pernah disampaikan</span>` : ''}
+            </div>
           </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; overflow-x:auto; padding-bottom:4px;">
             ${monthChips}
           </div>
           ${materiList.length ? babsHtml : `<div class="empty-state"><p class="empty-desc">Tidak ada target materi untuk bulan ${bulanToShow}.</p></div>`}
@@ -1619,23 +1648,23 @@ async function renderAbsensi() {
       absensiData = {};
       jurnalData = null;
       selectedMateriIds = new Set();
-      renderMain();
+      await renderMain();
     } else {
       await loadDetail(id);
     }
   };
 
-  window.ABS_setJurnalBulan = (bulan) => {
+  window.ABS_setJurnalBulan = async (bulan) => {
     jurnalBulan = bulan;
-    renderMain();
+    await renderMain();
   };
 
-  window.ABS_setStatus = (santriId, status) => {
+  window.ABS_setStatus = async (santriId, status) => {
     absensiData[santriId] = status;
-    renderMain();
+    await renderMain();
   };
 
-  window.ABS_toggleMateri = (materiId, label) => {
+  window.ABS_toggleMateri = async (materiId) => {
     if (selectedMateriIds.has(materiId)) {
       selectedMateriIds.delete(materiId);
     } else {
@@ -1645,17 +1674,15 @@ async function renderAbsensi() {
     const textarea = document.getElementById('jurnalCatatan');
     if (textarea) {
       const materiList = Array.from(selectedMateriIds).map(id => {
-        const m = (App.cache.materi||[]).find(r => r.id === id);
+        const m = (App.cache.materi || []).find(r => r.id === id);
         if (!m) return null;
-        return `• ${m.topik||''}${m.poin_title?' - '+m.poin_title:''}`;
+        return `• ${m.topik || ''}${m.poin_title ? ' - ' + m.poin_title : ''}`;
       }).filter(Boolean);
-      if (materiList.length) {
-        textarea.value = 'Materi yang disampaikan:\n' + materiList.join('\n');
-      } else {
-        textarea.value = '';
-      }
+      textarea.value = materiList.length
+        ? 'Materi yang disampaikan:\n' + materiList.join('\n')
+        : '';
     }
-    renderMain();
+    await renderMain();
   };
 
   // Simpan untuk pertemuan BARU
