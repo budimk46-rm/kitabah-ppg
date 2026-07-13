@@ -1415,10 +1415,15 @@ async function renderAbsensi() {
 
     const pertemuanOptHtml = [
       `<option value="">+ Pertemuan Baru</option>`,
-      ...pertemuanList.map(p =>
-        `<option value="${p.id}" ${p.id === currentPertemuanId ? 'selected' : ''}>
-          ${escHtml(fmtDateShort(p.tanggal))} · Pertemuan ke-${p.pertemuan_ke||'?'}
-        </option>`)
+      ...pertemuanList.map((p, idx) => {
+        // Hitung apakah ada pertemuan lain di tanggal yang sama
+        const sameTgl = pertemuanList.filter(x => x.tanggal === p.tanggal);
+        const tglLabel = fmtDateShort(p.tanggal);
+        const keLabel = sameTgl.length > 1
+          ? `${tglLabel} · ke-${p.pertemuan_ke} (${sameTgl.indexOf(p)+1}× hari itu)`
+          : `${tglLabel} · Pertemuan ke-${p.pertemuan_ke}`;
+        return `<option value="${p.id}" ${p.id === currentPertemuanId ? 'selected' : ''}>${keLabel}</option>`;
+      })
     ].join('');
 
     // ── Absensi ──
@@ -1696,35 +1701,29 @@ async function renderAbsensi() {
       const tgl = new Date().toISOString().slice(0,10);
       const bulanNow = currentMonthName();
 
-      // Cek apakah sudah ada pertemuan hari ini untuk kelas ini
-      const existing = pertemuanList.find(p => p.tanggal === tgl);
-      let pId;
-      let kePertemuan;
+      // Hitung pertemuan ke berapa hari ini (support multiple pertemuan 1 hari)
+      const pertemuanHariIni = pertemuanList.filter(p => p.tanggal === tgl);
+      const kePertemuan = pertemuanList.filter(p => p.bulan === bulanNow).length + 1;
+      const keDalamHari = pertemuanHariIni.length + 1; // ke-1, ke-2 dst dalam hari ini
 
-      if (existing) {
-        // Pakai pertemuan yang sudah ada hari ini
-        pId = existing.id;
-        kePertemuan = existing.pertemuan_ke;
-        showToast(`Menggunakan pertemuan ke-${kePertemuan} yang sudah ada hari ini`);
-      } else {
-        // Buat pertemuan baru
-        kePertemuan = pertemuanList.filter(p => p.bulan === bulanNow).length + 1;
-        const newPertemuan = await SB.pertemuan.insert({
-          kelas_id: selectedKelasId,
-          tanggal: tgl,
-          bulan: bulanNow,
-          tahun: new Date().getFullYear(),
-          pertemuan_ke: kePertemuan,
-          created_by: u.id,
-        });
-        pId = newPertemuan?.[0]?.id;
-        if (!pId) throw new Error('Gagal membuat pertemuan');
-      }
+      const newPertemuan = await SB.pertemuan.insert({
+        kelas_id: selectedKelasId,
+        tanggal: tgl,
+        bulan: bulanNow,
+        tahun: new Date().getFullYear(),
+        pertemuan_ke: kePertemuan,
+        created_by: u.id,
+      });
+      const pId = newPertemuan?.[0]?.id;
+      if (!pId) throw new Error('Gagal membuat pertemuan');
 
       currentPertemuanId = pId;
       await doSimpanAll(pId);
       pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
-      showToast(`Pertemuan ke-${kePertemuan} berhasil disimpan ✓`);
+      const label = keDalamHari > 1
+        ? `Pertemuan ke-${kePertemuan} (pertemuan ${keDalamHari}× hari ini) berhasil disimpan ✓`
+        : `Pertemuan ke-${kePertemuan} berhasil disimpan ✓`;
+      showToast(label);
       await loadDetail(pId);
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
