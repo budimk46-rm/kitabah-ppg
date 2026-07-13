@@ -1362,6 +1362,7 @@ async function renderAbsensi() {
   const kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
+  let activeKelompokId = myKelompokId; // track kelompok aktif untuk progress
   let pertemuanList = [];
   let currentPertemuanId = null;
   let santriList = [];
@@ -1408,7 +1409,7 @@ async function renderAbsensi() {
   async function renderMain() {
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const kelasOptHtml = kelasOptions.map(k =>
-      `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>
+      `<option value="${k.id}" data-kelompok-id="${k.kelompok_id||myKelompokId||''}" ${k.id === selectedKelasId ? 'selected' : ''}>
         ${k.nama_kelas ? escHtml(k.nama_kelas)+' — ' : ''}${escHtml(k.jenjang)} Sem ${k.semester}
       </option>`
     ).join('');
@@ -1472,8 +1473,7 @@ async function renderAbsensi() {
     }
 
     // Load progress kelompok untuk tanda "sudah pernah disampaikan"
-    const kelasData4P = kelasOptions.find(k => k.id === selectedKelasId);
-    const kelompokId4Progress = u.kelompok_id || kelasData4P?.kelompok_id || null;
+    const kelompokId4Progress = activeKelompokId || myKelompokId || null;
     let progressSet = new Set();
     if (kelompokId4Progress && App.cache.materi) {
       try {
@@ -1647,6 +1647,9 @@ async function renderAbsensi() {
 
   window.ABS_setKelas = async (sel) => {
     selectedKelasId = sel.value;
+    // Ambil kelompok_id dari option yang dipilih
+    const opt = sel.options[sel.selectedIndex];
+    if (opt.dataset.kelompokId) activeKelompokId = opt.dataset.kelompokId;
     await loadPertemuan();
   };
 
@@ -1748,16 +1751,11 @@ async function renderAbsensi() {
   };
 
   async function doSimpanAll(pId) {
-    // Ambil kelompok_id dari kelas yang dipilih (bukan dari user, karena admin tidak punya kelompok_id)
-    const kelasData = kelasOptions.find(k => k.id === selectedKelasId);
-    let kelompokId = u.kelompok_id || null;
-    if (!kelompokId && kelasData) {
-      kelompokId = kelasData.kelompok_id || null;
-    }
+    const kelompokId = activeKelompokId || myKelompokId || null;
     const bulan = jurnalBulan || currentMonthName();
     const catatan = document.getElementById('jurnalCatatan')?.value || '';
 
-    console.log('[doSimpanAll] kelompokId:', kelompokId, '| kelasData:', kelasData, '| selectedMateriIds:', [...selectedMateriIds], '| bulan:', bulan);
+    console.log('[doSimpanAll] kelompokId:', kelompokId, '| materi:', [...selectedMateriIds], '| bulan:', bulan);
 
     // 1. Simpan absensi
     if (santriList.length) {
