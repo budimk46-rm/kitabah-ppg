@@ -1840,11 +1840,317 @@ async function renderProgress() {
 /* ===== PAGE: REKAP (placeholder) ===== */
 async function renderRekap() {
   const main = document.getElementById('mainContent');
-  main.innerHTML = `
-    <div class="page-header"><h1 class="page-title">Rekap KBM</h1></div>
-    <div class="card">
-      <p class="color-soft">Fitur rekap sedang dalam pengembangan. Akan tersedia pada update berikutnya.</p>
-    </div>`;
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+
+  // Tentukan kelompok yang ditampilkan
+  let myKelompokId = u.kelompok_id || null;
+
+  // Admin: tampilkan picker kelompok dulu
+  if (isAdmin && !App.cache.rekapKelompokId) {
+    if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+    main.innerHTML = `
+      <div class="page-header"><h1 class="page-title">Rekap KBM</h1></div>
+      <div class="card">
+        <p style="margin:0 0 14px; font-size:13.5px; color:var(--ink-soft);">Pilih kelompok untuk melihat rekap.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:0 0 auto; min-width:150px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Desa</label>
+            <select id="rekapDesaFilter" onchange="REKAP_filterDesa(this.value)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Semua Desa</option>
+              ${['Barat 1','Barat 2','Tengah 1','Tengah 2','Timur 1','Timur 2'].map(d =>
+                `<option value="Desa ${d}">Desa ${d}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:1; min-width:180px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
+            <select id="rekapKelompokSel"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih kelompok...</option>
+              ${(App.cache.kelompok||[]).map(k =>
+                `<option value="${k.id}" data-desa="${escHtml(k.desa?.nama||k.desa_id)}">
+                  ${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}
+                </option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-green" onclick="REKAP_pilihKelompok()">Lihat Rekap →</button>
+        </div>
+      </div>`;
+    window.REKAP_filterDesa = (desa) => {
+      const sel = document.getElementById('rekapKelompokSel');
+      Array.from(sel.options).forEach(o => {
+        if (!o.value) return;
+        o.hidden = desa ? o.dataset.desa !== desa : false;
+      });
+    };
+    window.REKAP_pilihKelompok = () => {
+      const id = document.getElementById('rekapKelompokSel').value;
+      if (!id) { showToast('Pilih kelompok dulu', true); return; }
+      App.cache.rekapKelompokId = id;
+      renderRekap();
+    };
+    return;
+  }
+
+  myKelompokId = myKelompokId || App.cache.rekapKelompokId;
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data rekap...</div></div>';
+
+  // Load semua data yang dibutuhkan
+  const [kelasList, allMateri, progData] = await Promise.all([
+    SB.kelas.getByKelompok(myKelompokId),
+    App.cache.materi ? Promise.resolve(App.cache.materi) : SB.materi.getAll().then(d => { App.cache.materi = d; return d; }),
+    SB.progress.getByKelompok(myKelompokId),
+  ]);
+
+  // Load pertemuan, santri, absensi untuk semua kelas
+  const kelasData = {};
+  await Promise.all(kelasList.map(async k => {
+    const [pertemuanList, santriList] = await Promise.all([
+      SB.pertemuan.getByKelas(k.id),
+      SB.santri.getByKelas(k.id),
+    ]);
+    // Load absensi untuk semua pertemuan
+    const absensiAll = {};
+    await Promise.all(pertemuanList.map(async p => {
+      const absen = await SB.absensi.getByPertemuan(p.id);
+      absensiAll[p.id] = absen;
+    }));
+    kelasData[k.id] = { kelas: k, pertemuanList, santriList, absensiAll };
+  }));
+
+  const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+  const allMonths = [...SEM1_MONTHS, ...SEM2_MONTHS];
+  const nowMonth = currentMonthName();
+
+  // State filter
+  let selectedBulan = nowMonth;
+  let viewMode = 'kelas'; // 'kelas' atau 'tingkatan'
+
+  function renderDashboard() {
+    // Bulan chips
+    const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
+    const bulanChips = semNow.map(m => `
+      <div onclick="REKAP_setBulan('${m}')"
+        style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+          background:${selectedBulan===m?'var(--green)':'var(--white)'};
+          color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+          border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+        ${m}${m===nowMonth?' ●':''}
+      </div>`).join('');
+
+    // Hitung statistik per kelas
+    const kelasStats = kelasList.map(k => {
+      const d = kelasData[k.id];
+      const pertemuanBulan = d.pertemuanList.filter(p => p.bulan === selectedBulan);
+      const totalPertemuan = pertemuanBulan.length;
+      const totalSantri = d.santriList.length;
+
+      // Hitung kehadiran per santri di bulan ini
+      let totalH = 0, totalI = 0, totalS = 0, totalA = 0, totalSlot = 0;
+      pertemuanBulan.forEach(p => {
+        const absen = d.absensiAll[p.id] || [];
+        d.santriList.forEach(s => {
+          const a = absen.find(x => x.santri_id === s.id);
+          const st = a?.status || 'A';
+          if (st === 'H') totalH++;
+          else if (st === 'I') totalI++;
+          else if (st === 'S') totalS++;
+          else totalA++;
+          totalSlot++;
+        });
+      });
+
+      const pctHadir = totalSlot > 0 ? Math.round(totalH / totalSlot * 100) : null;
+
+      // Progress materi bulan ini
+      const col = selectedBulan.toLowerCase();
+      const materiKelas = allMateri.filter(r =>
+        r.jenjang === k.jenjang && String(r.semester) === String(k.semester)
+      );
+      const materiTarget = materiKelas.filter(r => r[col] && r[col].trim());
+      const materiTercapai = materiTarget.filter(r => progressSet.has(r.id + '|' + selectedBulan));
+      const pctMateri = materiTarget.length > 0
+        ? Math.round(materiTercapai.length / materiTarget.length * 100) : null;
+
+      // Detail per santri
+      const santriStats = d.santriList.map(s => {
+        let h=0, i=0, sv=0, a=0;
+        pertemuanBulan.forEach(p => {
+          const absen = d.absensiAll[p.id] || [];
+          const rec = absen.find(x => x.santri_id === s.id);
+          const st = rec?.status || (totalPertemuan > 0 ? 'A' : null);
+          if (st === 'H') h++;
+          else if (st === 'I') i++;
+          else if (st === 'S') sv++;
+          else if (st === 'A') a++;
+        });
+        const pct = totalPertemuan > 0 ? Math.round(h / totalPertemuan * 100) : null;
+        return { ...s, h, i, s: sv, a, pct, totalPertemuan };
+      });
+
+      return { kelas: k, totalPertemuan, totalSantri, totalH, totalI, totalS, totalA, totalSlot, pctHadir, pctMateri, materiTarget, materiTercapai, santriStats };
+    });
+
+    // Group by tingkatan kalau viewMode = 'tingkatan'
+    const TINGKATAN_MAP = {
+      'PAUD TK':'caberawit','SD 1':'caberawit','SD 2':'caberawit','SD 3':'caberawit',
+      'SD 4':'caberawit','SD 5':'caberawit','SD 6':'caberawit',
+      'SMP 1':'pra_remaja','SMP 2':'pra_remaja','SMP 3':'pra_remaja',
+      'SMA 1':'remaja','SMA 2':'remaja','SMA 3':'remaja',
+      'PRA 1':'pra_nikah','PRA 2':'pra_nikah','PRA 3':'pra_nikah','PRA 4':'pra_nikah',
+    };
+
+    // Render kartu per kelas
+    function progressBar(pct, color='var(--green)') {
+      if (pct === null) return '<span style="color:var(--ink-soft); font-size:12px;">Belum ada data</span>';
+      const c = pct >= 80 ? 'var(--green)' : pct >= 50 ? '#e6a817' : 'var(--rose)';
+      return `<div style="display:flex; align-items:center; gap:8px;">
+        <div style="flex:1; height:8px; background:var(--line); border-radius:4px; overflow:hidden;">
+          <div style="width:${pct}%; height:100%; background:${c}; border-radius:4px; transition:width .5s;"></div>
+        </div>
+        <span style="font-size:12px; font-weight:700; color:${c}; flex-shrink:0;">${pct}%</span>
+      </div>`;
+    }
+
+    const kelasCards = kelasStats.map(ks => {
+      const tingkatan = TINGKATAN_MAP[ks.kelas.jenjang] || '';
+      const namaKelas = ks.kelas.nama_kelas || ks.kelas.jenjang;
+
+      const santriRows = ks.santriStats.map((s, i) => {
+        const pctColor = s.pct === null ? 'var(--ink-soft)' : s.pct >= 80 ? 'var(--green)' : s.pct >= 50 ? '#e6a817' : 'var(--rose)';
+        return `<tr>
+          <td>${i+1}</td>
+          <td><b>${escHtml(s.nama)}</b></td>
+          <td style="text-align:center; color:var(--green); font-weight:700;">${s.h}</td>
+          <td style="text-align:center; color:#e6a817; font-weight:700;">${s.i}</td>
+          <td style="text-align:center; color:#17a2b8; font-weight:700;">${s.s}</td>
+          <td style="text-align:center; color:var(--rose); font-weight:700;">${s.a}</td>
+          <td style="text-align:center;">
+            ${s.pct !== null ? `<span style="font-weight:800; color:${pctColor};">${s.pct}%</span>` : '—'}
+          </td>
+        </tr>`;
+      }).join('');
+
+      return `<div class="card" style="margin-bottom:16px;">
+        <!-- Header kelas -->
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+          <div>
+            <div style="font-family:var(--font-display); font-size:17px; font-weight:700; color:var(--green);">
+              ${escHtml(namaKelas)}
+            </div>
+            <div style="font-size:12px; color:var(--ink-soft);">
+              ${escHtml(ks.kelas.jenjang)} · Sem ${ks.kelas.semester} · ${ks.totalSantri} santri
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <div style="text-align:center; padding:8px 14px; background:var(--green-soft); border-radius:var(--radius-sm);">
+              <div style="font-size:20px; font-weight:800; color:var(--green); line-height:1;">${ks.totalPertemuan}</div>
+              <div style="font-size:10px; color:var(--ink-soft); font-weight:700;">Pertemuan</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress bars -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Kehadiran Bulan Ini</div>
+            ${progressBar(ks.pctHadir)}
+            ${ks.totalSlot > 0 ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">H:${ks.totalH} I:${ks.totalI} S:${ks.totalS} A:${ks.totalA} dari ${ks.totalSlot} sesi</div>` : ''}
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Progress Materi</div>
+            ${progressBar(ks.pctMateri)}
+            ${ks.materiTarget.length > 0 ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${ks.materiTercapai.length} dari ${ks.materiTarget.length} materi</div>` : '<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Tidak ada target bulan ini</div>'}
+          </div>
+        </div>
+
+        <!-- Detail santri (collapsible) -->
+        ${ks.santriStats.length > 0 ? `
+        <details>
+          <summary style="cursor:pointer; font-size:13px; font-weight:700; color:var(--green); padding:8px 0; border-top:1px solid var(--line); list-style:none; display:flex; align-items:center; justify-content:space-between;">
+            <span>Detail Per Santri</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div style="margin-top:12px;">
+            <div class="table-wrap"><table>
+              <thead><tr>
+                <th>#</th><th>Nama</th>
+                <th style="text-align:center; color:#4ade80;">H</th>
+                <th style="text-align:center; color:#fbbf24;">I</th>
+                <th style="text-align:center; color:#67e8f9;">S</th>
+                <th style="text-align:center; color:#f87171;">A</th>
+                <th style="text-align:center;">%</th>
+              </tr></thead>
+              <tbody>${santriRows}</tbody>
+            </table></div>
+          </div>
+        </details>` : ''}
+      </div>`;
+    }).join('');
+
+    // Ringkasan total kelompok
+    const totalPertemuanAll = kelasStats.reduce((s, k) => s + k.totalPertemuan, 0);
+    const totalSantriAll = kelasStats.reduce((s, k) => s + k.totalSantri, 0);
+    const avgHadir = kelasStats.filter(k => k.pctHadir !== null).length > 0
+      ? Math.round(kelasStats.filter(k => k.pctHadir !== null).reduce((s, k) => s + (k.pctHadir||0), 0) / kelasStats.filter(k => k.pctHadir !== null).length) : null;
+    const avgMateri = kelasStats.filter(k => k.pctMateri !== null).length > 0
+      ? Math.round(kelasStats.filter(k => k.pctMateri !== null).reduce((s, k) => s + (k.pctMateri||0), 0) / kelasStats.filter(k => k.pctMateri !== null).length) : null;
+
+    const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === myKelompokId)?.nama || myKelompokId;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Rekap KBM</h1>
+          <p class="page-subtitle">${escHtml(kelompokNama)} · Bulan ${escHtml(selectedBulan)}</p>
+        </div>
+        ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="REKAP_gantiKelompok()">Ganti Kelompok</button>` : ''}
+      </div>
+
+      <!-- Ringkasan -->
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card">
+          <div class="stat-num">${kelasList.length}</div>
+          <div class="stat-label">Kelas Aktif</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${totalSantriAll}</div>
+          <div class="stat-label">Total Generus</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${totalPertemuanAll}</div>
+          <div class="stat-label">Pertemuan Bulan Ini</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${avgHadir===null?'var(--ink-soft)':avgHadir>=80?'var(--green)':avgHadir>=50?'#e6a817':'var(--rose)'};">
+            ${avgHadir !== null ? avgHadir + '%' : '—'}
+          </div>
+          <div class="stat-label">Rata-rata Kehadiran</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${avgMateri===null?'var(--ink-soft)':avgMateri>=80?'var(--green)':avgMateri>=50?'#e6a817':'var(--rose)'};">
+            ${avgMateri !== null ? avgMateri + '%' : '—'}
+          </div>
+          <div class="stat-label">Progress Materi</div>
+        </div>
+      </div>
+
+      <!-- Filter bulan -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; overflow-x:auto; padding-bottom:4px;">
+        ${bulanChips}
+      </div>
+
+      <!-- Kartu per kelas -->
+      ${kelasList.length > 0 ? kelasCards : '<div class="card"><p class="color-soft">Belum ada kelas di kelompok ini. Tambahkan kelas di menu Data Santri.</p></div>'}
+    `;
+  }
+
+  window.REKAP_setBulan = (b) => { selectedBulan = b; renderDashboard(); };
+  window.REKAP_gantiKelompok = () => { App.cache.rekapKelompokId = null; renderRekap(); };
+
+  renderDashboard();
 }
 async function renderRekapDesa() {
   const main = document.getElementById('mainContent');
