@@ -130,6 +130,12 @@ function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+// Capitalize setiap awal kata — dipakai untuk nama generus dan nama ortu
+function toTitleCase(str) {
+  if (!str) return '';
+  return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'});
@@ -1345,6 +1351,10 @@ async function renderAbsensi() {
   await lanjutAbsensi();
 
   async function lanjutAbsensi() {
+    // Pastikan materi sudah di-cache untuk tampilan target materi
+    if (!App.cache.materi) {
+      App.cache.materi = await SB.materi.getAll();
+    }
   const kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
@@ -1410,6 +1420,57 @@ async function renderAbsensi() {
       </div>` :
       '<div class="empty-state"><p class="empty-title">Belum ada santri</p><p class="empty-desc">Tambahkan santri di menu Data Santri terlebih dahulu.</p></div>';
 
+    // Target materi bulan berjalan sesuai kelas
+    const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
+    let targetMateriHtml = '';
+    if (currentPertemuanId && selectedKelas && App.cache.materi) {
+      const bulanBerjalan = currentMonthName();
+      const materiKelas = App.cache.materi.filter(r =>
+        r.jenjang === selectedKelas.jenjang &&
+        String(r.semester) === String(selectedKelas.semester)
+      );
+      const colBulan = bulanBerjalan.toLowerCase();
+      const materiBulanIni = materiKelas.filter(r => r[colBulan] && r[colBulan].trim());
+
+      if (materiBulanIni.length) {
+        // Group by bab
+        const byBab = {};
+        const babOrder = [];
+        materiBulanIni.forEach(r => {
+          const k = (r.bab||'') + '||' + (r.bab_title||'');
+          if (!byBab[k]) { byBab[k] = { bab:r.bab, title:r.bab_title, items:[] }; babOrder.push(k); }
+          byBab[k].items.push(r);
+        });
+
+        const babHtml = babOrder.map(bk => {
+          const g = byBab[bk];
+          const itemsHtml = g.items.map(r => `
+            <div style="display:flex; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); font-size:12.5px;">
+              <div style="flex-shrink:0; width:22px; height:22px; border-radius:5px; background:var(--green-soft); color:var(--green); font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center;">${r.no||'•'}</div>
+              <div style="flex:1;">
+                <div style="font-weight:700; color:var(--ink);">${escHtml(r.topik||'')}${r.poin?` <span style="color:var(--gold);">${escHtml(r.poin)}.</span> ${escHtml(r.poin_title||'')}`:''}</div>
+                <div style="color:var(--ink-soft); margin-top:2px;">${escHtml(r[colBulan]||'')}</div>
+              </div>
+            </div>`).join('');
+          return `<div style="margin-bottom:10px;">
+            <div style="background:var(--green); color:#fff; padding:6px 10px; border-radius:6px 6px 0 0; font-size:11px; font-weight:800; text-transform:uppercase;">
+              ${escHtml(g.bab||'')} · ${escHtml(g.title||'')}
+            </div>
+            <div style="border:1px solid var(--line); border-top:none; border-radius:0 0 6px 6px;">${itemsHtml}</div>
+          </div>`;
+        }).join('');
+
+        targetMateriHtml = `
+          <div class="card" style="margin-top:18px;">
+            <div class="fw-bold color-green" style="font-size:15px; margin-bottom:4px;">📚 Target Materi Bulan Ini</div>
+            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:14px;">
+              ${escHtml(selectedKelas.nama_kelas||selectedKelas.jenjang)} · Bulan ${escHtml(bulanBerjalan)}
+            </div>
+            ${babHtml}
+          </div>`;
+      }
+    }
+
     const jurnalHtml = currentPertemuanId ? `
       <div class="card" style="margin-top:18px;">
         <div class="fw-bold color-green" style="font-size:15px; margin-bottom:14px;">📝 Jurnal KBM</div>
@@ -1418,7 +1479,8 @@ async function renderAbsensi() {
           <textarea id="jurnalCatatan" rows="4" placeholder="Tuliskan kondisi KBM, catatan penting, atau kendala hari ini...">${escHtml(jurnalData?.catatan || '')}</textarea>
         </div>
         <button class="btn btn-green" onclick="ABS_saveJurnal()">💾 Simpan Jurnal</button>
-      </div>` : '';
+      </div>
+      ${targetMateriHtml}` : '';
 
     main.innerHTML = `
       <div class="page-header">
@@ -1822,7 +1884,12 @@ function openAddSantriModal(kelasId, existingSantri, onSaved) {
     const btn = document.getElementById('strSaveBtn');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
 
-    const data = { nama, tgl_lahir, jenis_kel, nama_ortu, nis, tingkatan, tingkatan_override };
+    const data = {
+      nama: toTitleCase(nama),
+      tgl_lahir, jenis_kel,
+      nama_ortu: nama_ortu ? toTitleCase(nama_ortu) : null,
+      nis, tingkatan, tingkatan_override
+    };
 
     try {
       if (s) {
@@ -2059,9 +2126,15 @@ async function openImportExcelModal(kelasId, kelompokId, onDone) {
     let berhasil = 0, gagal = 0;
     for (let i = 0; i < valid.length; i += 20) {
       const batch = valid.slice(i, i+20).map(r => ({
-        nama: r.nama, tgl_lahir: r.tgl_lahir, jenis_kel: r.jenis_kel,
-        tingkatan: r.tingkatan, tingkatan_override: r.tingkatan_override,
-        nama_ortu: r.nama_ortu, nis: r.nis, kelas_id: r.kelas_id, aktif: true,
+        nama: toTitleCase(r.nama),
+        tgl_lahir: r.tgl_lahir,
+        jenis_kel: r.jenis_kel,
+        tingkatan: r.tingkatan,
+        tingkatan_override: r.tingkatan_override,
+        nama_ortu: r.nama_ortu ? toTitleCase(r.nama_ortu) : null,
+        nis: r.nis,
+        kelas_id: r.kelas_id,
+        aktif: true,
       }));
       try { await SB.santri.insert(batch); berhasil += batch.length; }
       catch(e) { gagal += batch.length; console.error(e); }
