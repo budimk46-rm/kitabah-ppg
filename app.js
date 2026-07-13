@@ -1146,6 +1146,8 @@ async function renderSantri() {
           const tingkatan = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
           const usia = hitungUsia(s.tgl_lahir);
           const naikLevel = hitungNaikLevel(s.tgl_lahir);
+          // Simpan data santri ke window untuk akses dari onclick
+          window['_strData_' + s.id] = s;
           return `<tr>
             <td>${i + 1}</td>
             <td><b>${escHtml(s.nama)}</b></td>
@@ -1157,7 +1159,7 @@ async function renderSantri() {
             <td>${naikLevel ? `<span class="badge badge-gold">${escHtml(naikLevel)}</span>` : '—'}</td>
             <td>
               <div style="display:flex; gap:4px;">
-                <button class="btn-icon" onclick="STR_edit(${JSON.stringify(JSON.stringify(s))})" title="Edit">
+                <button class="btn-icon" onclick="STR_edit('${s.id}')" title="Edit">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
                 </button>
                 <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Hapus">
@@ -1181,9 +1183,9 @@ async function renderSantri() {
 
       <!-- Pilihan Kelompok (admin) dan Kelas -->
       <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
           ${isAdmin ? `
-          <div style="flex:0 0 auto; min-width:160px;">
+          <div style="flex:1; min-width:140px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Filter Desa</label>
             <select id="strDesaFilter" onchange="STR_filterDesa(this.value)"
               style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
@@ -1192,7 +1194,7 @@ async function renderSantri() {
                 `<option value="Desa ${d}">Desa ${d}</option>`).join('')}
             </select>
           </div>
-          <div style="flex:1; min-width:200px;">
+          <div style="flex:2; min-width:180px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
             <select id="strKelompokSel" onchange="STR_loadKelompok(this.value)"
               style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
@@ -1203,29 +1205,29 @@ async function renderSantri() {
                 </option>`).join('')}
             </select>
           </div>` : ''}
-          <div style="flex:1; min-width:180px;">
+          <div style="flex:2; min-width:160px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelas</label>
-            <div style="display:flex; gap:6px;">
-              <select onchange="STR_loadKelas(this.value)"
-                style="flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
-                <option value="">Pilih kelas...</option>
-                ${kelasOptsHtml}
-              </select>
-              ${selectedKelompokId || !isAdmin ? `
-              <button class="btn btn-gold btn-sm" onclick="STR_addKelas()" title="Tambah kelas baru">+ Kelas</button>` : ''}
-            </div>
+            <select onchange="STR_loadKelas(this.value)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih kelas...</option>
+              ${kelasOptsHtml}
+            </select>
           </div>
+        </div>
+        ${(selectedKelompokId || !isAdmin) ? `
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
+          <button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>
           ${selectedKelasId ? `
           <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
-          <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()" title="Import dari Excel">
+          <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import Excel
           </button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="STR_downloadTemplate()" title="Unduh template Excel">
+          <button class="btn btn-outline btn-sm" onclick="STR_downloadTemplate()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Template Excel
           </button>
-        </div>
+        </div>` : ''}
       </div>
 
       ${selectedKelasId ? tableHtml : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
@@ -1265,8 +1267,9 @@ async function renderSantri() {
       await loadSantri(selectedKelasId);
     });
   };
-  window.STR_edit = (jsonStr) => {
-    const s = JSON.parse(JSON.parse(jsonStr));
+  window.STR_edit = (id) => {
+    const s = window['_strData_' + id];
+    if (!s) { showToast('Data tidak ditemukan', true); return; }
     openAddSantriModal(selectedKelasId, s, async () => await loadSantri(selectedKelasId));
   };
   window.STR_delete = async (id, nama) => {
@@ -1403,11 +1406,13 @@ async function renderAbsensi() {
             <td>${i+1}</td>
             <td><b>${escHtml(s.nama)}</b></td>
             <td>
-              <div style="display:flex; gap:6px; justify-content:center;">
+              <div style="display:flex; gap:5px; justify-content:center;">
                 ${['H','I','S','A'].map(st => `
                   <button class="absen-btn ${st} ${status === st ? 'active' : ''}"
-                    onclick="ABS_setStatus('${s.id}','${st}')">
-                    ${st === 'H' ? 'Hadir' : st === 'I' ? 'Ijin' : st === 'S' ? 'Sakit' : 'Alpha'}
+                    onclick="ABS_setStatus('${s.id}','${st}')"
+                    title="${st==='H'?'Hadir':st==='I'?'Ijin':st==='S'?'Sakit':'Alpha'}"
+                    style="width:36px; height:34px; font-size:13px; font-weight:800;">
+                    ${st}
                   </button>`).join('')}
               </div>
             </td>
@@ -1521,24 +1526,43 @@ async function renderAbsensi() {
     renderMain();
   };
   window.ABS_saveAbsensi = async () => {
-    if (!currentPertemuanId) return;
-    const rows = santriList.map(s => ({
-      pertemuan_id: currentPertemuanId,
-      santri_id: s.id,
-      status: absensiData[s.id] || 'A',
-      dicatat_oleh: u.id,
-    }));
-    await SB.absensi.upsertBulk(rows);
-    showToast('Absensi disimpan ✓');
+    if (!currentPertemuanId) { showToast('Pilih pertemuan terlebih dahulu', true); return; }
+    if (!santriList.length) { showToast('Tidak ada santri di kelas ini', true); return; }
+    const btn = document.querySelector('[onclick="ABS_saveAbsensi()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    try {
+      const rows = santriList.map(s => ({
+        pertemuan_id: currentPertemuanId,
+        santri_id: s.id,
+        status: absensiData[s.id] || 'A',
+        dicatat_oleh: u.id,
+      }));
+      await SB.absensi.upsertBulk(rows);
+      showToast('Absensi disimpan ✓');
+    } catch(e) {
+      showToast('Gagal simpan absensi: ' + e.message, true);
+      console.error('Absensi error:', e);
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '💾 Simpan Absensi'; }
   };
+
   window.ABS_saveJurnal = async () => {
-    const catatan = document.getElementById('jurnalCatatan').value;
-    await SB.jurnal.upsert({
-      pertemuan_id: currentPertemuanId,
-      guru_id: u.id,
-      catatan,
-    });
-    showToast('Jurnal disimpan ✓');
+    if (!currentPertemuanId) { showToast('Pilih pertemuan terlebih dahulu', true); return; }
+    const catatan = document.getElementById('jurnalCatatan')?.value || '';
+    const btn = document.querySelector('[onclick="ABS_saveJurnal()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    try {
+      await SB.jurnal.upsert({
+        pertemuan_id: currentPertemuanId,
+        guru_id: u.id,
+        catatan,
+      });
+      showToast('Jurnal disimpan ✓');
+    } catch(e) {
+      showToast('Gagal simpan jurnal: ' + e.message, true);
+      console.error('Jurnal error:', e);
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '💾 Simpan Jurnal'; }
   };
   window.ABS_addPertemuan = () => openAddPertemuanModal(selectedKelasId, async () => await loadPertemuan());
 
