@@ -1282,12 +1282,69 @@ async function renderSantri() {
 async function renderAbsensi() {
   const main = document.getElementById('mainContent');
   const u = App.user;
-  const myKelompokId = u.kelompok_id;
-  if (!myKelompokId) {
-    main.innerHTML = '<div class="card"><p class="color-soft">Fitur ini memerlukan akun yang terhubung ke kelompok.</p></div>';
+  const isAdmin = u.role === 'admin';
+
+  // Load kelompok untuk admin
+  if (isAdmin && !App.cache.kelompok) {
+    App.cache.kelompok = await SB.kelompok.getAll();
+  }
+
+  let myKelompokId = u.kelompok_id || null;
+
+  // Kalau admin belum pilih kelompok, tampilkan picker dulu
+  if (isAdmin && !myKelompokId) {
+    main.innerHTML = `
+      <div class="page-header">
+        <h1 class="page-title">Absensi & Jurnal KBM</h1>
+      </div>
+      <div class="card">
+        <p style="margin:0 0 16px; font-size:13.5px; color:var(--ink-soft);">Pilih kelompok terlebih dahulu untuk mengakses absensi.</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="flex:0 0 auto; min-width:160px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Filter Desa</label>
+            <select id="absDesaFilter" onchange="ABS_filterDesa(this.value)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Semua Desa</option>
+              ${['Barat 1','Barat 2','Tengah 1','Tengah 2','Timur 1','Timur 2'].map(d =>
+                `<option value="Desa ${d}">Desa ${d}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:1; min-width:200px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
+            <select id="absKelompokSel"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih kelompok...</option>
+              ${(App.cache.kelompok||[]).map(k =>
+                `<option value="${k.id}" data-desa="${escHtml(k.desa?.nama||k.desa_id)}">
+                  ${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}
+                </option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex; align-items:flex-end;">
+            <button class="btn btn-green" onclick="ABS_pilihKelompok()">Buka Absensi →</button>
+          </div>
+        </div>
+      </div>`;
+
+    window.ABS_filterDesa = (desa) => {
+      const sel = document.getElementById('absKelompokSel');
+      Array.from(sel.options).forEach(o => {
+        if (!o.value) return;
+        o.hidden = desa ? o.dataset.desa !== desa : false;
+      });
+    };
+    window.ABS_pilihKelompok = async () => {
+      const id = document.getElementById('absKelompokSel').value;
+      if (!id) { showToast('Pilih kelompok dulu', true); return; }
+      myKelompokId = id;
+      await lanjutAbsensi();
+    };
     return;
   }
 
+  await lanjutAbsensi();
+
+  async function lanjutAbsensi() {
   const kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
@@ -1318,7 +1375,9 @@ async function renderAbsensi() {
 
   function renderMain() {
     const kelasOptHtml = kelasOptions.map(k =>
-      `<option value="${k.id}" data-label="${escHtml(k.jenjang)} Sem ${k.semester}" ${k.id === selectedKelasId ? 'selected' : ''}>${escHtml(k.jenjang)} - Sem ${k.semester}</option>`
+      `<option value="${k.id}" data-label="${escHtml(k.nama_kelas||k.jenjang)}" ${k.id === selectedKelasId ? 'selected' : ''}>
+        ${k.nama_kelas ? escHtml(k.nama_kelas)+' — ' : ''}${escHtml(k.jenjang)} Sem ${k.semester}
+      </option>`
     ).join('');
 
     const pertemuanOptHtml = pertemuanList.map(p =>
@@ -1422,6 +1481,7 @@ async function renderAbsensi() {
   window.ABS_addPertemuan = () => openAddPertemuanModal(selectedKelasId, async () => await loadPertemuan());
 
   await loadPertemuan();
+  } // end lanjutAbsensi
 }
 
 /* ===== PAGE: SETTINGS ===== */
