@@ -1455,13 +1455,16 @@ async function renderAbsensi() {
     const allMonths = selectedKelas?.semester === '2' ? SEM2_MONTHS : SEM1_MONTHS;
     const nowMonth = currentMonthName();
     const nowIdx = allMonths.indexOf(nowMonth);
-    // Tampilkan bulan sebelum, berjalan, sesudah — dalam urutan benar
-    const visibleMonths = [];
-    if (nowIdx > 0) visibleMonths.push(allMonths[nowIdx - 1]);
-    if (nowIdx >= 0) visibleMonths.push(allMonths[nowIdx]);
-    if (nowIdx < allMonths.length - 1) visibleMonths.push(allMonths[nowIdx + 1]);
-    // Fallback jika bulan berjalan tidak ada di semester ini
-    if (visibleMonths.length === 0) visibleMonths.push(...allMonths.slice(0, 3));
+    // Tampilkan bulan sebelum, berjalan, sesudah — selalu urut kronologis
+    let visibleMonths = [];
+    if (nowIdx >= 0) {
+      if (nowIdx > 0) visibleMonths.push(allMonths[nowIdx - 1]);
+      visibleMonths.push(allMonths[nowIdx]);
+      if (nowIdx < allMonths.length - 1) visibleMonths.push(allMonths[nowIdx + 1]);
+    } else {
+      // Bulan berjalan tidak ada di semester kelas ini — tampilkan semua bulan semester
+      visibleMonths = [...allMonths];
+    }
 
     // Load progress kelompok untuk tanda "sudah pernah disampaikan"
     const kelompokId4Progress = u.kelompok_id || null;
@@ -1690,21 +1693,34 @@ async function renderAbsensi() {
     const btn = document.querySelector('[onclick="ABS_simpanBaru()"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
     try {
-      // 1. Buat pertemuan baru
-      const kelasData = kelasOptions.find(k => k.id === selectedKelasId);
       const tgl = new Date().toISOString().slice(0,10);
       const bulanNow = currentMonthName();
-      const kePertemuan = pertemuanList.filter(p => p.bulan === bulanNow).length + 1;
-      const newPertemuan = await SB.pertemuan.insert({
-        kelas_id: selectedKelasId,
-        tanggal: tgl,
-        bulan: bulanNow,
-        tahun: new Date().getFullYear(),
-        pertemuan_ke: kePertemuan,
-        created_by: u.id,
-      });
-      const pId = newPertemuan?.[0]?.id;
-      if (!pId) throw new Error('Gagal membuat pertemuan');
+
+      // Cek apakah sudah ada pertemuan hari ini untuk kelas ini
+      const existing = pertemuanList.find(p => p.tanggal === tgl);
+      let pId;
+      let kePertemuan;
+
+      if (existing) {
+        // Pakai pertemuan yang sudah ada hari ini
+        pId = existing.id;
+        kePertemuan = existing.pertemuan_ke;
+        showToast(`Menggunakan pertemuan ke-${kePertemuan} yang sudah ada hari ini`);
+      } else {
+        // Buat pertemuan baru
+        kePertemuan = pertemuanList.filter(p => p.bulan === bulanNow).length + 1;
+        const newPertemuan = await SB.pertemuan.insert({
+          kelas_id: selectedKelasId,
+          tanggal: tgl,
+          bulan: bulanNow,
+          tahun: new Date().getFullYear(),
+          pertemuan_ke: kePertemuan,
+          created_by: u.id,
+        });
+        pId = newPertemuan?.[0]?.id;
+        if (!pId) throw new Error('Gagal membuat pertemuan');
+      }
+
       currentPertemuanId = pId;
       await doSimpanAll(pId);
       pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
