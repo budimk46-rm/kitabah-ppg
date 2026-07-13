@@ -1358,6 +1358,7 @@ async function renderAbsensi() {
     if (!App.cache.materi) {
       App.cache.materi = await SB.materi.getAll();
     }
+    let selectedMateriIds = new Set();
   const kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
@@ -1371,8 +1372,12 @@ async function renderAbsensi() {
     if (!selectedKelasId) return;
     pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
     santriList = await SB.santri.getByKelas(selectedKelasId);
-    if (pertemuanList.length) await loadDetail(pertemuanList[0].id);
-    else renderMain();
+    // Default: tampilkan form pertemuan BARU (bukan data lama)
+    currentPertemuanId = null;
+    absensiData = {};
+    jurnalData = null;
+    selectedMateriIds = new Set();
+    renderMain();
   }
 
   async function loadDetail(pId) {
@@ -1383,23 +1388,49 @@ async function renderAbsensi() {
     ]);
     absensiData = Object.fromEntries(absen.map(a => [a.santri_id, a.status]));
     jurnalData = jurnal.length ? jurnal[0] : null;
+    // Load materi yang sudah dipilih di jurnal ini
+    const jurnalMateri = jurnalData ? (jurnalData.jurnal_materi || []) : [];
+    selectedMateriIds = new Set(jurnalMateri.map(jm => jm.materi_id));
     renderMain();
   }
 
+  function getMateriForDisplay(bulan) {
+    const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!selectedKelas || !App.cache.materi) return [];
+    const col = bulan.toLowerCase();
+    return App.cache.materi.filter(r =>
+      r.jenjang === selectedKelas.jenjang &&
+      String(r.semester) === String(selectedKelas.semester) &&
+      r[col] && r[col].trim()
+    );
+  }
+
   function renderMain() {
+    const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const kelasOptHtml = kelasOptions.map(k =>
-      `<option value="${k.id}" data-label="${escHtml(k.nama_kelas||k.jenjang)}" ${k.id === selectedKelasId ? 'selected' : ''}>
+      `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>
         ${k.nama_kelas ? escHtml(k.nama_kelas)+' — ' : ''}${escHtml(k.jenjang)} Sem ${k.semester}
       </option>`
     ).join('');
 
-    const pertemuanOptHtml = pertemuanList.map(p =>
-      `<option value="${p.id}" ${p.id === currentPertemuanId ? 'selected' : ''}>${escHtml(fmtDate(p.tanggal))} (Pertemuan ke-${p.pertemuan_ke || '?'})</option>`
-    ).join('');
+    const pertemuanOptHtml = [
+      `<option value="">+ Pertemuan Baru</option>`,
+      ...pertemuanList.map(p =>
+        `<option value="${p.id}" ${p.id === currentPertemuanId ? 'selected' : ''}>
+          ${escHtml(fmtDateShort(p.tanggal))} · Pertemuan ke-${p.pertemuan_ke||'?'}
+        </option>`)
+    ].join('');
 
+    // ── Absensi ──
     const absensiTable = santriList.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Nama Santri</th><th style="text-align:center;">Status Kehadiran</th></tr></thead>
+        <thead><tr>
+          <th>#</th><th>Nama</th>
+          <th style="text-align:center;">
+            H&nbsp;&nbsp;I&nbsp;&nbsp;S&nbsp;&nbsp;A
+            <div style="font-size:9px; font-weight:400; opacity:.7;">Hadir · Ijin · Sakit · Alpha</div>
+          </th>
+        </tr></thead>
         <tbody>${santriList.map((s, i) => {
           const status = absensiData[s.id] || '';
           return `<tr>
@@ -1408,162 +1439,310 @@ async function renderAbsensi() {
             <td>
               <div style="display:flex; gap:5px; justify-content:center;">
                 ${['H','I','S','A'].map(st => `
-                  <button class="absen-btn ${st} ${status === st ? 'active' : ''}"
+                  <button class="absen-btn ${st} ${status===st?'active':''}"
                     onclick="ABS_setStatus('${s.id}','${st}')"
                     title="${st==='H'?'Hadir':st==='I'?'Ijin':st==='S'?'Sakit':'Alpha'}"
-                    style="width:36px; height:34px; font-size:13px; font-weight:800;">
-                    ${st}
+                    style="width:36px; height:34px; font-size:13px; font-weight:800;">${st}
                   </button>`).join('')}
               </div>
             </td>
           </tr>`;
-        }).join('')}
-        </tbody>
-      </table></div>
-      <div style="margin-top:14px;">
-        <button class="btn btn-green" onclick="ABS_saveAbsensi()">💾 Simpan Absensi</button>
-      </div>` :
-      '<div class="empty-state"><p class="empty-title">Belum ada santri</p><p class="empty-desc">Tambahkan santri di menu Data Santri terlebih dahulu.</p></div>';
+        }).join('')}</tbody>
+      </table></div>` :
+      '<div class="empty-state"><p class="empty-title">Belum ada santri</p><p class="empty-desc">Tambahkan santri di menu Data Santri.</p></div>';
 
-    // Target materi bulan berjalan sesuai kelas
-    const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
-    let targetMateriHtml = '';
-    if (currentPertemuanId && selectedKelas && App.cache.materi) {
-      const bulanBerjalan = currentMonthName();
-      const materiKelas = App.cache.materi.filter(r =>
-        r.jenjang === selectedKelas.jenjang &&
-        String(r.semester) === String(selectedKelas.semester)
-      );
-      const colBulan = bulanBerjalan.toLowerCase();
-      const materiBulanIni = materiKelas.filter(r => r[colBulan] && r[colBulan].trim());
+    // ── Materi bulan: chip filter ──
+    const allMonths = selectedKelas?.semester === '2' ? SEM2_MONTHS : SEM1_MONTHS;
+    const nowMonth = currentMonthName();
+    const nowIdx = allMonths.indexOf(nowMonth);
+    // Tampilkan: bulan sebelum, berjalan, sesudah
+    const visibleMonths = allMonths.filter((m, i) =>
+      i >= Math.max(0, nowIdx-1) && i <= Math.min(allMonths.length-1, nowIdx+1)
+    );
+    if (!visibleMonths.includes(nowMonth) && nowIdx >= 0) visibleMonths.push(nowMonth);
 
-      if (materiBulanIni.length) {
-        // Group by bab
-        const byBab = {};
-        const babOrder = [];
-        materiBulanIni.forEach(r => {
-          const k = (r.bab||'') + '||' + (r.bab_title||'');
-          if (!byBab[k]) { byBab[k] = { bab:r.bab, title:r.bab_title, items:[] }; babOrder.push(k); }
-          byBab[k].items.push(r);
-        });
+    // ── Materi yang bisa dipilih ──
+    let materiSectionHtml = '';
+    if (currentPertemuanId !== undefined && selectedKelas) {
+      const bulanToShow = jurnalBulan || nowMonth;
+      const materiList = getMateriForDisplay(bulanToShow);
 
-        const babHtml = babOrder.map(bk => {
-          const g = byBab[bk];
-          const itemsHtml = g.items.map(r => `
-            <div style="display:flex; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); font-size:12.5px;">
-              <div style="flex-shrink:0; width:22px; height:22px; border-radius:5px; background:var(--green-soft); color:var(--green); font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center;">${r.no||'•'}</div>
-              <div style="flex:1;">
-                <div style="font-weight:700; color:var(--ink);">${escHtml(r.topik||'')}${r.poin?` <span style="color:var(--gold);">${escHtml(r.poin)}.</span> ${escHtml(r.poin_title||'')}`:''}</div>
-                <div style="color:var(--ink-soft); margin-top:2px;">${escHtml(r[colBulan]||'')}</div>
-              </div>
-            </div>`).join('');
-          return `<div style="margin-bottom:10px;">
-            <div style="background:var(--green); color:#fff; padding:6px 10px; border-radius:6px 6px 0 0; font-size:11px; font-weight:800; text-transform:uppercase;">
-              ${escHtml(g.bab||'')} · ${escHtml(g.title||'')}
+      const monthChips = [nowMonth, ...visibleMonths.filter(m => m !== nowMonth)].map(m => `
+        <div onclick="ABS_setJurnalBulan('${m}')"
+          style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+            background:${(jurnalBulan||nowMonth)===m?'var(--green)':'var(--white)'};
+            color:${(jurnalBulan||nowMonth)===m?'#fff':'var(--ink-soft)'};
+            border:1.5px solid ${(jurnalBulan||nowMonth)===m?'var(--green)':'var(--line)'};">
+          ${m}${m===nowMonth?' ●':''}
+        </div>`).join('');
+
+      // Group materi by bab
+      const byBab = {}; const babOrder = [];
+      materiList.forEach(r => {
+        const k = (r.bab||'')+' '+( r.bab_title||'');
+        if (!byBab[k]) { byBab[k]={title:k, items:[]}; babOrder.push(k); }
+        byBab[k].items.push(r);
+      });
+
+      const col = bulanToShow.toLowerCase();
+      const babsHtml = babOrder.map(bk => {
+        const g = byBab[bk];
+        const itemsHtml = g.items.map(r => {
+          const dipilih = selectedMateriIds.has(r.id);
+          return `<div onclick="ABS_toggleMateri('${r.id}','${escHtml(r.topik||'')}${r.poin_title?' - '+r.poin_title:''}')"
+            style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
+              border-bottom:1px solid var(--line); cursor:pointer; transition:background .15s;
+              background:${dipilih?'var(--green-soft)':''};"
+            onmouseover="this.style.background='${dipilih?'var(--green-soft)':'var(--cream-2)'}'"
+            onmouseout="this.style.background='${dipilih?'var(--green-soft)':''}'"
+            >
+            <div style="width:22px; height:22px; border-radius:6px; border:2px solid ${dipilih?'var(--green)':'var(--line)'};
+              background:${dipilih?'var(--green)':'transparent'};
+              display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+              ${dipilih?'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>':''}
             </div>
-            <div style="border:1px solid var(--line); border-top:none; border-radius:0 0 6px 6px;">${itemsHtml}</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:13px; color:${dipilih?'var(--green)':'var(--ink)'};">
+                ${r.no||'•'}. ${escHtml(r.topik||'')}
+                ${r.poin?`<span style="color:var(--gold); font-weight:800;"> ${escHtml(r.poin)}.</span> ${escHtml(r.poin_title||'')}` : ''}
+              </div>
+              <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(r[col]||'')}</div>
+            </div>
           </div>`;
         }).join('');
+        return `<div style="margin-bottom:12px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--line);">
+          <div style="background:var(--green); color:#fff; padding:8px 12px; font-size:12px; font-weight:800; text-transform:uppercase;">
+            ${escHtml(g.title)}
+          </div>
+          ${itemsHtml}
+        </div>`;
+      }).join('');
 
-        targetMateriHtml = `
-          <div class="card" style="margin-top:18px;">
-            <div class="fw-bold color-green" style="font-size:15px; margin-bottom:4px;">📚 Target Materi Bulan Ini</div>
-            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:14px;">
-              ${escHtml(selectedKelas.nama_kelas||selectedKelas.jenjang)} · Bulan ${escHtml(bulanBerjalan)}
+      const selectedCount = selectedMateriIds.size;
+      materiSectionHtml = `
+        <div class="card" style="margin-top:18px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+            <div>
+              <div class="fw-bold color-green" style="font-size:15px;">📚 Materi yang Disampaikan</div>
+              <div style="font-size:12px; color:var(--ink-soft);">Klik materi yang sudah disampaikan hari ini</div>
             </div>
-            ${babHtml}
-          </div>`;
-      }
+            ${selectedCount ? `<span class="badge badge-green">${selectedCount} dipilih</span>` : ''}
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+            ${monthChips}
+          </div>
+          ${materiList.length ? babsHtml : `<div class="empty-state"><p class="empty-desc">Tidak ada target materi untuk bulan ${bulanToShow}.</p></div>`}
+        </div>`;
     }
 
-    const jurnalHtml = currentPertemuanId ? `
+    // ── Jurnal ──
+    const jurnalHtml = `
       <div class="card" style="margin-top:18px;">
-        <div class="fw-bold color-green" style="font-size:15px; margin-bottom:14px;">📝 Jurnal KBM</div>
+        <div class="fw-bold color-green" style="font-size:15px; margin-bottom:14px;">📝 Catatan Jurnal KBM</div>
         <div class="form-group" style="margin-bottom:14px;">
-          <label>Catatan Kegiatan KBM</label>
-          <textarea id="jurnalCatatan" rows="4" placeholder="Tuliskan kondisi KBM, catatan penting, atau kendala hari ini...">${escHtml(jurnalData?.catatan || '')}</textarea>
+          <label>Catatan kondisi KBM, kendala, atau hal penting lainnya</label>
+          <textarea id="jurnalCatatan" rows="3"
+            placeholder="Opsional — tuliskan catatan tambahan tentang KBM hari ini...">${escHtml(jurnalData?.catatan || '')}</textarea>
         </div>
-        <button class="btn btn-green" onclick="ABS_saveJurnal()">💾 Simpan Jurnal</button>
-      </div>
-      ${targetMateriHtml}` : '';
+      </div>`;
+
+    // ── Tombol simpan semua ──
+    const simpanHtml = currentPertemuanId ? `
+      <div style="position:sticky; bottom:16px; z-index:10; margin-top:16px;">
+        <button class="btn btn-green" onclick="ABS_simpanSemua()"
+          style="width:100%; padding:14px; font-size:15px; font-weight:800; border-radius:var(--radius); box-shadow:var(--shadow-lg);">
+          💾 Simpan Absensi + Jurnal
+        </button>
+      </div>` : '';
 
     main.innerHTML = `
       <div class="page-header">
         <h1 class="page-title">Absensi & Jurnal KBM</h1>
       </div>
+
+      <!-- Pilih Kelas & Pertemuan -->
       <div class="card">
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
-          <div style="flex:1; min-width:160px;">
-            <label style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--green); display:block; margin-bottom:5px;">Kelas</label>
-            <select onchange="ABS_setKelas(this)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1; min-width:150px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelas</label>
+            <select onchange="ABS_setKelas(this)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
               ${kelasOptHtml}
             </select>
           </div>
-          <div style="flex:1; min-width:180px;">
-            <label style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--green); display:block; margin-bottom:5px;">Pertemuan</label>
-            <div style="display:flex; gap:6px;">
-              <select id="pertemuanSelect" onchange="ABS_setPertemuan(this.value)" style="flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
-                ${pertemuanOptHtml || '<option value="">Belum ada pertemuan</option>'}
-              </select>
-              <button class="btn btn-gold btn-sm" onclick="ABS_addPertemuan()">+ Baru</button>
-            </div>
+          <div style="flex:2; min-width:200px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Pertemuan</label>
+            <select id="pertemuanSelect" onchange="ABS_setPertemuan(this.value)"
+              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              ${pertemuanOptHtml}
+            </select>
           </div>
         </div>
-        ${currentPertemuanId ? absensiTable : '<p class="color-soft">Buat pertemuan baru atau pilih pertemuan yang sudah ada.</p>'}
+        ${!currentPertemuanId ? `
+          <div style="margin-top:14px; padding:14px; background:var(--gold-soft); border-radius:var(--radius-sm); font-size:13px; color:#8a6a24;">
+            <b>Pertemuan baru</b> — tanggal hari ini (${fmtDateShort(new Date().toISOString().slice(0,10))}) akan dibuat saat Anda simpan.
+            Atau pilih pertemuan sebelumnya dari dropdown untuk diedit.
+          </div>
+          <div style="margin-top:12px;">
+            ${absensiTable}
+          </div>
+          ${jurnalHtml}
+          ${materiSectionHtml}
+          <div style="margin-top:16px;">
+            <button class="btn btn-green" onclick="ABS_simpanBaru()"
+              style="width:100%; padding:14px; font-size:15px; font-weight:800; border-radius:var(--radius);">
+              💾 Buat Pertemuan & Simpan
+            </button>
+          </div>` :
+        `<div style="margin-top:14px;">
+          ${absensiTable}
+        </div>
+        ${jurnalHtml}
+        ${materiSectionHtml}
+        ${simpanHtml}`}
       </div>
-      ${jurnalHtml}
     `;
   }
 
+  // State bulan jurnal
+  let jurnalBulan = currentMonthName();
+
   window.ABS_setKelas = async (sel) => {
     selectedKelasId = sel.value;
-    selectedKelasLabel = sel.options[sel.selectedIndex].dataset.label;
     await loadPertemuan();
   };
-  window.ABS_setPertemuan = async (id) => { if (id) await loadDetail(id); };
+
+  window.ABS_setPertemuan = async (id) => {
+    if (!id) {
+      // Pertemuan baru
+      currentPertemuanId = null;
+      absensiData = {};
+      jurnalData = null;
+      selectedMateriIds = new Set();
+      renderMain();
+    } else {
+      await loadDetail(id);
+    }
+  };
+
+  window.ABS_setJurnalBulan = (bulan) => {
+    jurnalBulan = bulan;
+    renderMain();
+  };
+
   window.ABS_setStatus = (santriId, status) => {
     absensiData[santriId] = status;
     renderMain();
   };
-  window.ABS_saveAbsensi = async () => {
-    if (!currentPertemuanId) { showToast('Pilih pertemuan terlebih dahulu', true); return; }
-    if (!santriList.length) { showToast('Tidak ada santri di kelas ini', true); return; }
-    const btn = document.querySelector('[onclick="ABS_saveAbsensi()"]');
+
+  window.ABS_toggleMateri = (materiId, label) => {
+    if (selectedMateriIds.has(materiId)) {
+      selectedMateriIds.delete(materiId);
+    } else {
+      selectedMateriIds.add(materiId);
+    }
+    // Auto-update catatan jurnal
+    const textarea = document.getElementById('jurnalCatatan');
+    if (textarea) {
+      const materiList = Array.from(selectedMateriIds).map(id => {
+        const m = (App.cache.materi||[]).find(r => r.id === id);
+        if (!m) return null;
+        return `• ${m.topik||''}${m.poin_title?' - '+m.poin_title:''}`;
+      }).filter(Boolean);
+      if (materiList.length) {
+        textarea.value = 'Materi yang disampaikan:\n' + materiList.join('\n');
+      } else {
+        textarea.value = '';
+      }
+    }
+    renderMain();
+  };
+
+  // Simpan untuk pertemuan BARU
+  window.ABS_simpanBaru = async () => {
+    const btn = document.querySelector('[onclick="ABS_simpanBaru()"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
     try {
+      // 1. Buat pertemuan baru
+      const kelasData = kelasOptions.find(k => k.id === selectedKelasId);
+      const tgl = new Date().toISOString().slice(0,10);
+      const bulanNow = currentMonthName();
+      const kePertemuan = pertemuanList.filter(p => p.bulan === bulanNow).length + 1;
+      const newPertemuan = await SB.pertemuan.insert({
+        kelas_id: selectedKelasId,
+        tanggal: tgl,
+        bulan: bulanNow,
+        tahun: new Date().getFullYear(),
+        pertemuan_ke: kePertemuan,
+        created_by: u.id,
+      });
+      const pId = newPertemuan?.[0]?.id;
+      if (!pId) throw new Error('Gagal membuat pertemuan');
+      currentPertemuanId = pId;
+      await doSimpanAll(pId);
+      pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
+      showToast(`Pertemuan ke-${kePertemuan} berhasil disimpan ✓`);
+      await loadDetail(pId);
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error(e);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Buat Pertemuan & Simpan'; }
+  };
+
+  // Simpan untuk pertemuan yang SUDAH ADA
+  window.ABS_simpanSemua = async () => {
+    const btn = document.querySelector('[onclick="ABS_simpanSemua()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    try {
+      await doSimpanAll(currentPertemuanId);
+      showToast('Absensi & jurnal disimpan ✓');
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error(e);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Simpan Absensi + Jurnal'; }
+  };
+
+  async function doSimpanAll(pId) {
+    const kelompokId = u.kelompok_id || null;
+    const bulan = jurnalBulan || currentMonthName();
+    const catatan = document.getElementById('jurnalCatatan')?.value || '';
+
+    // 1. Simpan absensi
+    if (santriList.length) {
       const rows = santriList.map(s => ({
-        pertemuan_id: currentPertemuanId,
+        pertemuan_id: pId,
         santri_id: s.id,
         status: absensiData[s.id] || 'A',
         dicatat_oleh: u.id,
       }));
       await SB.absensi.upsertBulk(rows);
-      showToast('Absensi disimpan ✓');
-    } catch(e) {
-      showToast('Gagal simpan absensi: ' + e.message, true);
-      console.error('Absensi error:', e);
     }
-    if (btn) { btn.disabled = false; btn.innerHTML = '💾 Simpan Absensi'; }
-  };
 
-  window.ABS_saveJurnal = async () => {
-    if (!currentPertemuanId) { showToast('Pilih pertemuan terlebih dahulu', true); return; }
-    const catatan = document.getElementById('jurnalCatatan')?.value || '';
-    const btn = document.querySelector('[onclick="ABS_saveJurnal()"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
-    try {
-      await SB.jurnal.upsert({
-        pertemuan_id: currentPertemuanId,
-        guru_id: u.id,
-        catatan,
-      });
-      showToast('Jurnal disimpan ✓');
-    } catch(e) {
-      showToast('Gagal simpan jurnal: ' + e.message, true);
-      console.error('Jurnal error:', e);
+    // 2. Simpan jurnal
+    await SB.jurnal.upsert({ pertemuan_id: pId, guru_id: u.id, catatan });
+
+    // 3. Simpan materi dipilih ke jurnal_materi
+    if (selectedMateriIds.size > 0) {
+      await SB.jurnal.deleteMateri(pId); // hapus dulu yang lama (by pertemuan)
+      const jurnalRows = await SB.jurnal.getByPertemuan(pId);
+      const jurnalId = jurnalRows?.[0]?.id;
+      if (jurnalId) {
+        await SB.jurnal.insertMateri(jurnalId, Array.from(selectedMateriIds), bulan);
+      }
     }
-    if (btn) { btn.disabled = false; btn.innerHTML = '💾 Simpan Jurnal'; }
-  };
+
+    // 4. Otomatis update progress kelompok
+    if (kelompokId && selectedMateriIds.size > 0) {
+      for (const materiId of selectedMateriIds) {
+        try {
+          await SB.progress.toggle_add(kelompokId, materiId, bulan, u.id);
+        } catch(e) { /* abaikan error per-item */ }
+      }
+    }
+  }
+
   window.ABS_addPertemuan = () => openAddPertemuanModal(selectedKelasId, async () => await loadPertemuan());
 
   await loadPertemuan();

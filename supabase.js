@@ -141,16 +141,20 @@ const sbSantri = {
 const sbPertemuan = {
   getByKelas: (kelasId) =>
     sbFetch(`pertemuan?kelas_id=eq.${kelasId}&select=*&order=tanggal.desc`),
-  insert: (data) => sbFetch('pertemuan', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
+  insert: (data) => sbFetch('pertemuan', {
+    method: 'POST',
+    headers: {'Prefer':'return=representation'},
+    body: JSON.stringify(data)
+  }),
 };
 
 // ============ JURNAL ============
 const sbJurnal = {
   getByPertemuan: (pertemuanId) =>
     sbFetch(`jurnal?pertemuan_id=eq.${pertemuanId}&select=*,jurnal_materi(*)`),
-  upsert: (data) => sbFetch('jurnal', {
+  upsert: (data) => sbFetch('jurnal?on_conflict=pertemuan_id,guru_id', {
     method: 'POST',
-    headers: {'Prefer': 'resolution=merge-duplicates,return=representation'},
+    headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},
     body: JSON.stringify(data)
   }),
   insertMateri: (jurnalId, materiIds, bulanTarget) => {
@@ -180,7 +184,6 @@ const sbProgress = {
   getByKelompok: (kelompokId) =>
     sbFetch(`progress?kelompok_id=eq.${kelompokId}&select=*`),
   toggle: async (kelompokId, materiId, bulan, userId) => {
-    // Cek apakah sudah ada
     const existing = await sbFetch(
       `progress?kelompok_id=eq.${kelompokId}&materi_id=eq.${encodeURIComponent(materiId)}&bulan=eq.${bulan}`
     );
@@ -195,6 +198,16 @@ const sbProgress = {
       });
       return 'checked';
     }
+  },
+  // Tambahkan progress kalau belum ada (tidak hapus kalau sudah ada)
+  toggle_add: async (kelompokId, materiId, bulan, userId) => {
+    try {
+      await sbFetch('progress', {
+        method: 'POST',
+        headers: {'Prefer':'resolution=ignore-duplicates'},
+        body: JSON.stringify({ kelompok_id: kelompokId, materi_id: materiId, bulan, user_id: userId })
+      });
+    } catch(e) { /* abaikan duplikat */ }
   },
   getAll: () => sbFetch('progress?select=*'),
 };
