@@ -1363,14 +1363,25 @@ async function renderAbsensi() {
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
   let activeKelompokId = myKelompokId; // track kelompok aktif untuk progress
+  let cachedProgressSet = new Set(); // cache agar tidak fetch ulang tiap render
   let pertemuanList = [];
   let currentPertemuanId = null;
   let santriList = [];
   let absensiData = {};
   let jurnalData = null;
 
+  async function refreshProgress() {
+    const kId = activeKelompokId || myKelompokId || null;
+    if (!kId) { cachedProgressSet = new Set(); return; }
+    try {
+      const progData = await SB.progress.getByKelompok(kId);
+      cachedProgressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+    } catch(e) { cachedProgressSet = new Set(); }
+  }
+
   async function loadPertemuan() {
     if (!selectedKelasId) return;
+    await refreshProgress(); // load progress sebelum render
     pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
     santriList = await SB.santri.getByKelas(selectedKelasId);
     // Default: tampilkan form pertemuan BARU (bukan data lama)
@@ -1378,7 +1389,7 @@ async function renderAbsensi() {
     absensiData = {};
     jurnalData = null;
     selectedMateriIds = new Set();
-    await renderMain();
+    renderMain();
   }
 
   async function loadDetail(pId) {
@@ -1392,7 +1403,7 @@ async function renderAbsensi() {
     // Load materi yang sudah dipilih di jurnal ini
     const jurnalMateri = jurnalData ? (jurnalData.jurnal_materi || []) : [];
     selectedMateriIds = new Set(jurnalMateri.map(jm => jm.materi_id));
-    await renderMain();
+    renderMain();
   }
 
   function getMateriForDisplay(bulan) {
@@ -1406,7 +1417,7 @@ async function renderAbsensi() {
     );
   }
 
-  async function renderMain() {
+  function renderMain() {
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const kelasOptHtml = kelasOptions.map(k =>
       `<option value="${k.id}" data-kelompok-id="${k.kelompok_id||myKelompokId||''}" ${k.id === selectedKelasId ? 'selected' : ''}>
@@ -1472,15 +1483,9 @@ async function renderAbsensi() {
       visibleMonths = [...allMonths];
     }
 
-    // Load progress kelompok untuk tanda "sudah pernah disampaikan"
+    // Gunakan cached progress — tidak fetch ulang setiap render
     const kelompokId4Progress = activeKelompokId || myKelompokId || null;
-    let progressSet = new Set();
-    if (kelompokId4Progress && App.cache.materi) {
-      try {
-        const progData = await SB.progress.getByKelompok(kelompokId4Progress);
-        progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
-      } catch(e) {}
-    }
+    const progressSet = cachedProgressSet;
 
     // ── Materi yang bisa dipilih ──
     let materiSectionHtml = '';
@@ -1660,20 +1665,20 @@ async function renderAbsensi() {
       absensiData = {};
       jurnalData = null;
       selectedMateriIds = new Set();
-      await renderMain();
+      renderMain();
     } else {
       await loadDetail(id);
     }
   };
 
-  window.ABS_setJurnalBulan = async (bulan) => {
+  window.ABS_setJurnalBulan = (bulan) => {
     jurnalBulan = bulan;
-    await renderMain();
+    renderMain();
   };
 
-  window.ABS_setStatus = async (santriId, status) => {
+  window.ABS_setStatus = (santriId, status) => {
     absensiData[santriId] = status;
-    await renderMain();
+    renderMain();
   };
 
   window.ABS_toggleMateri = async (materiId) => {
@@ -1694,7 +1699,7 @@ async function renderAbsensi() {
         ? 'Materi yang disampaikan:\n' + materiList.join('\n')
         : '';
     }
-    await renderMain();
+    renderMain();
   };
 
   // Simpan untuk pertemuan BARU
@@ -1723,6 +1728,7 @@ async function renderAbsensi() {
 
       currentPertemuanId = pId;
       await doSimpanAll(pId);
+      await refreshProgress(); // update cache setelah simpan
       pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
       const label = keDalamHari > 1
         ? `Pertemuan ke-${kePertemuan} (pertemuan ${keDalamHari}× hari ini) berhasil disimpan ✓`
@@ -1742,6 +1748,7 @@ async function renderAbsensi() {
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
     try {
       await doSimpanAll(currentPertemuanId);
+      await refreshProgress(); // update cache setelah simpan
       showToast('Absensi & jurnal disimpan ✓');
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
