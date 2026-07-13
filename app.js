@@ -1472,7 +1472,8 @@ async function renderAbsensi() {
     }
 
     // Load progress kelompok untuk tanda "sudah pernah disampaikan"
-    const kelompokId4Progress = u.kelompok_id || null;
+    const kelasData4P = kelasOptions.find(k => k.id === selectedKelasId);
+    const kelompokId4Progress = u.kelompok_id || kelasData4P?.kelompok_id || null;
     let progressSet = new Set();
     if (kelompokId4Progress && App.cache.materi) {
       try {
@@ -1747,7 +1748,13 @@ async function renderAbsensi() {
   };
 
   async function doSimpanAll(pId) {
-    const kelompokId = u.kelompok_id || null;
+    // Ambil kelompok_id dari kelas yang dipilih (bukan dari user, karena admin tidak punya kelompok_id)
+    const kelasData = kelasOptions.find(k => k.id === selectedKelasId);
+    let kelompokId = u.kelompok_id || null;
+    if (!kelompokId && kelasData) {
+      // Untuk admin: ambil kelompok_id dari kelas
+      kelompokId = kelasData.kelompok_id || null;
+    }
     const bulan = jurnalBulan || currentMonthName();
     const catatan = document.getElementById('jurnalCatatan')?.value || '';
 
@@ -1762,15 +1769,18 @@ async function renderAbsensi() {
       await SB.absensi.upsertBulk(rows);
     }
 
-    // 2. Simpan jurnal
+    // 2. Simpan jurnal — upsert dulu untuk dapat id-nya
     await SB.jurnal.upsert({ pertemuan_id: pId, guru_id: u.id, catatan });
 
     // 3. Simpan materi dipilih ke jurnal_materi
     if (selectedMateriIds.size > 0) {
-      await SB.jurnal.deleteMateri(pId); // hapus dulu yang lama (by pertemuan)
+      // Ambil jurnal_id yang baru saja disimpan
       const jurnalRows = await SB.jurnal.getByPertemuan(pId);
       const jurnalId = jurnalRows?.[0]?.id;
       if (jurnalId) {
+        // Hapus jurnal_materi lama berdasarkan jurnal_id (bukan pertemuan_id)
+        await SB.jurnal.deleteMateri(jurnalId);
+        // Insert yang baru
         await SB.jurnal.insertMateri(jurnalId, Array.from(selectedMateriIds), bulan);
       }
     }
