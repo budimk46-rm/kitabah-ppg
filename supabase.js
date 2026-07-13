@@ -29,7 +29,9 @@ async function sbFetch(path, options = {}) {
     throw new Error(`Supabase error ${res.status}: ${err.slice(0, 300)}`);
   }
   if (res.status === 204) return null;
-  return res.json();
+  const text = await res.text();
+  if (!text || text.trim() === '') return null;
+  return JSON.parse(text);
 }
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
