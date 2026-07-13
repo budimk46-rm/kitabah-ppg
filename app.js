@@ -1752,11 +1752,12 @@ async function renderAbsensi() {
     const kelasData = kelasOptions.find(k => k.id === selectedKelasId);
     let kelompokId = u.kelompok_id || null;
     if (!kelompokId && kelasData) {
-      // Untuk admin: ambil kelompok_id dari kelas
       kelompokId = kelasData.kelompok_id || null;
     }
     const bulan = jurnalBulan || currentMonthName();
     const catatan = document.getElementById('jurnalCatatan')?.value || '';
+
+    console.log('[doSimpanAll] kelompokId:', kelompokId, '| kelasData:', kelasData, '| selectedMateriIds:', [...selectedMateriIds], '| bulan:', bulan);
 
     // 1. Simpan absensi
     if (santriList.length) {
