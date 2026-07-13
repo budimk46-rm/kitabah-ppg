@@ -2040,8 +2040,8 @@ async function renderRekap() {
             <div style="font-family:var(--font-display); font-size:17px; font-weight:700; color:var(--green);">
               ${escHtml(namaKelas)}
             </div>
-            <div style="font-size:12px; color:var(--ink-soft);">
-              ${escHtml(ks.kelas.jenjang)} · Sem ${ks.kelas.semester} · ${ks.totalSantri} santri
+            <div style="font-size:12px; color:var(--ink);">
+              Target Materi ${escHtml(ks.kelas.jenjang)} · Sem ${ks.kelas.semester} · ${ks.totalSantri} santri
             </div>
           </div>
           <div style="display:flex; gap:8px;">
