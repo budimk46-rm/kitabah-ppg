@@ -1525,7 +1525,7 @@ async function renderAbsensi() {
             style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
               border-bottom:1px solid var(--line); cursor:pointer; transition:background .15s;
               background:${dipilihHariIni ? 'var(--green-soft)' : sudahPernah ? '#f0f7f2' : ''};">
-            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; margin-top:1px;
+            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; margin-top:2px;
               border:2px solid ${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#7ab896' : 'var(--line)'};
               background:${dipilihHariIni ? 'var(--green)' : 'transparent'};
               display:flex; align-items:center; justify-content:center;">
@@ -1536,13 +1536,22 @@ async function renderAbsensi() {
                 : ''}
             </div>
             <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; font-size:13px;
-                color:${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#3a7a58' : 'var(--ink)'};">
-                ${r.no || '•'}. ${escHtml(r.topik || '')}
-                ${r.poin ? `<span style="color:var(--gold); font-weight:800;"> ${escHtml(r.poin)}.</span> ${escHtml(r.poin_title || '')}` : ''}
-                ${sudahPernah ? '<span style="font-size:10px; font-weight:600; color:#7ab896; margin-left:6px;">✓ pernah disampaikan</span>' : ''}
+              <!-- Baris 1: nomor + topik (judul bab/sub) -->
+              <div style="font-weight:800; font-size:13px; color:${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#2d6a4f' : '#111'}; margin-bottom:${r.poin ? '4px' : '2px'};">
+                ${r.no ? escHtml(r.no) + '.' : ''} ${escHtml(r.topik || '')}
+                ${sudahPernah ? '<span style="font-size:10px; font-weight:600; color:#7ab896; margin-left:6px; vertical-align:middle;">&#10003; pernah</span>' : ''}
               </div>
-              <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(r[col] || '')}</div>
+              <!-- Baris 2: poin (a/b/c) + poin_title — menjorok -->
+              ${r.poin ? `
+              <div style="padding-left:14px; font-size:12.5px; font-weight:600;
+                color:${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#3a7a58' : '#222'};
+                margin-bottom:3px;">
+                ${escHtml(r.poin)}. ${escHtml(r.poin_title || '')}
+              </div>` : ''}
+              <!-- Baris 3: isi target bulan — menjorok, warna gelap -->
+              <div style="padding-left:${r.poin ? '14px' : '0'}; font-size:12px; color:#333; margin-top:1px; line-height:1.4;">
+                ${escHtml(r[col] || '')}
+              </div>
             </div>
           </div>`;
         }).join('');
