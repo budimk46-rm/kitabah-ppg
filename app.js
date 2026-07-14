@@ -1410,13 +1410,11 @@ async function renderAbsensi() {
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     if (!selectedKelas || !App.cache.materi) return [];
     const col = bulan.toLowerCase();
-    const hasil = App.cache.materi.filter(r =>
+    return App.cache.materi.filter(r =>
       r.jenjang === selectedKelas.jenjang &&
       String(r.semester) === String(selectedKelas.semester) &&
       r[col] && r[col].trim()
     );
-    console.log('[getMateri] kelas:', selectedKelas.jenjang, 'sem:', selectedKelas.semester, 'bulan:', bulan, 'col:', col, 'hasil:', hasil.length, 'total materi:', App.cache.materi.length);
-    return hasil;
   }
 
   function renderMain() {
