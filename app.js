@@ -3144,9 +3144,240 @@ async function renderRekap() {
 }
 async function renderRekapDesa() {
   const main = document.getElementById('mainContent');
-  main.innerHTML = `
-    <div class="page-header"><h1 class="page-title">Rekap Desa</h1></div>
-    <div class="card"><p class="color-soft">Dalam pengembangan.</p></div>`;
+  const u = App.user;
+  const isAdmin = u.role === 'admin' || u.role === 'daerah';
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  if (!App.cache.materi) App.cache.materi = await SB.materi.getAll();
+
+  // Picker desa untuk admin/daerah
+  if (isAdmin && !App.cache.rekapDesaId) {
+    const desaList = [...new Set((App.cache.kelompok||[]).map(k => k.desa?.nama||k.desa_id))].filter(Boolean).sort();
+    main.innerHTML = `
+      <div class="page-header"><h1 class="page-title">Rekap Desa</h1></div>
+      <div class="card">
+        <p style="margin:0 0 14px; font-size:13.5px; color:var(--ink-soft);">Pilih desa untuk melihat rekap.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1; min-width:200px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Desa</label>
+            <select id="rdDesaSel" style="width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih desa...</option>
+              ${desaList.map(d => `<option value="${escHtml(d)}">${escHtml(d)}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-green" onclick="RD_pilih(document.getElementById('rdDesaSel').value)">Lihat Rekap →</button>
+        </div>
+      </div>`;
+    window.RD_pilih = (id) => {
+      if (!id) { showToast('Pilih desa dulu', true); return; }
+      App.cache.rekapDesaId = id;
+      renderRekapDesa();
+    };
+    return;
+  }
+
+  const myDesaNama = App.cache.rekapDesaId || u.desa_nama || u.desa_id || null;
+  const kelompokDesa = (App.cache.kelompok||[]).filter(k =>
+    (k.desa?.nama || k.desa_id) === myDesaNama
+  );
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data rekap desa...</div></div>';
+
+  // Load semua data paralel
+  const allSantri = await SB.santri.getAll();
+  const nowMonth = currentMonthName();
+  const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
+  let selectedBulan = nowMonth;
+
+  // Load kelas, pertemuan, absensi, progress untuk setiap kelompok
+  const kelompokData = {};
+  await Promise.all(kelompokDesa.map(async klp => {
+    const kelasList = await SB.kelas.getByKelompok(klp.id);
+    const progData = await SB.progress.getByKelompok(klp.id);
+    const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+
+    const kelasData = {};
+    await Promise.all(kelasList.map(async k => {
+      const [pertemuanList, santriKelas] = await Promise.all([
+        SB.pertemuan.getByKelas(k.id),
+        SB.santri.getByKelas(k.id),
+      ]);
+      const absensiAll = {};
+      await Promise.all(pertemuanList.map(async p => {
+        absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id);
+      }));
+      kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
+    }));
+
+    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+  }));
+
+  function hitungStatsKlp(klpId, bulan) {
+    const d = kelompokData[klpId];
+    if (!d) return null;
+    let totalPertemuan = 0, totalH = 0, totalI = 0, totalS = 0, totalA = 0, totalSlot = 0;
+    let materiTarget = 0, materiTercapai = 0;
+
+    d.kelasList.forEach(k => {
+      const kd = d.kelasData[k.id];
+      const perBulan = kd.pertemuanList.filter(p => p.bulan === bulan);
+      totalPertemuan += perBulan.length;
+      perBulan.forEach(p => {
+        const absen = kd.absensiAll[p.id] || [];
+        kd.santriKelas.forEach(s => {
+          const a = absen.find(x => x.santri_id === s.id);
+          const st = a?.status || 'A';
+          if (st==='H') totalH++; else if (st==='I') totalI++;
+          else if (st==='S') totalS++; else totalA++;
+          totalSlot++;
+        });
+      });
+
+      // Progress materi
+      const col = bulan.toLowerCase();
+      const materiKelas = (App.cache.materi||[]).filter(r =>
+        r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
+      );
+      materiTarget += materiKelas.length;
+      materiTercapai += materiKelas.filter(r => d.progressSet.has(r.id+'|'+bulan)).length;
+    });
+
+    const pctHadir = totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null;
+    const pctMateri = materiTarget > 0 ? Math.round(materiTercapai/materiTarget*100) : null;
+
+    // Jumlah generus per tingkatan
+    const santriKlp = allSantri.filter(s => s.kelas?.kelompok_id === klpId);
+    const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
+    const generus = {};
+    TINGKATAN_LIST.forEach(t => { generus[t] = {L:0, P:0}; });
+    santriKlp.forEach(s => {
+      const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+      const jk = s.jenis_kel;
+      if (t && generus[t] && (jk==='L'||jk==='P')) generus[t][jk]++;
+    });
+    const totalGenerus = santriKlp.length;
+
+    return { totalPertemuan, totalH, totalI, totalS, totalA, totalSlot, pctHadir, pctMateri, materiTarget, materiTercapai, generus, totalGenerus };
+  }
+
+  function pctBar(pct, w=80) {
+    if (pct === null) return '<span style="font-size:11px; color:var(--ink-soft);">-</span>';
+    const c = pct>=80?'var(--green)':pct>=50?'#e6a817':'var(--rose)';
+    return `<div style="display:flex; align-items:center; gap:5px;">
+      <div style="flex:1; height:6px; background:var(--line); border-radius:3px; overflow:hidden; min-width:${w}px;">
+        <div style="width:${pct}%; height:100%; background:${c}; border-radius:3px;"></div>
+      </div>
+      <span style="font-size:11px; font-weight:700; color:${c}; flex-shrink:0;">${pct}%</span>
+    </div>`;
+  }
+
+  function renderDashboard() {
+    // Bulan chips
+    const bulanChips = semNow.map(m => `
+      <div onclick="RD_setBulan('${m}')"
+        style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+          background:${selectedBulan===m?'var(--green)':'var(--white)'};
+          color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+          border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+        ${m}${m===nowMonth?' ●':''}
+      </div>`).join('');
+
+    // Hitung stats per kelompok
+    const klpStats = kelompokDesa.map(klp => ({
+      kelompok: klp,
+      stats: hitungStatsKlp(klp.id, selectedBulan),
+    }));
+
+    // Total desa
+    const totalDesa = {
+      pertemuan: klpStats.reduce((n,k) => n+(k.stats?.totalPertemuan||0), 0),
+      generus: klpStats.reduce((n,k) => n+(k.stats?.totalGenerus||0), 0),
+      hadir: klpStats.filter(k=>k.stats?.pctHadir!==null),
+      materi: klpStats.filter(k=>k.stats?.pctMateri!==null),
+    };
+    const avgHadir = totalDesa.hadir.length ? Math.round(totalDesa.hadir.reduce((n,k)=>n+(k.stats.pctHadir||0),0)/totalDesa.hadir.length) : null;
+    const avgMateri = totalDesa.materi.length ? Math.round(totalDesa.materi.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/totalDesa.materi.length) : null;
+
+    // Kartu per kelompok
+    const kartuHtml = klpStats.map(({kelompok: klp, stats: s}) => {
+      if (!s) return '';
+      const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
+      const generusRow = TINGKATAN_LIST.map(t => `
+        <div style="text-align:center; min-width:60px;">
+          <div style="font-size:10px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; margin-bottom:2px;">${TINGKATAN_LABELS[t]?.split(' ')[0]||t}</div>
+          <div style="font-size:12px;">
+            <span style="color:#1a6b3a; font-weight:700;">${s.generus[t].L||0}L</span>
+            <span style="color:#a6483b; font-weight:700; margin-left:3px;">${s.generus[t].P||0}P</span>
+          </div>
+        </div>`).join('');
+
+      return `<div class="card" style="margin-bottom:12px; padding:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+          <div>
+            <div style="font-weight:800; font-size:15px; color:var(--green);">${escHtml(klp.nama)}</div>
+            <div style="font-size:12px; color:var(--ink-soft);">${s.totalGenerus} generus · ${s.totalPertemuan} pertemuan bulan ini</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            ${s.totalSlot>0?`<span class="badge badge-green">H:${s.totalH}</span><span class="badge badge-gold">I:${s.totalI}</span><span class="badge" style="background:#e0f7fb;">S:${s.totalS}</span><span class="badge badge-rose">A:${s.totalA}</span>`:'<span class="badge badge-gray">Belum ada pertemuan</span>'}
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px;">Kehadiran</div>
+            ${pctBar(s.pctHadir)}
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px;">Progress Materi</div>
+            ${pctBar(s.pctMateri)}
+            ${s.materiTarget>0?`<div style="font-size:10px; color:var(--ink-soft); margin-top:2px;">${s.materiTercapai}/${s.materiTarget} materi</div>`:''}
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:10px;">
+          ${generusRow}
+        </div>
+      </div>`;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Rekap Desa</h1>
+          <p class="page-subtitle">${escHtml(myDesaNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan}</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="RD_gantiDesa()">Ganti Desa</button>` : ''}
+        </div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num">${kelompokDesa.length}</div><div class="stat-label">Kelompok</div></div>
+        <div class="stat-card"><div class="stat-num">${totalDesa.generus}</div><div class="stat-label">Total Generus</div></div>
+        <div class="stat-card"><div class="stat-num">${totalDesa.pertemuan}</div><div class="stat-label">Pertemuan Bulan Ini</div></div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${avgHadir===null?'var(--ink-soft)':avgHadir>=80?'var(--green)':avgHadir>=50?'#e6a817':'var(--rose)'};">${avgHadir!==null?avgHadir+'%':'—'}</div>
+          <div class="stat-label">Rata-rata Kehadiran</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${avgMateri===null?'var(--ink-soft)':avgMateri>=80?'var(--green)':avgMateri>=50?'#e6a817':'var(--rose)'};">${avgMateri!==null?avgMateri+'%':'—'}</div>
+          <div class="stat-label">Progress Materi</div>
+        </div>
+      </div>
+
+      <!-- Filter bulan -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
+        ${bulanChips}
+      </div>
+
+      <!-- Kartu per kelompok -->
+      ${kartuHtml || '<div class="card"><p class="color-soft">Tidak ada data kelompok.</p></div>'}
+    `;
+  }
+
+  window.RD_setBulan = (b) => { selectedBulan = b; renderDashboard(); };
+  window.RD_gantiDesa = () => { App.cache.rekapDesaId = null; renderRekapDesa(); };
+
+  renderDashboard();
 }
 async function renderRekapDaerah() {
   const main = document.getElementById('mainContent');
