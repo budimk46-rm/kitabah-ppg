@@ -1093,12 +1093,173 @@ async function renderUsers() {
 async function renderSantri() {
   const main = document.getElementById('mainContent');
   const u = App.user;
-  const isAdmin = u.role === 'admin';
+  const isAdmin = u.role === 'admin' || u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isKelompok = u.role === 'kelompok' || u.role === 'pjp_kelompok' || u.role === 'guru';
 
-  // Load data master kelompok untuk admin
-  if (isAdmin && !App.cache.kelompok) {
-    App.cache.kelompok = await SB.kelompok.getAll();
+  // Load data master kelompok
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
+  // ── Tampilkan dashboard dulu ──
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data generus...</div></div>';
+
+  // Load semua santri sekaligus
+  const allSantri = await SB.santri.getAll();
+
+  // Filter sesuai role
+  const kelompokList = App.cache.kelompok || [];
+  let filteredKelompok = kelompokList;
+  if (isDesa) {
+    filteredKelompok = kelompokList.filter(k => k.desa_id === u.desa_id || k.desa?.id === u.desa_id);
+  } else if (isKelompok) {
+    filteredKelompok = kelompokList.filter(k => k.id === u.kelompok_id);
   }
+
+  const kelompokIds = new Set(filteredKelompok.map(k => k.id));
+  const santriFiltered = allSantri.filter(s => {
+    const kid = s.kelas?.kelompok_id;
+    return kelompokIds.has(kid);
+  });
+
+  // Hitung statistik per tingkatan per kelompok
+  const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
+
+  function hitungStats(santriArr) {
+    const s = {};
+    TINGKATAN_LIST.forEach(t => { s[t] = {L:0, P:0}; });
+    s.total = {L:0, P:0};
+    santriArr.forEach(x => {
+      const t = x.tingkatan_override ? x.tingkatan : hitungTingkatan(x.tgl_lahir);
+      const jk = x.jenis_kel;
+      if (t && s[t] && (jk === 'L' || jk === 'P')) {
+        s[t][jk]++;
+        s.total[jk]++;
+      }
+    });
+    return s;
+  }
+
+  function statRow(label, stats, isHeader=false, indent=false) {
+    const tot = (stats.total.L||0) + (stats.total.P||0);
+    const grand = TINGKATAN_LIST.reduce((n,t) => n + (stats[t].L||0) + (stats[t].P||0), 0);
+    const bg = isHeader ? 'background:var(--green); color:#fff;' : indent ? 'background:var(--white);' : 'background:var(--green-soft);';
+    const fw = isHeader || !indent ? 'font-weight:700;' : '';
+    const pad = indent ? 'padding-left:20px;' : '';
+    return `<tr style="${bg}${fw}">
+      <td style="${pad} padding:8px 10px; font-size:${indent?'12':'13'}px;">${escHtml(label)}</td>
+      ${TINGKATAN_LIST.map(t => `
+        <td style="text-align:center; padding:6px 4px; font-size:12px;">
+          <span style="color:${isHeader?'#cfe':'#1a6b3a'};">${stats[t].L||0}L</span>
+          <span style="color:${isHeader?'#fcc':'#a6483b'}; margin-left:3px;">${stats[t].P||0}P</span>
+        </td>`).join('')}
+      <td style="text-align:center; padding:6px 8px; font-weight:800; font-size:13px;">${grand}</td>
+    </tr>`;
+  }
+
+  // Group kelompok per desa
+  const desaMap = {};
+  filteredKelompok.forEach(k => {
+    const desaNama = k.desa?.nama || k.desa_id || 'Lainnya';
+    if (!desaMap[desaNama]) desaMap[desaNama] = [];
+    desaMap[desaNama].push(k);
+  });
+
+  // Hitung statistik total
+  const statsTotal = hitungStats(santriFiltered);
+  const totalGenerus = santriFiltered.length;
+
+  // ── Render header tabel ──
+  const tabelHeader = `
+    <div class="table-wrap">
+    <table style="min-width:600px; border-collapse:collapse; width:100%;">
+      <thead>
+        <tr style="background:var(--green); color:#fff;">
+          <th style="padding:10px; text-align:left; font-size:12px;">Kelompok / Desa</th>
+          <th style="text-align:center; padding:8px 4px; font-size:11px;">Caberawit</th>
+          <th style="text-align:center; padding:8px 4px; font-size:11px;">Pra Remaja</th>
+          <th style="text-align:center; padding:8px 4px; font-size:11px;">Remaja</th>
+          <th style="text-align:center; padding:8px 4px; font-size:11px;">Pra Nikah</th>
+          <th style="text-align:center; padding:8px; font-size:11px;">Total</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  let tabelBody = '';
+
+  if (isAdmin) {
+    // Admin: total daerah + per desa + per kelompok
+    tabelBody += statRow('TOTAL SELURUH DAERAH', statsTotal, true);
+    Object.entries(desaMap).forEach(([desaNama, klpList]) => {
+      const santriDesa = santriFiltered.filter(s => {
+        const k = klpList.find(k => k.id === s.kelas?.kelompok_id);
+        return !!k;
+      });
+      const statsDesa = hitungStats(santriDesa);
+      tabelBody += `<tr style="background:var(--cream-2);"><td colspan="6" style="padding:6px 10px; font-size:12px; font-weight:800; color:var(--green); border-top:2px solid var(--line);">📍 ${escHtml(desaNama)} (${santriDesa.length} generus)</td></tr>`;
+      tabelBody += statRow('Total ' + desaNama, statsDesa, false, false);
+      klpList.forEach(k => {
+        const santriKlp = santriFiltered.filter(s => s.kelas?.kelompok_id === k.id);
+        const statsKlp = hitungStats(santriKlp);
+        tabelBody += statRow(k.nama, statsKlp, false, true);
+      });
+    });
+  } else if (isDesa) {
+    // Desa: total desa + per kelompok
+    tabelBody += statRow('TOTAL ' + (u.desa_nama || 'DESA SAYA'), statsTotal, true);
+    Object.entries(desaMap).forEach(([desaNama, klpList]) => {
+      klpList.forEach(k => {
+        const santriKlp = santriFiltered.filter(s => s.kelas?.kelompok_id === k.id);
+        const statsKlp = hitungStats(santriKlp);
+        tabelBody += statRow(k.nama, statsKlp, false, true);
+      });
+    });
+  } else {
+    // Kelompok: total kelompok saja
+    const klp = filteredKelompok[0];
+    tabelBody += statRow(klp?.nama || 'Kelompok Saya', statsTotal, true);
+  }
+
+  const tabelFull = tabelHeader + tabelBody + `</tbody></table></div>`;
+
+  // ── Stat cards ringkasan ──
+  const grandTotal = TINGKATAN_LIST.reduce((n,t) => n + (statsTotal[t].L||0) + (statsTotal[t].P||0), 0);
+  const statCards = `
+    <div class="stat-grid" style="margin-bottom:16px;">
+      <div class="stat-card">
+        <div class="stat-num">${grandTotal}</div>
+        <div class="stat-label">Total Generus</div>
+      </div>
+      ${TINGKATAN_LIST.map(t => `
+      <div class="stat-card">
+        <div class="stat-num" style="font-size:18px;">${(statsTotal[t].L||0)+(statsTotal[t].P||0)}</div>
+        <div class="stat-label">${TINGKATAN_LABELS[t]||t}</div>
+        <div style="font-size:11px; margin-top:3px; color:var(--ink-soft);">
+          <span style="color:#1a6b3a;">${statsTotal[t].L||0}L</span> · <span style="color:#a6483b;">${statsTotal[t].P||0}P</span>
+        </div>
+      </div>`).join('')}
+    </div>`;
+
+  // ── Render awal: dashboard saja, form ada di bawah ──
+  main.innerHTML = `
+    <div class="page-header">
+      <h1 class="page-title">Data Santri / Generus</h1>
+    </div>
+    ${statCards}
+    <div class="card" style="margin-bottom:18px;">
+      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:12px;">Rekap Jumlah Generus per Tingkatan</div>
+      ${tabelFull}
+      <div style="margin-top:8px; font-size:11px; color:var(--ink-soft);">L = Laki-laki · P = Perempuan · Tingkatan dihitung otomatis dari tanggal lahir per 1 Juli ${new Date().getFullYear()}</div>
+    </div>
+    <div class="card">
+      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:14px;">Kelola Data Generus</div>
+      <div id="santriFormArea"></div>
+    </div>`;
+
+  // ── Render form kelola di bawah dashboard ──
+  const formEl = document.getElementById('santriFormArea');
+
+  // ── Form Kelola Data Generus ──
+  const isAdminForm = u.role === 'admin';
 
   let selectedKelompokId = u.kelompok_id || null;
   let kelasOptions = [];
@@ -1173,18 +1334,11 @@ async function renderSantri() {
       </table></div>` :
       '<div class="empty-state"><p class="empty-title">Belum ada generus</p><p class="empty-desc">Tambahkan data generus untuk kelas ini.</p></div>';
 
-    main.innerHTML = `
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Data Santri / Generus</h1>
-          <p class="page-subtitle">${selectedKelas ? kelasLabel(selectedKelas) + ' · ' : ''}${santriList.length} santri terdaftar</p>
-        </div>
-      </div>
-
+    formEl.innerHTML = `
       <!-- Pilihan Kelompok (admin) dan Kelas -->
-      <div class="card" style="margin-bottom:16px;">
+      <div style="margin-bottom:14px;">
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-          ${isAdmin ? `
+          ${isAdminForm ? `
           <div style="flex:1; min-width:140px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Filter Desa</label>
             <select id="strDesaFilter" onchange="STR_filterDesa(this.value)"
@@ -1193,7 +1347,8 @@ async function renderSantri() {
               ${['Barat 1','Barat 2','Tengah 1','Tengah 2','Timur 1','Timur 2'].map(d =>
                 `<option value="Desa ${d}">Desa ${d}</option>`).join('')}
             </select>
-          </div>
+          </div>` : ''}
+          ${isAdminForm ? `
           <div style="flex:2; min-width:180px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
             <select id="strKelompokSel" onchange="STR_loadKelompok(this.value)"
@@ -1214,7 +1369,7 @@ async function renderSantri() {
             </select>
           </div>
         </div>
-        ${(selectedKelompokId || !isAdmin) ? `
+        ${(selectedKelompokId || !isAdminForm) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
           <button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>
           ${selectedKelasId ? `
