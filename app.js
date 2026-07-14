@@ -1556,7 +1556,7 @@ async function renderAbsensi() {
       }).join('');
 
       const selectedCount = selectedMateriIds.size;
-      const pernahCount = [...(App.cache.materi || [])]
+      const pernahCount = materiList
         .filter(r => progressSet.has(r.id + '|' + bulanToShow) && !selectedMateriIds.has(r.id)).length;
 
       materiSectionHtml = `
@@ -1652,12 +1652,9 @@ async function renderAbsensi() {
 
   window.ABS_setKelas = async (sel) => {
     selectedKelasId = sel.value;
-    // Ambil kelompok_id dari option yang dipilih
     const opt = sel.options[sel.selectedIndex];
     const newKelompokId = opt.dataset.kelompokId || myKelompokId;
     activeKelompokId = newKelompokId;
-    console.log('[ABS_setKelas] kelasId:', selectedKelasId, 'kelompokId:', activeKelompokId, 'opt.dataset:', opt.dataset);
-    // Reset selectedMateriIds dan progress cache saat ganti kelas
     selectedMateriIds = new Set();
     cachedProgressSet = new Set();
     await loadPertemuan();
@@ -1767,7 +1764,6 @@ async function renderAbsensi() {
     const bulan = jurnalBulan || currentMonthName();
     const catatan = document.getElementById('jurnalCatatan')?.value || '';
 
-    console.log('[doSimpanAll] kelompokId:', kelompokId, '| materi:', [...selectedMateriIds], '| bulan:', bulan);
 
     // 1. Simpan absensi
     if (santriList.length) {
@@ -1821,6 +1817,7 @@ async function renderSettings() {
     <div class="page-header">
       <h1 class="page-title">Pengaturan</h1>
     </div>
+
     <div class="card">
       <div class="fw-bold color-green" style="margin-bottom:16px; font-size:15px;">📱 Nomor WhatsApp Admin</div>
       <div class="form-group" style="margin-bottom:14px; max-width:360px;">
@@ -1829,12 +1826,393 @@ async function renderSettings() {
       </div>
       <button class="btn btn-green" onclick="SET_saveWa()">Simpan Nomor</button>
     </div>
+
+    <div class="card" style="border:1.5px solid var(--gold);">
+      <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">🎓 Naik Kelas Tahunan</div>
+      <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
+        Proses kenaikan kelas generus setiap awal tahun ajaran baru (Juli).
+        Sistem otomatis mendeteksi berdasarkan usia, PJP bisa koreksi dan tentukan kelas tujuan.
+      </p>
+      <button class="btn btn-gold" onclick="SET_naikKelas()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        Proses Naik Kelas
+      </button>
+    </div>
+
+    <div class="card" style="border:2px solid var(--rose); background:var(--rose-soft);">
+      <div class="fw-bold" style="color:var(--rose); font-size:15px; margin-bottom:8px;">🗑️ Reset Data Uji Coba</div>
+      <p style="font-size:13px; color:var(--ink); margin:0 0 12px;">
+        Hapus semua data transaksi (absensi, jurnal, pertemuan, progress) dari semua kelompok.
+        Data master tetap aman: desa, kelompok, kelas, santri, materi kurikulum, dan akun pengguna tidak akan terhapus.
+      </p>
+      <div style="background:var(--white); border-radius:var(--radius-sm); padding:12px; margin-bottom:14px; font-size:12.5px; color:var(--ink-soft);">
+        <b style="color:var(--rose);">Yang akan dihapus:</b><br>
+        Absensi · Jurnal · Jurnal Materi · Pertemuan · Progress Materi
+        <br><br>
+        <b style="color:var(--green);">Yang tetap ada:</b><br>
+        Desa · Kelompok · Kelas · Santri · Materi Kurikulum · Pengguna
+      </div>
+      <button class="btn btn-danger" onclick="SET_resetData()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        Hapus Data Transaksi
+      </button>
+    </div>
   `;
+
   window.SET_saveWa = async () => {
     const v = document.getElementById('waInput').value.trim();
     await SB.settings.set('admin_whatsapp', v);
     showToast('Nomor WhatsApp disimpan');
   };
+
+  window.SET_resetData = async () => {
+    // Konfirmasi berlapis
+    const step1 = confirm(
+      '⚠️ PERINGATAN!\n\n' +
+      'Anda akan menghapus SEMUA data transaksi:\n' +
+      '- Absensi semua kelompok\n' +
+      '- Jurnal KBM semua kelompok\n' +
+      '- Data pertemuan semua kelompok\n' +
+      '- Progress materi semua kelompok\n\n' +
+      'Data ini TIDAK BISA dikembalikan!\n\n' +
+      'Lanjutkan?'
+    );
+    if (!step1) return;
+
+    const step2 = prompt(
+      'Ketik HAPUS untuk konfirmasi penghapusan data:'
+    );
+    if (step2 !== 'HAPUS') {
+      showToast('Reset dibatalkan — konfirmasi tidak sesuai', true);
+      return;
+    }
+
+    const btn = document.querySelector('[onclick="SET_resetData()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menghapus...'; }
+
+    try {
+      showToast('Menghapus data transaksi...');
+
+      // Hapus berurutan sesuai foreign key dependency
+      await sbFetch('jurnal_materi?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
+      await sbFetch('jurnal?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
+      await sbFetch('absensi?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
+      await sbFetch('pertemuan?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
+      await sbFetch('progress?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
+
+      // Reset cache
+      App.cache.myProgress = null;
+
+      showToast('✓ Semua data transaksi berhasil dihapus');
+      setTimeout(() => renderSettings(), 1000);
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error('Reset error:', e);
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Hapus Data Transaksi'; }
+  };
+
+  window.SET_naikKelas = () => openNaikKelasModal();
+}
+
+/* ===== FITUR NAIK KELAS ===== */
+async function openNaikKelasModal() {
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+
+  // Load data yang dibutuhkan
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
+  let el = document.getElementById('naikKelasModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'naikKelasModal';
+    el.className = 'modal-overlay';
+    document.body.appendChild(el);
+  }
+
+  // Step 1: Pilih kelompok
+  async function showStep1() {
+    const kelompokList = App.cache.kelompok || [];
+    const myKelompokId = u.kelompok_id || null;
+
+    el.innerHTML = `<div class="modal modal-lg">
+      <div class="modal-head">
+        <h3 class="modal-title">🎓 Proses Naik Kelas</h3>
+        <button class="modal-close" onclick="closeModal('naikKelasModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--gold-soft); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:16px; font-size:13px; color:#8a6a24;">
+          <b>Naik Kelas Tahunan</b> — Sistem akan mendeteksi otomatis generus yang perlu naik tingkatan
+          berdasarkan usia per 1 Juli ${new Date().getFullYear()}. Anda bisa koreksi sebelum diproses.
+        </div>
+        ${isAdmin ? `
+        <div class="form-group" style="margin-bottom:14px;">
+          <label>Pilih Kelompok</label>
+          <select id="nkKelompokSel" style="width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+            <option value="">Pilih kelompok...</option>
+            ${kelompokList.map(k => `<option value="${k.id}">${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-green" onclick="NK_loadKelompok(document.getElementById('nkKelompokSel').value)">Lanjut →</button>` :
+        `<button class="btn btn-green" onclick="NK_loadKelompok('${myKelompokId}')">Lihat Prediksi Naik Kelas →</button>`}
+      </div>
+    </div>`;
+
+    window.NK_loadKelompok = async (kelompokId) => {
+      if (!kelompokId) { showToast('Pilih kelompok dulu', true); return; }
+      await showStep2(kelompokId);
+    };
+
+    openModal('naikKelasModal');
+  }
+
+  // Step 2: Preview & konfirmasi
+  async function showStep2(kelompokId) {
+    el.querySelector('.modal-body').innerHTML =
+      '<div style="text-align:center; padding:30px;"><div class="spinner dark"></div><div style="margin-top:10px; font-size:13px; color:var(--ink-soft);">Memuat data generus...</div></div>';
+
+    const kelasList = await SB.kelas.getByKelompok(kelompokId);
+
+    // Load semua santri dari semua kelas
+    const allSantri = [];
+    for (const k of kelasList) {
+      const santriKelas = await SB.santri.getByKelas(k.id);
+      santriKelas.forEach(s => allSantri.push({ ...s, _kelasSekarang: k }));
+    }
+
+    if (!allSantri.length) {
+      el.querySelector('.modal-body').innerHTML =
+        '<div class="empty-state"><p class="empty-title">Belum ada data generus</p><p class="empty-desc">Tambahkan data generus di menu Data Santri terlebih dahulu.</p></div>';
+      return;
+    }
+
+    // Hitung tingkatan baru per 1 Juli tahun ini
+    const tahunIni = new Date().getFullYear();
+    const refDate = new Date(tahunIni, 6, 1); // 1 Juli tahun ini
+
+    function hitungUsiaPer1Juli(tglLahir) {
+      if (!tglLahir) return null;
+      const lahir = new Date(tglLahir);
+      let usia = refDate.getFullYear() - lahir.getFullYear();
+      if (lahir.getMonth() > 6 || (lahir.getMonth() === 6 && lahir.getDate() > 1)) usia--;
+      return usia;
+    }
+
+    function tingkatanDariUsia(usia) {
+      if (usia === null) return null;
+      if (usia < 13) return 'caberawit';
+      if (usia < 16) return 'pra_remaja';
+      if (usia < 19) return 'remaja';
+      return 'pra_nikah';
+    }
+
+    // Identifikasi yang perlu naik kelas
+    const perluNaik = [];
+    const tetap = [];
+
+    allSantri.forEach(s => {
+      const usia = hitungUsiaPer1Juli(s.tgl_lahir);
+      const tingkatanBaru = tingkatanDariUsia(usia);
+      const tingkatanLama = s.tingkatan || hitungTingkatan(s.tgl_lahir);
+      const naik = tingkatanBaru && tingkatanLama && tingkatanBaru !== tingkatanLama;
+
+      if (naik) {
+        perluNaik.push({ ...s, usia, tingkatanBaru, tingkatanLama, _naik: true, _kelasTujuan: '' });
+      } else {
+        tetap.push({ ...s, usia, tingkatanBaru: tingkatanLama });
+      }
+    });
+
+    // Simpan state
+    window._nkState = { perluNaik, tetap, kelasList, kelompokId };
+
+    function renderStep2() {
+      const { perluNaik, kelasList } = window._nkState;
+
+      const kelasOptsHtml = kelasList.map(k =>
+        `<option value="${k.id}">${k.nama_kelas ? escHtml(k.nama_kelas)+' - ' : ''}${escHtml(k.jenjang)} Sem ${k.semester}</option>`
+      ).join('');
+
+      const naikRows = perluNaik.map((s, idx) => {
+        const checked = s._naik;
+        return `<tr style="background:${checked?'var(--gold-soft)':'var(--white)'};">
+          <td>
+            <input type="checkbox" ${checked?'checked':''} onchange="NK_toggleNaik(${idx}, this.checked)"
+              style="width:15px; height:15px; accent-color:var(--green);">
+          </td>
+          <td><b>${escHtml(s.nama)}</b><br><span style="font-size:11px; color:var(--ink-soft);">${escHtml(s._kelasSekarang.nama_kelas||s._kelasSekarang.jenjang)}</span></td>
+          <td style="text-align:center;">${s.usia !== null ? s.usia+' th' : '—'}</td>
+          <td><span class="badge ${TINGKATAN_COLORS[s.tingkatanLama]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[s.tingkatanLama]||s.tingkatanLama||'—')}</span></td>
+          <td>
+            ${checked ? `<span class="badge ${TINGKATAN_COLORS[s.tingkatanBaru]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[s.tingkatanBaru]||s.tingkatanBaru||'—')}</span>` : '<span style="font-size:12px; color:var(--ink-soft);">Tidak naik</span>'}
+          </td>
+          <td>
+            ${checked ? `
+            <select onchange="NK_setKelas(${idx}, this.value)"
+              style="padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-size:12px; width:100%;">
+              <option value="">Pilih kelas tujuan...</option>
+              ${kelasOptsHtml}
+            </select>` : '—'}
+          </td>
+        </tr>`;
+      }).join('');
+
+      const tetapRows = tetap.map(s => `
+        <tr>
+          <td><b>${escHtml(s.nama)}</b><br><span style="font-size:11px; color:var(--ink-soft);">${escHtml(s._kelasSekarang.nama_kelas||s._kelasSekarang.jenjang)}</span></td>
+          <td style="text-align:center;">${s.usia !== null ? s.usia+' th' : '—'}</td>
+          <td><span class="badge ${TINGKATAN_COLORS[s.tingkatanBaru]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[s.tingkatanBaru]||s.tingkatanBaru||'—')}</span></td>
+          <td><span style="font-size:12px; color:var(--ink-soft);">Tetap di kelas ini</span></td>
+        </tr>`).join('');
+
+      el.querySelector('.modal-body').innerHTML = `
+        <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
+          Referensi usia: <b>1 Juli ${tahunIni}</b> · ${perluNaik.filter(s=>s._naik).length} generus perlu naik kelas · ${tetap.length} generus tetap
+        </div>
+
+        ${perluNaik.length > 0 ? `
+        <div class="fw-bold color-green" style="margin-bottom:10px; font-size:14px;">Generus yang Naik Kelas</div>
+        <div class="table-wrap" style="margin-bottom:18px;">
+          <table>
+            <thead><tr>
+              <th style="width:36px;">Naik</th>
+              <th>Nama & Kelas Sekarang</th>
+              <th style="text-align:center;">Usia</th>
+              <th>Tingkatan Lama</th>
+              <th>Tingkatan Baru</th>
+              <th>Kelas Tujuan</th>
+            </tr></thead>
+            <tbody>${naikRows}</tbody>
+          </table>
+        </div>` : '<div style="padding:14px; background:var(--green-soft); border-radius:var(--radius-sm); margin-bottom:14px; font-size:13px; color:var(--green);">✓ Tidak ada generus yang perlu naik kelas saat ini.</div>'}
+
+        ${tetap.length > 0 ? `
+        <details>
+          <summary style="cursor:pointer; font-size:13px; font-weight:700; color:var(--ink-soft); padding:8px 0; margin-bottom:8px;">
+            Generus yang Tetap (${tetap.length} orang)
+          </summary>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nama & Kelas</th><th style="text-align:center;">Usia</th><th>Tingkatan</th><th>Status</th></tr></thead>
+              <tbody>${tetapRows}</tbody>
+            </table>
+          </div>
+        </details>` : ''}
+      `;
+
+      // Update tombol di footer
+      const saveBtn = el.querySelector('#nkProsesBtn');
+      if (saveBtn) {
+        const adaNaik = perluNaik.filter(s => s._naik).length;
+        saveBtn.textContent = adaNaik > 0 ? `Proses Naik Kelas (${adaNaik} generus)` : 'Tidak ada yang diproses';
+        saveBtn.disabled = adaNaik === 0;
+      }
+    }
+
+    // Update footer modal dengan tombol proses
+    el.querySelector('.modal-head').insertAdjacentHTML('afterend', '');
+    el.innerHTML = `<div class="modal modal-lg" style="max-height:94vh;">
+      <div class="modal-head">
+        <h3 class="modal-title">🎓 Proses Naik Kelas</h3>
+        <button class="modal-close" onclick="closeModal('naikKelasModal')">✕</button>
+      </div>
+      <div class="modal-body" id="nkBody"></div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('naikKelasModal')">Batal</button>
+        <button class="btn btn-green" id="nkProsesBtn" onclick="NK_proses()">Proses Naik Kelas</button>
+      </div>
+    </div>`;
+
+    // Ganti modal-body dengan versi baru
+    document.getElementById('nkBody').outerHTML.replace('nkBody', 'nkBody');
+    const body = el.querySelector('.modal-body');
+    body.id = 'nkBody';
+
+    window.NK_toggleNaik = (idx, checked) => {
+      window._nkState.perluNaik[idx]._naik = checked;
+      if (!checked) window._nkState.perluNaik[idx]._kelasTujuan = '';
+      renderStep2();
+    };
+    window.NK_setKelas = (idx, kelasId) => {
+      window._nkState.perluNaik[idx]._kelasTujuan = kelasId;
+    };
+
+    window.NK_proses = async () => {
+      const { perluNaik, kelompokId } = window._nkState;
+      const yangNaik = perluNaik.filter(s => s._naik);
+
+      // Validasi: semua yang naik harus ada kelas tujuan
+      const belumPilihKelas = yangNaik.filter(s => !s._kelasTujuan);
+      if (belumPilihKelas.length > 0) {
+        showToast(`${belumPilihKelas.length} generus belum dipilih kelas tujuannya`, true);
+        return;
+      }
+
+      const konfirmasi = confirm(
+        `Proses naik kelas untuk ${yangNaik.length} generus?\n\n` +
+        yangNaik.map(s => `• ${s.nama}: ${TINGKATAN_LABELS[s.tingkatanLama]} → ${TINGKATAN_LABELS[s.tingkatanBaru]}`).join('\n') +
+        '\n\nProgress materi kelas lama akan direset.'
+      );
+      if (!konfirmasi) return;
+
+      const btn = document.getElementById('nkProsesBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Memproses...'; }
+
+      try {
+        let berhasil = 0;
+        const kelasLamaReset = new Set();
+
+        for (const s of yangNaik) {
+          // 1. Update tingkatan dan pindah kelas
+          await SB.santri.update(s.id, {
+            tingkatan: s.tingkatanBaru,
+            tingkatan_override: false,
+            kelas_id: s._kelasTujuan,
+          });
+
+          // 2. Catat kelas lama untuk reset progress
+          kelasLamaReset.add(s._kelasSekarang.id + '||' + s._kelasSekarang.kelompok_id);
+          berhasil++;
+        }
+
+        // 3. Reset progress untuk kelas lama yang ada generus naik
+        for (const key of kelasLamaReset) {
+          const [kelasId, klpId] = key.split('||');
+          // Hapus progress kelompok untuk materi jenjang kelas lama
+          const kelasLama = window._nkState.kelasList.find(k => k.id === kelasId);
+          if (kelasLama && klpId) {
+            // Ambil semua materi_id dari jenjang kelas lama
+            const materiLama = (App.cache.materi || []).filter(r =>
+              r.jenjang === kelasLama.jenjang && String(r.semester) === String(kelasLama.semester)
+            );
+            // Hapus progress untuk materi-materi itu
+            for (const m of materiLama) {
+              try {
+                await sbFetch(`progress?kelompok_id=eq.${klpId}&materi_id=eq.${m.id}`, { method: 'DELETE' });
+              } catch(e) {}
+            }
+          }
+        }
+
+        showToast(`✓ ${berhasil} generus berhasil naik kelas`);
+        closeModal('naikKelasModal');
+
+        // Reset cache
+        App.cache.myProgress = null;
+
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+        console.error(e);
+        if (btn) { btn.disabled = false; btn.textContent = 'Proses Naik Kelas'; }
+      }
+    };
+
+    renderStep2();
+  }
+
+  await showStep1();
 }
 
 /* ===== PAGE: PROGRESS (placeholder singkat) ===== */
