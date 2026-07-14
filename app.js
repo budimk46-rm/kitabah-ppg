@@ -1654,7 +1654,12 @@ async function renderAbsensi() {
     selectedKelasId = sel.value;
     // Ambil kelompok_id dari option yang dipilih
     const opt = sel.options[sel.selectedIndex];
-    if (opt.dataset.kelompokId) activeKelompokId = opt.dataset.kelompokId;
+    const newKelompokId = opt.dataset.kelompokId || myKelompokId;
+    activeKelompokId = newKelompokId;
+    console.log('[ABS_setKelas] kelasId:', selectedKelasId, 'kelompokId:', activeKelompokId, 'opt.dataset:', opt.dataset);
+    // Reset selectedMateriIds dan progress cache saat ganti kelas
+    selectedMateriIds = new Set();
+    cachedProgressSet = new Set();
     await loadPertemuan();
   };
 
