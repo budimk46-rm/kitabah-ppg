@@ -1189,13 +1189,17 @@ async function renderSantri() {
   if (isAdmin) {
     // Admin: total daerah + per desa + per kelompok
     tabelBody += statRow('TOTAL SELURUH DAERAH', statsTotal, true);
-    Object.entries(desaMap).forEach(([desaNama, klpList]) => {
+    Object.entries(desaMap).forEach(([desaNama, klpList], desaIdx) => {
       const santriDesa = santriFiltered.filter(s => {
         const k = klpList.find(k => k.id === s.kelas?.kelompok_id);
         return !!k;
       });
       const statsDesa = hitungStats(santriDesa);
-      tabelBody += `<tr style="background:var(--cream-2);"><td colspan="6" style="padding:6px 10px; font-size:12px; font-weight:800; color:var(--green); border-top:2px solid var(--line);">📍 ${escHtml(desaNama)} (${santriDesa.length} generus)</td></tr>`;
+      // Baris spasi antar desa (kecuali yang pertama sudah ada setelah total)
+      if (desaIdx > 0) {
+        tabelBody += `<tr><td colspan="6" style="padding:4px; background:var(--line); height:4px;"></td></tr>`;
+      }
+      tabelBody += `<tr style="background:#e8f0e8;"><td colspan="6" style="padding:8px 10px; font-size:13px; font-weight:800; color:var(--green); border-top:2px solid var(--green);">📍 ${escHtml(desaNama)} &nbsp;·&nbsp; ${santriDesa.length} generus</td></tr>`;
       tabelBody += statRow('Total ' + desaNama, statsDesa, false, false);
       klpList.forEach(k => {
         const santriKlp = santriFiltered.filter(s => s.kelas?.kelompok_id === k.id);
@@ -1246,14 +1250,159 @@ async function renderSantri() {
     </div>
     ${statCards}
     <div class="card" style="margin-bottom:18px;">
-      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:12px;">Rekap Jumlah Generus per Tingkatan</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+        <div class="fw-bold color-green" style="font-size:14px;">Rekap Jumlah Generus per Tingkatan</div>
+        <button class="btn btn-outline btn-sm" onclick="STR_downloadPdf()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download PDF
+        </button>
+      </div>
       ${tabelFull}
-      <div style="margin-top:8px; font-size:11px; color:var(--ink-soft);">L = Laki-laki · P = Perempuan · Tingkatan dihitung otomatis dari tanggal lahir per 1 Juli ${new Date().getFullYear()}</div>
+      <div style="margin-top:8px; font-size:11px; color:var(--ink-soft);">L = Laki-laki · P = Perempuan · Tingkatan dihitung dari usia per 1 Juli ${new Date().getFullYear()}</div>
     </div>
     <div class="card">
       <div class="fw-bold color-green" style="font-size:14px; margin-bottom:14px;">Kelola Data Generus</div>
       <div id="santriFormArea"></div>
     </div>`;
+
+  // ── Fungsi Download PDF ──
+  window.STR_downloadPdf = async () => {
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg  = await doc.embedFont(StandardFonts.Helvetica);
+
+      // Landscape A4
+      const W = 842, H = 595;
+      const ML = 36, MR = 36, MT = 40;
+      const GREEN = rgb(0.106, 0.227, 0.173);
+      const GRAY  = rgb(0.5, 0.5, 0.5);
+      const RED   = rgb(0.65, 0.28, 0.23);
+      const LGRAY = rgb(0.95, 0.95, 0.95);
+      const LGREEN= rgb(0.91, 0.96, 0.91);
+
+      let page = doc.addPage([W, H]);
+      let y = H - MT;
+
+      function newPage() { page = doc.addPage([W,H]); y = H - MT; }
+      function checkY(n) { if (y < n + 30) newPage(); }
+
+      // Header
+      page.drawText('DATA GENERUS PPG SIDOARJO UTARA', { x:ML, y, font:fBold, size:13, color:GREEN });
+      y -= 15;
+      page.drawText('Tanggal cetak: ' + new Date().toLocaleDateString('id-ID') + '   |   Total: ' + grandTotal + ' generus',
+        { x:ML, y, font:fReg, size:9, color:GRAY });
+      y -= 8;
+      page.drawLine({ start:{x:ML,y}, end:{x:W-MR,y}, thickness:1.5, color:GREEN });
+      y -= 18;
+
+      // Kolom tabel
+      const COL = [
+        { x:ML,    w:140, label:'Kelompok / Desa' },
+        { x:ML+140, w:80, label:'Caberawit' },
+        { x:ML+220, w:80, label:'Pra Remaja' },
+        { x:ML+300, w:80, label:'Remaja' },
+        { x:ML+380, w:80, label:'Pra Nikah' },
+        { x:ML+460, w:60, label:'Total' },
+      ];
+      const TCOL = [
+        { x:ML+140+5, w:35, label:'L' }, { x:ML+140+40, w:35, label:'P' },
+        { x:ML+220+5, w:35, label:'L' }, { x:ML+220+40, w:35, label:'P' },
+        { x:ML+300+5, w:35, label:'L' }, { x:ML+300+40, w:35, label:'P' },
+        { x:ML+380+5, w:35, label:'L' }, { x:ML+380+40, w:35, label:'P' },
+      ];
+
+      // Header tabel
+      page.drawRectangle({ x:ML, y:y-4, width:W-ML-MR, height:18, color:GREEN });
+      COL.forEach(c => page.drawText(c.label, { x:c.x+4, y:y+0, font:fBold, size:8, color:rgb(1,1,1) }));
+      y -= 20;
+      // Sub-header L/P
+      page.drawRectangle({ x:ML, y:y-4, width:W-ML-MR, height:14, color:rgb(0.2,0.5,0.3) });
+      TCOL.forEach((c,i) => {
+        page.drawText(c.label, { x:c.x+10, y:y-1, font:fBold, size:8, color:rgb(1,1,1) });
+      });
+      page.drawText('Jml', { x:ML+464, y:y-1, font:fBold, size:8, color:rgb(1,1,1) });
+      y -= 16;
+
+      function drawRow(label, stats, isTotal=false, indent=false) {
+        checkY(14);
+        const bg = isTotal ? LGREEN : (indent ? rgb(1,1,1) : rgb(0.96,0.98,0.96));
+        page.drawRectangle({ x:ML, y:y-4, width:W-ML-MR, height:14, color:bg });
+        const grand = TINGKATAN_LIST.reduce((n,t) => n+(stats[t].L||0)+(stats[t].P||0), 0);
+        page.drawText((indent ? '  ' : '') + label.slice(0,28),
+          { x:ML+4, y:y-1, font:isTotal?fBold:fReg, size:isTotal?8.5:8, color:isTotal?GREEN:rgb(0.1,0.1,0.1) });
+        TINGKATAN_LIST.forEach((t,i) => {
+          const bx = ML+140 + i*80;
+          page.drawText(String(stats[t].L||0), { x:bx+8, y:y-1, font:fReg, size:8, color:rgb(0.1,0.4,0.2) });
+          page.drawText(String(stats[t].P||0), { x:bx+42, y:y-1, font:fReg, size:8, color:rgb(0.5,0.1,0.1) });
+        });
+        page.drawText(String(grand), { x:ML+466, y:y-1, font:fBold, size:8.5, color:GREEN });
+        y -= 14;
+      }
+
+      if (isAdmin) {
+        drawRow('TOTAL SELURUH DAERAH', statsTotal, true);
+        Object.entries(desaMap).forEach(([desaNama, klpList], di) => {
+          checkY(20);
+          if (di > 0) { y -= 6; }
+          // Header desa
+          page.drawRectangle({ x:ML, y:y-4, width:W-ML-MR, height:15, color:LGREEN });
+          page.drawLine({ start:{x:ML,y:y+11}, end:{x:W-MR,y:y+11}, thickness:1.5, color:GREEN });
+          const santriDesa = santriFiltered.filter(s => klpList.find(k=>k.id===s.kelas?.kelompok_id));
+          page.drawText('Desa ' + desaNama + '  (' + santriDesa.length + ' generus)',
+            { x:ML+4, y:y-1, font:fBold, size:9, color:GREEN });
+          y -= 16;
+          const statsDesa = hitungStats(santriDesa);
+          drawRow('Total ' + desaNama, statsDesa, false, false);
+          klpList.forEach(k => {
+            const sk = santriFiltered.filter(s=>s.kelas?.kelompok_id===k.id);
+            drawRow(k.nama, hitungStats(sk), false, true);
+          });
+        });
+      } else if (isDesa) {
+        drawRow('TOTAL DESA', statsTotal, true);
+        Object.values(desaMap).flat().forEach(k => {
+          const sk = santriFiltered.filter(s=>s.kelas?.kelompok_id===k.id);
+          drawRow(k.nama, hitungStats(sk), false, true);
+        });
+      } else {
+        drawRow(filteredKelompok[0]?.nama||'Kelompok', statsTotal, true);
+      }
+
+      // Keterangan
+      y -= 6;
+      checkY(16);
+      page.drawText('L = Laki-laki   P = Perempuan   Tingkatan dihitung dari usia per 1 Juli ' + new Date().getFullYear(),
+        { x:ML, y, font:fReg, size:8, color:GRAY });
+
+      // Footer
+      doc.getPages().forEach((p,i) => {
+        p.drawText('Hal '+( i+1)+'/'+doc.getPageCount()+'  -  Data Generus PPG Sidoarjo Utara',
+          { x:ML, y:22, font:fReg, size:7.5, color:GRAY });
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type:'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Data_Generus_PPG_' + new Date().toISOString().slice(0,10) + '.pdf';
+      a.click(); URL.revokeObjectURL(url);
+      showToast('PDF berhasil diunduh');
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error(e);
+    }
+  };
 
   // ── Render form kelola di bawah dashboard ──
   const formEl = document.getElementById('santriFormArea');
