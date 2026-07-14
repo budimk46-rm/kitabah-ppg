@@ -372,9 +372,12 @@ a { text-decoration: none; color: inherit; }
 }
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-bottom: 16px;
+}
+@media (min-width: 600px) {
+  .stat-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
 }
 .stat-card {
   background: var(--white);
@@ -390,6 +393,10 @@ a { text-decoration: none; color: inherit; }
   color: var(--green);
   line-height: 1;
   margin-bottom: 4px;
+}
+@media (min-width: 600px) {
+  .stat-num { font-size: 28px; }
+  .stat-card { padding: 16px; }
 }
 .stat-label { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
   font-family: var(--font-display);
