@@ -180,9 +180,15 @@ function showLogin() {
   document.getElementById('loginLogo').src = LOGO_PLACEHOLDER;
 }
 function showPending(username, namaLengkap) {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('pendingScreen').style.display = 'flex';
-  document.getElementById('pendingUsername').textContent = username;
+  const loginEl = document.getElementById('loginScreen');
+  const pendingEl = document.getElementById('pendingScreen');
+  const shellEl = document.getElementById('appShell');
+  if (loginEl) loginEl.style.display = 'none';
+  if (shellEl) shellEl.style.display = 'none';
+  if (pendingEl) {
+    pendingEl.style.cssText = 'display:flex!important;';
+    document.getElementById('pendingUsername').textContent = username;
+  }
   loadPendingWaBtn(username, namaLengkap);
 }
 function showShell() {
