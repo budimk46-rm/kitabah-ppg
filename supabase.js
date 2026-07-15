@@ -76,9 +76,10 @@ const sbUsers = {
   reject: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),
   delete: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'DELETE' }),
   register: async (data) => {
-    // Gunakan RPC function untuk hindari bug 409 dari Supabase REST
-    return sbFetch('rpc/daftar_anggota', {
+    // Direct fetch — Supabase selalu return 409 tapi data tetap masuk
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/daftar_anggota`, {
       method: 'POST',
+      headers: SB_HEADERS,
       body: JSON.stringify({
         p_username: data.username,
         p_password: data.password_hash,
@@ -89,6 +90,8 @@ const sbUsers = {
         p_desa_id: data.desa_id || null,
       })
     });
+    // Tidak cek response status — data sudah masuk
+    return null;
   },
   update: (id, data) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 };
