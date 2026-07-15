@@ -115,7 +115,7 @@ const sbMateri = {
 // ============ KELAS ============
 const sbKelas = {
   getByKelompok: (kelompokId) =>
-    sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
+    sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,kelompok_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
   insert: (data) => sbFetch('kelas', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
   delete: (id) => sbFetch(`kelas?id=eq.${id}`, { method: 'DELETE' }),
 };
@@ -212,6 +212,17 @@ const sbProgress = {
   getAll: () => sbFetch('progress?select=*'),
 };
 
+// ============ MUSYAWARAH ============
+const sbMusyawarah = {
+  getAll: () => sbFetch('musyawarah?select=*,users(nama_lengkap)&order=tanggal.desc&limit=200'),
+  getByLevel: (level) => sbFetch(`musyawarah?level=eq.${level}&select=*,users(nama_lengkap)&order=tanggal.desc`),
+  getByKelompok: (kid) => sbFetch(`musyawarah?kelompok_id=eq.${kid}&select=*,users(nama_lengkap)&order=tanggal.desc`),
+  getByDesa: (desa) => sbFetch(`musyawarah?desa_id=eq.${encodeURIComponent(desa)}&select=*,users(nama_lengkap)&order=tanggal.desc`),
+  insert: (data) => sbFetch('musyawarah', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  update: (id, data) => sbFetch(`musyawarah?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`musyawarah?id=eq.${id}`, { method:'DELETE' }),
+};
+
 // ============ SETTINGS ============
 const sbSettings = {
   get: async (key) => {
@@ -239,4 +250,5 @@ window.SB = {
   absensi: sbAbsensi,
   progress: sbProgress,
   settings: sbSettings,
+  musyawarah: sbMusyawarah,
 };

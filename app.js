@@ -306,6 +306,7 @@ function gridIcon() { return SVG('<rect x="3" y="3" width="7" height="7"/><rect 
 function bookIcon() { return SVG('<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>'); }
 function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'); }
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
+function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function userIcon() { return SVG('<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'); }
 function checkIcon() { return SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>'); }
 function chartIcon() { return SVG('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'); }
@@ -318,15 +319,20 @@ const NAV_ITEMS = {
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   daerah: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Daerah' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
+    { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   desa: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
+    { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   pjp_kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
@@ -335,16 +341,19 @@ const NAV_ITEMS = {
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   wali_kbm: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   guru: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum Kelas Saya' },
     { id: 'absensi', icon: calIcon(), label: 'Input Absensi & Jurnal' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
@@ -352,6 +361,7 @@ const NAV_ITEMS = {
     { id: 'progress', icon: checkIcon(), label: 'Progress Materi' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap Progress' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
 };
 
@@ -403,6 +413,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'musyawarah':  await renderMusyawarah(); break;
       case 'rekap_desa':  await renderRekapDesa(); break;
       case 'rekap_daerah': await renderRekapDaerah(); break;
       default: main.innerHTML = '<div class="empty-state"><p>Halaman tidak ditemukan.</p></div>';
@@ -2121,7 +2132,294 @@ async function renderAbsensi() {
   } // end lanjutAbsensi
 }
 
-/* ===== PAGE: SETTINGS ===== */
+/* ===== PAGE: MUSYAWARAH ===== */
+const MUSYAWARAH_LEVEL = {
+  guru_generus: { label: 'Musyawarah Guru Generus', icon: '👨‍🏫', warna: 'badge-green', roles: ['pjp_kelompok','wali_kbm','guru','kelompok','admin'] },
+  unsur_5:      { label: 'Musyawarah 5 Unsur Kelompok', icon: '🤝', warna: 'badge-gold', roles: ['pjp_kelompok','kelompok','admin'] },
+  pjp_desa:     { label: 'Musyawarah PJP Desa', icon: '🏘️', warna: 'badge-rose', roles: ['desa','pjp_kelompok','admin'] },
+  ppg_daerah:   { label: 'Musyawarah PPG Daerah', icon: '🏛️', warna: 'badge-gray', roles: ['daerah','desa','admin'] },
+};
+
+// Level yang bisa DILIHAT per role (level saya dan di atas saya)
+const MUSYAWARAH_VISIBLE = {
+  guru:         ['guru_generus'],
+  wali_kbm:     ['guru_generus'],
+  kelompok:     ['guru_generus','unsur_5'],
+  pjp_kelompok: ['guru_generus','unsur_5','pjp_desa'],
+  desa:         ['guru_generus','unsur_5','pjp_desa'],
+  daerah:       ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
+  admin:        ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
+};
+
+// Level yang bisa DIBUAT per role
+const MUSYAWARAH_CREATE = {
+  guru:         ['guru_generus'],
+  wali_kbm:     ['guru_generus'],
+  kelompok:     ['guru_generus','unsur_5'],
+  pjp_kelompok: ['guru_generus','unsur_5'],
+  desa:         ['pjp_desa'],
+  daerah:       ['ppg_daerah'],
+  admin:        ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
+};
+
+async function renderMusyawarah() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const role = u.role;
+  const visibleLevels = MUSYAWARAH_VISIBLE[role] || [];
+  const createLevels = MUSYAWARAH_CREATE[role] || [];
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Load data musyawarah sesuai level dan konteks user
+  let allMusyawarah = [];
+  try {
+    if (role === 'admin' || role === 'daerah') {
+      allMusyawarah = await SB.musyawarah.getAll();
+    } else if (role === 'desa') {
+      const desaId = u.desa_id || u.kelompok_id;
+      allMusyawarah = await SB.musyawarah.getByDesa(desaId);
+      // Tambah level daerah juga
+      const daerah = await SB.musyawarah.getByLevel('ppg_daerah');
+      allMusyawarah = [...allMusyawarah, ...(daerah||[])];
+    } else if (u.kelompok_id) {
+      // kelompok, pjp, guru, wali
+      const klp = await SB.musyawarah.getByKelompok(u.kelompok_id);
+      const desa = await SB.musyawarah.getByLevel('pjp_desa');
+      const daerah = await SB.musyawarah.getByLevel('ppg_daerah');
+      allMusyawarah = [...(klp||[]), ...(desa||[]), ...(daerah||[])];
+    } else {
+      allMusyawarah = await SB.musyawarah.getAll();
+    }
+    // Filter hanya visible levels
+    allMusyawarah = allMusyawarah.filter(m => visibleLevels.includes(m.level));
+    // Dedup by id
+    const seen = new Set();
+    allMusyawarah = allMusyawarah.filter(m => { if(seen.has(m.id)) return false; seen.add(m.id); return true; });
+  } catch(e) { console.error(e); }
+
+  const nowMonth = currentMonthName();
+  const nowYear = new Date().getFullYear();
+  let filterLevel = 'semua';
+
+  function renderList() {
+    const filtered = allMusyawarah.filter(m =>
+      filterLevel === 'semua' || m.level === filterLevel
+    );
+
+    const levelTabs = ['semua', ...visibleLevels].map(lv => {
+      const cfg = MUSYAWARAH_LEVEL[lv];
+      const count = lv === 'semua' ? allMusyawarah.length : allMusyawarah.filter(m => m.level === lv).length;
+      return `<div onclick="MUS_setFilter('${lv}')"
+        style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0; white-space:nowrap;
+          background:${filterLevel===lv?'var(--green)':'var(--white)'};
+          color:${filterLevel===lv?'#fff':'var(--ink-soft)'};
+          border:1.5px solid ${filterLevel===lv?'var(--green)':'var(--line)'};">
+        ${lv==='semua'?'Semua':(cfg?.icon+' '+cfg?.label.replace('Musyawarah ',''))} (${count})
+      </div>`;
+    }).join('');
+
+    const daftarHtml = filtered.length ? filtered.map(m => {
+      const cfg = MUSYAWARAH_LEVEL[m.level] || {};
+      const bisa_edit = m.dibuat_oleh === u.id || role === 'admin';
+      return `<div class="card" style="margin-bottom:12px; padding:16px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <span class="badge ${cfg.warna||'badge-gray'}">${cfg.icon||''} ${cfg.label||m.level}</span>
+              <span style="font-size:12px; color:var(--ink-soft);">${fmtDateShort(m.tanggal)}</span>
+            </div>
+            <div style="font-size:12px; color:var(--ink-soft);">
+              Bulan: <b>${escHtml(m.bulan||'')}</b>
+              ${m.users?.nama_lengkap ? ' · Oleh: '+escHtml(m.users.nama_lengkap) : ''}
+            </div>
+          </div>
+          ${bisa_edit ? `<div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="btn-icon" onclick="MUS_edit('${m.id}')" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+            </button>
+            <button class="btn-icon danger" onclick="MUS_delete('${m.id}')" title="Hapus">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            </button>
+          </div>` : ''}
+        </div>
+        <div style="display:grid; gap:8px;">
+          ${m.peserta ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">Peserta Hadir</div><div style="font-size:13px; color:var(--ink);">${escHtml(m.peserta)}</div></div>` : ''}
+          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">Pencapaian Materi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.pencapaian)}</div></div>` : ''}
+          ${m.kendala ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--rose); margin-bottom:3px;">Kendala</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.kendala)}</div></div>` : ''}
+          ${m.solusi ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--gold); margin-bottom:3px;">Solusi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.solusi)}</div></div>` : ''}
+          ${m.tindak_lanjut ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:3px;">Tindak Lanjut</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.tindak_lanjut)}</div></div>` : ''}
+        </div>
+      </div>`;
+    }).join('') :
+    `<div class="empty-state"><p class="empty-title">Belum ada notulensi</p><p class="empty-desc">Klik tombol "+ Buat Notulensi" untuk menambahkan.</p></div>`;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Musyawarah</h1>
+          <p class="page-subtitle">${filtered.length} notulensi tersimpan</p>
+        </div>
+        ${createLevels.length ? `<button class="btn btn-green btn-sm" onclick="MUS_buat()">+ Buat Notulensi</button>` : ''}
+      </div>
+      <!-- Tab filter level -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
+        ${levelTabs}
+      </div>
+      <!-- Daftar notulensi -->
+      ${daftarHtml}`;
+  }
+
+  window.MUS_setFilter = (lv) => { filterLevel = lv; renderList(); };
+
+  window.MUS_buat = () => openMusyawarahModal(null, createLevels, u, async () => {
+    allMusyawarah = await SB.musyawarah.getAll().catch(()=>[]);
+    allMusyawarah = allMusyawarah.filter(m => visibleLevels.includes(m.level));
+    renderList();
+  });
+
+  window.MUS_edit = (id) => {
+    const m = allMusyawarah.find(x => x.id === id);
+    if (!m) return;
+    openMusyawarahModal(m, createLevels, u, async () => {
+      // Refresh entry
+      try {
+        const fresh = await SB.musyawarah.getAll();
+        allMusyawarah = (fresh||[]).filter(m => visibleLevels.includes(m.level));
+        const seen = new Set();
+        allMusyawarah = allMusyawarah.filter(m => { if(seen.has(m.id)) return false; seen.add(m.id); return true; });
+      } catch(e) {}
+      renderList();
+    });
+  };
+
+  window.MUS_delete = async (id) => {
+    if (!confirm('Hapus notulensi ini?')) return;
+    await SB.musyawarah.delete(id);
+    allMusyawarah = allMusyawarah.filter(m => m.id !== id);
+    showToast('Notulensi dihapus');
+    renderList();
+  };
+
+  renderList();
+}
+
+function openMusyawarahModal(existing, createLevels, u, onSaved) {
+  let el = document.getElementById('musyawarahModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'musyawarahModal';
+    el.className = 'modal-overlay';
+    document.body.appendChild(el);
+  }
+
+  const nowMonth = currentMonthName();
+  const today = new Date().toISOString().slice(0,10);
+  const m = existing;
+
+  const levelOpts = createLevels.map(lv => {
+    const cfg = MUSYAWARAH_LEVEL[lv] || {};
+    return `<option value="${lv}" ${m?.level===lv?'selected':''}>${cfg.icon||''} ${cfg.label||lv}</option>`;
+  }).join('');
+
+  el.innerHTML = `<div class="modal modal-lg" style="max-height:94vh;">
+    <div class="modal-head">
+      <h3 class="modal-title">${m ? 'Edit Notulensi' : 'Buat Notulensi Musyawarah'}</h3>
+      <button class="modal-close" onclick="closeModal('musyawarahModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Jenis Musyawarah *</label>
+          <select id="musLevel">
+            <option value="">Pilih jenis...</option>
+            ${levelOpts}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tanggal Musyawarah *</label>
+          <input type="date" id="musTanggal" value="${m?.tanggal||today}">
+        </div>
+        <div class="form-group">
+          <label>Bulan Laporan *</label>
+          <select id="musBulan">
+            ${[...SEM1_MONTHS,...SEM2_MONTHS].map(mn =>
+              `<option value="${mn}" ${(m?.bulan||nowMonth)===mn?'selected':''}>${mn}</option>`
+            ).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Peserta Hadir</label>
+        <textarea id="musPeserta" rows="3" placeholder="Nama-nama peserta yang hadir, jabatan, dll...">${escHtml(m?.peserta||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Pencapaian Materi</label>
+        <textarea id="musPencapaian" rows="4" placeholder="Pencapaian target materi bulan ini per kelas usia, capaian KBM, dll...">${escHtml(m?.pencapaian||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Kendala</label>
+        <textarea id="musKendala" rows="3" placeholder="Kendala yang dihadapi selama bulan ini...">${escHtml(m?.kendala||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Solusi</label>
+        <textarea id="musSolusi" rows="3" placeholder="Solusi yang disepakati dalam musyawarah...">${escHtml(m?.solusi||'')}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Tindak Lanjut</label>
+        <textarea id="musTindakLanjut" rows="3" placeholder="Tindak lanjut yang akan dilaksanakan, PIC, dan target waktu...">${escHtml(m?.tindak_lanjut||'')}</textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('musyawarahModal')">Batal</button>
+      <button class="btn btn-green" id="musSaveBtn">${m ? 'Simpan Perubahan' : 'Simpan Notulensi'}</button>
+    </div>
+  </div>`;
+
+  document.getElementById('musSaveBtn').onclick = async () => {
+    const level = document.getElementById('musLevel').value;
+    const tanggal = document.getElementById('musTanggal').value;
+    const bulan = document.getElementById('musBulan').value;
+    if (!level) { showToast('Pilih jenis musyawarah', true); return; }
+    if (!tanggal) { showToast('Pilih tanggal', true); return; }
+
+    const btn = document.getElementById('musSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+
+    const data = {
+      level, tanggal, bulan,
+      tahun: new Date(tanggal).getFullYear(),
+      peserta: document.getElementById('musPeserta').value.trim() || null,
+      pencapaian: document.getElementById('musPencapaian').value.trim() || null,
+      kendala: document.getElementById('musKendala').value.trim() || null,
+      solusi: document.getElementById('musSolusi').value.trim() || null,
+      tindak_lanjut: document.getElementById('musTindakLanjut').value.trim() || null,
+      kelompok_id: u.kelompok_id || null,
+      desa_id: u.desa_id || u.kelompok_id || null,
+      dibuat_oleh: u.id,
+    };
+
+    try {
+      if (m) {
+        await SB.musyawarah.update(m.id, data);
+        showToast('Notulensi diperbarui ✓');
+      } else {
+        await SB.musyawarah.insert(data);
+        showToast('Notulensi berhasil disimpan ✓');
+      }
+      closeModal('musyawarahModal');
+      onSaved();
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
+    btn.disabled = false;
+    btn.textContent = m ? 'Simpan Perubahan' : 'Simpan Notulensi';
+  };
+
+  openModal('musyawarahModal');
+}
+
+
 async function renderSettings() {
   const main = document.getElementById('mainContent');
   const waNum = await SB.settings.get('admin_whatsapp');
