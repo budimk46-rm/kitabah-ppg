@@ -77,7 +77,7 @@ const sbUsers = {
   delete: (id) => sbFetch(`users?id=eq.${id}`, { method: 'DELETE' }),
   register: (data) => sbFetch('users', {
     method: 'POST',
-    headers: { 'Prefer': 'return=representation' },
+    headers: { 'Prefer': 'return=minimal' },
     body: JSON.stringify(data)
   }),
   update: (id, data) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

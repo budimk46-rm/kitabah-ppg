@@ -488,9 +488,12 @@ async function doRegister() {
   btn.innerHTML = '<span class="spinner"></span> Mendaftarkan...';
 
   try {
-    const existing = await SB.users.getAll();
-    if (existing.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-      alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai.</div>';
+    // Cek username langsung per query - lebih akurat
+    const cek = await sbFetch(`users?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`);
+    if (cek && cek.length > 0) {
+      if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
+      btn.disabled = false;
+      btn.textContent = 'Daftar Sekarang';
       return;
     }
 
@@ -503,19 +506,30 @@ async function doRegister() {
 
     const role = JABATAN_ROLE[WIZ_STATE.jabatan] || 'kelompok';
 
-    await SB.users.register({
-      username: username.toLowerCase(),
-      password_hash: password,
-      nama_lengkap: toTitleCase(namaLengkap),
-      role,
-      status: 'pending',
-      kelompok_id: WIZ_STATE.kelompokId || null,
-      desa_id: WIZ_STATE.desaId || null,
-      jabatan: jabatanLengkap,
-    });
+    try {
+      await SB.users.register({
+        username: username.toLowerCase(),
+        password_hash: password,
+        nama_lengkap: toTitleCase(namaLengkap),
+        role,
+        status: 'pending',
+        kelompok_id: WIZ_STATE.kelompokId || null,
+        desa_id: WIZ_STATE.desaId || null,
+        jabatan: jabatanLengkap,
+      });
+    } catch(e) {
+      // 409 = username duplikat
+      if (e.message.includes('409') || e.message.includes('duplicate') || e.message.includes('23505')) {
+        if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
+        btn.disabled = false;
+        btn.textContent = 'Daftar Sekarang';
+        return;
+      }
+      throw e; // error lain tetap dilempar
+    }
 
     showPending(username, namaLengkap);
-    return; // pastikan tidak lanjut ke finally
+    return;
   } catch(e) {
     const msg = e.message || '';
     if (msg.includes('409') || msg.includes('duplicate') || msg.includes('unique')) {
