@@ -370,19 +370,27 @@ document.addEventListener('change', e => {
 
 window.WIZ_next1 = () => {
   if (!WIZ_STATE.jabatan) return;
-  const needsDesa = ['pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
+  // Semua jabatan level desa dan kelompok butuh pilih desa
+  const needsDesa = ['desa','pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
     'kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
   const needsKelompok = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
 
-  if (needsDesa || needsKelompok) {
+  if (needsDesa) {
     // Go to step 2
-    document.getElementById('desaField').style.display = needsDesa || needsKelompok ? 'block' : 'none';
-    document.getElementById('kelompokField').style.display = needsKelompok ? 'none' : 'none'; // tampil setelah pilih desa
+    document.getElementById('desaField').style.display = 'block';
+    document.getElementById('kelompokField').style.display = 'none';
+    // Reset pilihan desa/kelompok
+    document.getElementById('regDesa').value = '';
+    document.getElementById('regKelompok').innerHTML = '<option value="">Pilih kelompok...</option>';
+    document.getElementById('wizNext2').disabled = true;
+    document.getElementById('wizNext2').style.opacity = '.5';
+    // Sembunyikan step 1, tampilkan step 2
     document.getElementById('wizStep1').style.display = 'none';
     document.getElementById('wizStep2').style.display = 'block';
+    document.getElementById('wizStep3').style.display = 'none';
     WIZ_updateProgress(2);
   } else {
-    // Skip step 2, go to step 3
+    // Level daerah — skip step 2, langsung step 3
     WIZ_goStep3();
   }
 };
@@ -397,11 +405,9 @@ window.WIZ_onDesaChange = async (desaId) => {
   if (needsKelompok && desaId) {
     kelompokField.style.display = 'block';
     kelompokSel.innerHTML = '<option value="">Memuat...</option>';
-    // Load kelompok berdasarkan desa
     try {
       const allKlp = await sbFetch('kelompok?select=id,nama,desa_id&order=nama');
       const klpDesa = allKlp.filter(k => {
-        // Match desa - kelompok desa_id adalah D1-D6, kita matching lewat nama desa
         const desaMap = {'Desa Barat 1':'D1','Desa Barat 2':'D2','Desa Tengah 1':'D3',
                          'Desa Tengah 2':'D4','Desa Timur 1':'D5','Desa Timur 2':'D6'};
         return k.desa_id === desaMap[desaId];
@@ -436,6 +442,7 @@ window.WIZ_next2 = () => {
 };
 
 function WIZ_goStep3() {
+  // Sembunyikan step 1 dan 2, tampilkan step 3
   document.getElementById('wizStep1').style.display = 'none';
   document.getElementById('wizStep2').style.display = 'none';
   document.getElementById('wizStep3').style.display = 'block';
@@ -456,19 +463,24 @@ function WIZ_goStep3() {
     if (opt?.text) parts.push(opt.text);
   }
   document.getElementById('wizSummary').innerHTML =
-    '✓ ' + parts.join(' › ');
+    '\u2713 ' + parts.join(' \u203A ');
 }
 
 window.WIZ_back = (fromStep) => {
+  // Sembunyikan semua step dulu
+  document.getElementById('wizStep1').style.display = 'none';
+  document.getElementById('wizStep2').style.display = 'none';
+  document.getElementById('wizStep3').style.display = 'none';
+
   if (fromStep === 2) {
-    document.getElementById('wizStep2').style.display = 'none';
+    // Kembali ke step 1
     document.getElementById('wizStep1').style.display = 'block';
     WIZ_updateProgress(1);
   } else if (fromStep === 3) {
-    document.getElementById('wizStep3').style.display = 'none';
-    const needsStep2 = ['pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
+    // Kembali ke step 2 kalau ada, atau step 1
+    const needsDesa = ['desa','pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
       'kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
-    if (needsStep2) {
+    if (needsDesa) {
       document.getElementById('wizStep2').style.display = 'block';
       WIZ_updateProgress(2);
     } else {
