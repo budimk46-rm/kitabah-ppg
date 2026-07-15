@@ -3568,9 +3568,364 @@ async function renderRekapDesa() {
 }
 async function renderRekapDaerah() {
   const main = document.getElementById('mainContent');
-  main.innerHTML = `
-    <div class="page-header"><h1 class="page-title">Rekap Daerah</h1></div>
-    <div class="card"><p class="color-soft">Dalam pengembangan.</p></div>`;
+  const u = App.user;
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  if (!App.cache.materi) App.cache.materi = await SB.materi.getAll();
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data rekap daerah...</div></div>';
+
+  const kelompokList = App.cache.kelompok || [];
+  const nowMonth = currentMonthName();
+  const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
+  let selectedBulan = nowMonth;
+
+  // Group kelompok per desa
+  const desaMap = {};
+  kelompokList.forEach(k => {
+    const desaNama = k.desa?.nama || k.desa_id || 'Lainnya';
+    if (!desaMap[desaNama]) desaMap[desaNama] = [];
+    desaMap[desaNama].push(k);
+  });
+
+  // Load semua data paralel per kelompok
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data ' + kelompokList.length + ' kelompok...</div></div>';
+
+  const allSantri = await SB.santri.getAll();
+  const kelompokData = {};
+  await Promise.all(kelompokList.map(async klp => {
+    const kelasList = await SB.kelas.getByKelompok(klp.id);
+    const progData = await SB.progress.getByKelompok(klp.id);
+    const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+    const kelasData = {};
+    await Promise.all(kelasList.map(async k => {
+      const [pertemuanList, santriKelas] = await Promise.all([
+        SB.pertemuan.getByKelas(k.id),
+        SB.santri.getByKelas(k.id),
+      ]);
+      const absensiAll = {};
+      await Promise.all(pertemuanList.map(async p => {
+        absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id);
+      }));
+      kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
+    }));
+    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+  }));
+
+  const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
+
+  function hitungStatsKlp(klpId, bulan) {
+    const d = kelompokData[klpId];
+    if (!d) return null;
+    let totalPertemuan=0, totalH=0, totalI=0, totalS=0, totalA=0, totalSlot=0;
+    let materiTarget=0, materiTercapai=0;
+    d.kelasList.forEach(k => {
+      const kd = d.kelasData[k.id];
+      const perBulan = kd.pertemuanList.filter(p => p.bulan === bulan);
+      totalPertemuan += perBulan.length;
+      perBulan.forEach(p => {
+        const absen = kd.absensiAll[p.id] || [];
+        kd.santriKelas.forEach(s => {
+          const st = absen.find(x => x.santri_id === s.id)?.status || 'A';
+          if (st==='H') totalH++; else if (st==='I') totalI++;
+          else if (st==='S') totalS++; else totalA++;
+          totalSlot++;
+        });
+      });
+      const col = bulan.toLowerCase();
+      const mk = (App.cache.materi||[]).filter(r =>
+        r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
+      );
+      materiTarget += mk.length;
+      materiTercapai += mk.filter(r => d.progressSet.has(r.id+'|'+bulan)).length;
+    });
+    const pctHadir = totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null;
+    const pctMateri = materiTarget > 0 ? Math.round(materiTercapai/materiTarget*100) : null;
+    const santriKlp = allSantri.filter(s => s.kelas?.kelompok_id === klpId);
+    const generus = {};
+    TINGKATAN_LIST.forEach(t => { generus[t] = {L:0, P:0}; });
+    santriKlp.forEach(s => {
+      const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+      const jk = s.jenis_kel;
+      if (t && generus[t] && (jk==='L'||jk==='P')) generus[t][jk]++;
+    });
+    return { totalPertemuan, totalH, totalI, totalS, totalA, totalSlot, pctHadir, pctMateri,
+      materiTarget, materiTercapai, generus, totalGenerus: santriKlp.length };
+  }
+
+  function pctBar(pct) {
+    if (pct === null) return '<span style="font-size:11px; color:var(--ink-soft);">-</span>';
+    const c = pct>=80?'var(--green)':pct>=50?'#e6a817':'var(--rose)';
+    return `<div style="display:flex; align-items:center; gap:5px;">
+      <div style="flex:1; height:6px; background:var(--line); border-radius:3px; overflow:hidden;">
+        <div style="width:${pct}%; height:100%; background:${c}; border-radius:3px;"></div>
+      </div>
+      <span style="font-size:11px; font-weight:700; color:${c};">${pct}%</span>
+    </div>`;
+  }
+
+  function renderDashboard() {
+    const bulanChips = semNow.map(m => `
+      <div onclick="RDA_setBulan('${m}')"
+        style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+          background:${selectedBulan===m?'var(--green)':'var(--white)'};
+          color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+          border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+        ${m}${m===nowMonth?' ●':''}
+      </div>`).join('');
+
+    // Hitung stats semua kelompok
+    const allKlpStats = kelompokList.map(klp => ({
+      kelompok: klp,
+      desaNama: klp.desa?.nama || klp.desa_id || 'Lainnya',
+      stats: hitungStatsKlp(klp.id, selectedBulan),
+    }));
+
+    // Total daerah
+    const totalGenerusDaerah = allKlpStats.reduce((n,k) => n+(k.stats?.totalGenerus||0), 0);
+    const totalPtmDaerah = allKlpStats.reduce((n,k) => n+(k.stats?.totalPertemuan||0), 0);
+    const hadirArr = allKlpStats.filter(k => k.stats?.pctHadir !== null);
+    const materiArr = allKlpStats.filter(k => k.stats?.pctMateri !== null);
+    const avgHadirDaerah = hadirArr.length ? Math.round(hadirArr.reduce((n,k)=>n+(k.stats.pctHadir||0),0)/hadirArr.length) : null;
+    const avgMateriDaerah = materiArr.length ? Math.round(materiArr.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/materiArr.length) : null;
+
+    // Kartu per desa
+    const desaCards = Object.entries(desaMap).map(([desaNama, klpList]) => {
+      const klpDesa = allKlpStats.filter(k => k.desaNama === desaNama);
+      const totalGenDesa = klpDesa.reduce((n,k)=>n+(k.stats?.totalGenerus||0),0);
+      const totalPtmDesa = klpDesa.reduce((n,k)=>n+(k.stats?.totalPertemuan||0),0);
+      const hadirDesa = klpDesa.filter(k=>k.stats?.pctHadir!==null);
+      const materiDesa = klpDesa.filter(k=>k.stats?.pctMateri!==null);
+      const avgHD = hadirDesa.length ? Math.round(hadirDesa.reduce((n,k)=>n+(k.stats.pctHadir||0),0)/hadirDesa.length) : null;
+      const avgMD = materiDesa.length ? Math.round(materiDesa.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/materiDesa.length) : null;
+
+      const klpRows = klpDesa.map(({kelompok:klp, stats:s}) => `
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:7px 10px; font-size:12.5px; font-weight:600;">${escHtml(klp.nama)}</td>
+          <td style="text-align:center; font-size:12px;">${s?.totalGenerus||0}</td>
+          <td style="text-align:center; font-size:12px;">${s?.totalPertemuan||0}x</td>
+          <td style="padding:6px 10px; min-width:100px;">${pctBar(s?.pctHadir)}</td>
+          <td style="padding:6px 10px; min-width:100px;">${pctBar(s?.pctMateri)}</td>
+          <td style="text-align:center; font-size:11px;">
+            ${TINGKATAN_LIST.map(t =>
+              `<span style="display:inline-block; margin:1px 3px; color:#1a6b3a;">${s?.generus[t]?.L||0}L</span>` +
+              `<span style="display:inline-block; margin:1px 2px; color:#a6483b;">${s?.generus[t]?.P||0}P</span>`
+            ).join('<span style="color:var(--line); margin:0 4px;">|</span>')}
+          </td>
+        </tr>`).join('');
+
+      return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+        <div style="background:var(--green); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="font-weight:800; font-size:15px; color:#fff;">📍 ${escHtml(desaNama)}</div>
+            <div style="font-size:12px; color:rgba(255,255,255,.75);">${klpList.length} kelompok · ${totalGenDesa} generus · ${totalPtmDesa} pertemuan</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <div style="text-align:center;">
+              <div style="font-size:16px; font-weight:800; color:${avgHD===null?'rgba(255,255,255,.5)':avgHD>=80?'#a3e6c0':avgHD>=50?'#ffd97d':'#ffaaaa'};">${avgHD!==null?avgHD+'%':'—'}</div>
+              <div style="font-size:10px; color:rgba(255,255,255,.7);">Kehadiran</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:16px; font-weight:800; color:${avgMD===null?'rgba(255,255,255,.5)':avgMD>=80?'#a3e6c0':avgMD>=50?'#ffd97d':'#ffaaaa'};">${avgMD!==null?avgMD+'%':'—'}</div>
+              <div style="font-size:10px; color:rgba(255,255,255,.7);">Materi</div>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table style="width:100%; border-collapse:collapse; min-width:600px;">
+            <thead><tr style="background:var(--green-soft);">
+              <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green);">Kelompok</th>
+              <th style="text-align:center; font-size:11px; color:var(--green); padding:7px 4px;">Generus</th>
+              <th style="text-align:center; font-size:11px; color:var(--green); padding:7px 4px;">Pertemuan</th>
+              <th style="font-size:11px; color:var(--green); padding:7px 10px;">Kehadiran</th>
+              <th style="font-size:11px; color:var(--green); padding:7px 10px;">Prog. Materi</th>
+              <th style="font-size:11px; color:var(--green); padding:7px 10px; text-align:center;">Generus per Tingkatan (L/P)</th>
+            </tr></thead>
+            <tbody>${klpRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Rekap Daerah</h1>
+          <p class="page-subtitle">PPG Sidoarjo Utara · ${kelompokList.length} kelompok · Bulan ${selectedBulan}</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="RDA_downloadPdf()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF
+        </button>
+      </div>
+
+      <!-- Stat cards total daerah -->
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num">${kelompokList.length}</div><div class="stat-label">Total Kelompok</div></div>
+        <div class="stat-card"><div class="stat-num">${totalGenerusDaerah}</div><div class="stat-label">Total Generus</div></div>
+        <div class="stat-card"><div class="stat-num">${totalPtmDaerah}</div><div class="stat-label">Pertemuan Bulan Ini</div></div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${avgHadirDaerah===null?'var(--ink-soft)':avgHadirDaerah>=80?'var(--green)':avgHadirDaerah>=50?'#e6a817':'var(--rose)'};">${avgHadirDaerah!==null?avgHadirDaerah+'%':'—'}</div>
+          <div class="stat-label">Rata-rata Kehadiran</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${avgMateriDaerah===null?'var(--ink-soft)':avgMateriDaerah>=80?'var(--green)':avgMateriDaerah>=50?'#e6a817':'var(--rose)'};">${avgMateriDaerah!==null?avgMateriDaerah+'%':'—'}</div>
+          <div class="stat-label">Progress Materi</div>
+        </div>
+      </div>
+
+      <!-- Filter bulan -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
+        ${bulanChips}
+      </div>
+
+      <!-- Kartu per desa -->
+      ${desaCards}
+    `;
+  }
+
+  window.RDA_setBulan = (b) => { selectedBulan = b; renderDashboard(); };
+
+  window.RDA_downloadPdf = async () => {
+    showToast('Menyiapkan PDF Rekap Daerah...');
+    if (!window.PDFLib) {
+      await new Promise((res,rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg  = await doc.embedFont(StandardFonts.Helvetica);
+      const W=842, H=595, ML=36, MR=36, MT=44;
+      const GREEN=rgb(0.106,0.227,0.173), GOLD=rgb(0.757,0.604,0.294);
+      const GRAY=rgb(0.5,0.5,0.5), RED=rgb(0.65,0.28,0.23);
+      const LGREEN=rgb(0.91,0.96,0.91);
+
+      let page = doc.addPage([W,H]); let y = H-MT;
+      function newPage() { page=doc.addPage([W,H]); y=H-MT; }
+      function checkY(n) { if(y<n+36) newPage(); }
+      function pctC(p) { return p===null?GRAY:p>=80?GREEN:p>=50?GOLD:RED; }
+
+      // Header
+      page.drawText('REKAP KBM DAERAH - PPG SIDOARJO UTARA', {x:ML,y,font:fBold,size:13,color:GREEN});
+      y-=15;
+      page.drawText('Bulan: '+selectedBulan+'   |   Dicetak: '+new Date().toLocaleDateString('id-ID')+'   |   '+kelompokList.length+' kelompok   |   31 kelompok',
+        {x:ML,y,font:fReg,size:9,color:GRAY});
+      y-=8;
+      page.drawLine({start:{x:ML,y},end:{x:W-MR,y},thickness:1.5,color:GREEN});
+      y-=18;
+
+      const allKlpStats = kelompokList.map(klp => ({
+        kelompok:klp, desaNama:klp.desa?.nama||klp.desa_id||'Lainnya',
+        stats: hitungStatsKlp(klp.id, selectedBulan),
+      }));
+
+      // Ringkasan per desa
+      page.drawText('RINGKASAN PER DESA', {x:ML,y,font:fBold,size:10,color:GREEN}); y-=14;
+      const TC=[
+        {x:ML,w:80,label:'Desa'},{x:ML+80,w:50,label:'Kelompok'},
+        {x:ML+130,w:55,label:'Generus'},{x:ML+185,w:55,label:'Pertemuan'},
+        {x:ML+240,w:80,label:'Kehadiran'},{x:ML+320,w:80,label:'Prog.Materi'},
+        {x:ML+400,w:370,label:'Caberawit     Pra Remaja      Remaja       Pra Nikah'},
+      ];
+      page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:16,color:GREEN});
+      TC.forEach(c=>page.drawText(c.label,{x:c.x+3,y:y,font:fBold,size:7.5,color:rgb(1,1,1)}));
+      y-=18;
+
+      Object.entries(desaMap).forEach(([desaNama, klpList],di) => {
+        checkY(14);
+        const klpDesa = allKlpStats.filter(k=>k.desaNama===desaNama);
+        const totG = klpDesa.reduce((n,k)=>n+(k.stats?.totalGenerus||0),0);
+        const totP = klpDesa.reduce((n,k)=>n+(k.stats?.totalPertemuan||0),0);
+        const hArr = klpDesa.filter(k=>k.stats?.pctHadir!==null);
+        const mArr = klpDesa.filter(k=>k.stats?.pctMateri!==null);
+        const avgH2 = hArr.length?Math.round(hArr.reduce((n,k)=>n+(k.stats.pctHadir||0),0)/hArr.length):null;
+        const avgM2 = mArr.length?Math.round(mArr.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/mArr.length):null;
+
+        // Generus per tingkatan untuk desa
+        const genDesa = {};
+        TINGKATAN_LIST.forEach(t=>{genDesa[t]={L:0,P:0};});
+        klpDesa.forEach(({stats:s})=>{ if(s) TINGKATAN_LIST.forEach(t=>{genDesa[t].L+=s.generus[t].L||0;genDesa[t].P+=s.generus[t].P||0;}); });
+
+        const bg = di%2===0?LGREEN:rgb(1,1,1);
+        page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:14,color:bg});
+        page.drawText(desaNama,{x:ML+3,y:y-1,font:fBold,size:8.5,color:GREEN});
+        page.drawText(String(klpList.length),{x:ML+83,y:y-1,font:fReg,size:8,color:rgb(0.1,0.1,0.1)});
+        page.drawText(String(totG),{x:ML+133,y:y-1,font:fReg,size:8,color:rgb(0.1,0.1,0.1)});
+        page.drawText(String(totP)+'x',{x:ML+188,y:y-1,font:fReg,size:8,color:rgb(0.1,0.1,0.1)});
+        page.drawText(avgH2!==null?avgH2+'%':'-',{x:ML+243,y:y-1,font:fBold,size:8,color:pctC(avgH2)});
+        page.drawText(avgM2!==null?avgM2+'%':'-',{x:ML+323,y:y-1,font:fBold,size:8,color:pctC(avgM2)});
+        TINGKATAN_LIST.forEach((t,i)=>{
+          const bx=ML+403+i*90;
+          page.drawText(`${genDesa[t].L}L ${genDesa[t].P}P`,{x:bx,y:y-1,font:fReg,size:7.5,color:rgb(0.2,0.2,0.2)});
+        });
+        y-=14;
+      });
+
+      y-=12;
+
+      // Detail per desa + kelompok
+      Object.entries(desaMap).forEach(([desaNama, klpList]) => {
+        checkY(60);
+        page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:18,color:GREEN});
+        page.drawText('Desa '+desaNama,{x:ML+5,y:y,font:fBold,size:10,color:rgb(1,1,1)});
+        y-=22;
+
+        // Sub-header kelompok
+        const SCols=[
+          {x:ML,w:100,l:'Kelompok'},{x:ML+100,w:50,l:'Generus'},
+          {x:ML+150,w:55,l:'Pertemuan'},{x:ML+205,w:70,l:'Kehadiran'},
+          {x:ML+275,w:70,l:'Prog.Materi'},{x:ML+345,w:460,l:'Caberawit      Pra Remaja      Remaja         Pra Nikah'},
+        ];
+        checkY(14);
+        page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:14,color:rgb(0.2,0.5,0.3)});
+        SCols.forEach(c=>page.drawText(c.l,{x:c.x+3,y:y-1,font:fBold,size:7.5,color:rgb(1,1,1)}));
+        y-=16;
+
+        const klpDesa = allKlpStats.filter(k=>k.desaNama===desaNama);
+        klpDesa.forEach(({kelompok:klp,stats:s},idx)=>{
+          checkY(14);
+          const bg=idx%2===0?rgb(0.97,0.99,0.97):rgb(1,1,1);
+          page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:13,color:bg});
+          page.drawText(klp.nama.slice(0,18),{x:ML+3,y:y-1,font:fReg,size:8,color:rgb(0.1,0.1,0.1)});
+          page.drawText(String(s?.totalGenerus||0),{x:ML+103,y:y-1,font:fReg,size:8,color:rgb(0.1,0.1,0.1)});
+          page.drawText(String(s?.totalPertemuan||0)+'x',{x:ML+153,y:y-1,font:fReg,size:8,color:rgb(0.1,0.1,0.1)});
+          page.drawText(s?.pctHadir!==null?s.pctHadir+'%':'-',{x:ML+208,y:y-1,font:fBold,size:8,color:pctC(s?.pctHadir)});
+          page.drawText(s?.pctMateri!==null?s.pctMateri+'%':'-',{x:ML+278,y:y-1,font:fBold,size:8,color:pctC(s?.pctMateri)});
+          TINGKATAN_LIST.forEach((t,i)=>{
+            const bx=ML+348+i*105;
+            page.drawText(`${s?.generus[t]?.L||0}L ${s?.generus[t]?.P||0}P`,{x:bx,y:y-1,font:fReg,size:7.5,color:rgb(0.2,0.2,0.2)});
+          });
+          y-=13;
+        });
+        y-=10;
+      });
+
+      // Footer
+      doc.getPages().forEach((p,i)=>{
+        p.drawText('Hal '+(i+1)+'/'+doc.getPageCount()+'  -  Rekap Daerah PPG Sidoarjo Utara - '+selectedBulan,
+          {x:ML,y:24,font:fReg,size:7.5,color:GRAY});
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes],{type:'application/pdf'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download='Rekap_Daerah_PPG_'+selectedBulan+'.pdf';
+      a.click(); URL.revokeObjectURL(url);
+      showToast('PDF Rekap Daerah berhasil diunduh');
+    } catch(e) {
+      showToast('Gagal: '+e.message, true);
+      console.error(e);
+    }
+  };
+
+  renderDashboard();
 }
 
 /* ===== MODALS ===== */
