@@ -515,8 +515,14 @@ async function doRegister() {
     });
 
     showPending(username, namaLengkap);
+    return; // pastikan tidak lanjut ke finally
   } catch(e) {
-    alertEl.innerHTML = `<div class="alert error">${escHtml(e.message)}</div>`;
+    const msg = e.message || '';
+    if (msg.includes('409') || msg.includes('duplicate') || msg.includes('unique')) {
+      alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
+    } else {
+      alertEl.innerHTML = `<div class="alert error">${escHtml(msg)}</div>`;
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = 'Daftar Sekarang';
