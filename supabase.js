@@ -75,11 +75,21 @@ const sbUsers = {
   approve: (id) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) }),
   reject: (id) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),
   delete: (id) => sbFetch(`users?id=eq.${id}`, { method: 'DELETE' }),
-  register: (data) => sbFetch('users', {
-    method: 'POST',
-    headers: { 'Prefer': 'return=minimal' },
-    body: JSON.stringify(data)
-  }),
+  register: async (data) => {
+    // Insert user - Supabase kadang return 409 meski data berhasil masuk
+    // karena konflik dengan auth.users internal
+    try {
+      return await sbFetch('users', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify(data)
+      });
+    } catch(e) {
+      // 409 terjadi tapi data sudah masuk - abaikan
+      if (e.message && e.message.includes('409')) return null;
+      throw e;
+    }
+  },
   update: (id, data) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 };
 

@@ -524,28 +524,21 @@ async function doRegister() {
         jabatan: jabatanLengkap,
       });
     } catch(e) {
-      console.error('Register error detail:', e.message);
-      // 409 terjadi karena trigger/constraint internal Supabase
-      // tapi data sudah berhasil masuk ke public.users
-      // Cek apakah username berhasil dibuat
-      if (e.message.includes('409') || e.message.includes('23505') || e.message.includes('duplicate')) {
-        try {
-          const cekInsert = await sbFetch(`users?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id,status`);
-          if (cekInsert && cekInsert.length > 0) {
-            // Data berhasil masuk, tampilkan pending
-            showPending(username, namaLengkap);
-            return;
-          }
-        } catch(e2) {}
-        if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
-        btn.disabled = false;
-        btn.textContent = 'Daftar Sekarang';
-        return;
-      }
-      throw e;
+      if (alertEl) alertEl.innerHTML = `<div class="alert error">${escHtml(e.message)}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Daftar Sekarang';
+      return;
     }
 
-    showPending(username, namaLengkap);
+    // Verifikasi data berhasil masuk
+    const cekInsert = await sbFetch(`users?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`).catch(()=>null);
+    if (cekInsert && cekInsert.length > 0) {
+      showPending(username, namaLengkap);
+    } else {
+      if (alertEl) alertEl.innerHTML = '<div class="alert error">Pendaftaran gagal, coba lagi.</div>';
+      btn.disabled = false;
+      btn.textContent = 'Daftar Sekarang';
+    }
     return;
   } catch(e) {
     const msg = e.message || '';
