@@ -297,9 +297,14 @@ const DESA_ID_MAP = {
 };
 
 window.WIZ_setLevel = (level, el) => {
+  // Reset semua state
   WIZ_STATE.level = level;
   WIZ_STATE.jabatan = '';
   WIZ_STATE.jabatanLabel = '';
+  WIZ_STATE.bidang = '';
+  WIZ_STATE.kelasUsia = '';
+  WIZ_STATE.desaId = '';
+  WIZ_STATE.kelompokId = '';
 
   // Highlight card yang dipilih
   document.querySelectorAll('#levelGrid .wiz-card').forEach(c => c.classList.remove('selected'));
