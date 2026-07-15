@@ -3,7 +3,7 @@
    Cache app shell untuk akses offline
    ============================================================ */
 
-const CACHE_NAME = 'kitabah-v2-cache-v3';
+const CACHE_NAME = 'kitabah-v2-cache-v4';
 
 // File yang di-cache untuk offline (app shell)
 const APP_SHELL = [
