@@ -787,9 +787,10 @@ tr:hover td { background: var(--green-soft); }
             <div id="kelasUsiaField" style="display:none; margin-top:12px;">
               <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Kelas Usia</label>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;" id="kelasUsiaGrid">
-                ${['Caberawit','Pra Remaja','Remaja','Pra Nikah'].map(k =>
-                  `<div class="wiz-card-sm" data-val="${k}" onclick="WIZ_setKelasUsia('${k}',this)">${k}</div>`
-                ).join('')}
+                <div class="wiz-card-sm" data-val="Caberawit" onclick="WIZ_setKelasUsia('Caberawit',this)">Caberawit</div>
+                <div class="wiz-card-sm" data-val="Pra Remaja" onclick="WIZ_setKelasUsia('Pra Remaja',this)">Pra Remaja</div>
+                <div class="wiz-card-sm" data-val="Remaja" onclick="WIZ_setKelasUsia('Remaja',this)">Remaja</div>
+                <div class="wiz-card-sm" data-val="Pra Nikah" onclick="WIZ_setKelasUsia('Pra Nikah',this)">Pra Nikah</div>
               </div>
             </div>
 
