@@ -186,7 +186,7 @@ function showPending(username, namaLengkap) {
   if (loginEl) loginEl.style.display = 'none';
   if (shellEl) shellEl.style.display = 'none';
   if (pendingEl) {
-    pendingEl.style.cssText = 'display:flex!important;';
+    pendingEl.style.display = 'flex';
     document.getElementById('pendingUsername').textContent = username;
   }
   loadPendingWaBtn(username, namaLengkap);
