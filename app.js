@@ -495,7 +495,7 @@ async function doRegister() {
 
   try {
     // Cek username langsung per query - lebih akurat
-    const cek = await sbFetch(`users?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`);
+    const cek = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`);
     if (cek && cek.length > 0) {
       if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
       btn.disabled = false;
@@ -513,7 +513,7 @@ async function doRegister() {
     const role = JABATAN_ROLE[WIZ_STATE.jabatan] || 'kelompok';
 
     try {
-      await SB.users.register({
+      await SB.anggota.register({
         username: username.toLowerCase(),
         password_hash: password,
         nama_lengkap: toTitleCase(namaLengkap),
@@ -531,7 +531,7 @@ async function doRegister() {
     }
 
     // Verifikasi data berhasil masuk
-    const cekInsert = await sbFetch(`users?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`).catch(()=>null);
+    const cekInsert = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`).catch(()=>null);
     if (cekInsert && cekInsert.length > 0) {
       showPending(username, namaLengkap);
     } else {
@@ -692,7 +692,7 @@ async function renderDashboard() {
   // Load data sesuai role
   let stats = {};
   if (u.role === 'admin') {
-    const [allUsers, allKelompok] = await Promise.all([SB.users.getAll(), SB.kelompok.getAll()]);
+    const [allUsers, allKelompok] = await Promise.all([SB.anggota.getAll(), SB.kelompok.getAll()]);
     const pending = allUsers.filter(x => x.status === 'pending');
     stats = {
       totalUser: allUsers.length,
@@ -1272,7 +1272,7 @@ async function renderKurikulum() {
 async function renderUsers() {
   const main = document.getElementById('mainContent');
   const [allUsers, kelompokList, desaList] = await Promise.all([
-    SB.users.getAll(), SB.kelompok.getAll(), SB.desa.getAll()
+    SB.anggota.getAll(), SB.kelompok.getAll(), SB.desa.getAll()
   ]);
   const kelompokMap = Object.fromEntries(kelompokList.map(k => [k.id, k.nama]));
   const desaMap = Object.fromEntries(desaList.map(d => [d.id, d.nama]));
@@ -1343,18 +1343,18 @@ async function renderUsers() {
   `;
 
   window.USR_approve = async (id) => {
-    await SB.users.approve(id);
+    await SB.anggota.approve(id);
     showToast('Pengguna disetujui');
     await renderUsers();
   };
   window.USR_reject = async (id) => {
-    await SB.users.reject(id);
+    await SB.anggota.reject(id);
     showToast('Pendaftaran ditolak');
     await renderUsers();
   };
   window.USR_delete = async (id, nama) => {
     if (!confirm(`Hapus pengguna "${nama}"?`)) return;
-    await SB.users.delete(id);
+    await SB.anggota.delete(id);
     showToast('Pengguna dihapus');
     await renderUsers();
   };

@@ -36,7 +36,7 @@ async function sbFetch(path, options = {}) {
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
 async function sbLogin(username, password) {
-  const data = await sbFetch(`users?username=eq.${encodeURIComponent(username)}&select=*`);
+  const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username)}&select=*`);
   if (!data || data.length === 0) throw new Error('Nama pengguna tidak ditemukan.');
   const user = data[0];
   // Simple comparison (app-level, production should use bcrypt)
@@ -70,16 +70,16 @@ async function verifyPassword(plain, hash) {
 
 // ============ USERS ============
 const sbUsers = {
-  getAll: () => sbFetch('users?select=id,username,nama_lengkap,role,status,kelompok_id,desa_id,created_at&order=created_at.asc'),
-  getPending: () => sbFetch('users?status=eq.pending&select=id,username,nama_lengkap,role,kelompok_id,desa_id,created_at&order=created_at.asc'),
-  approve: (id) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) }),
-  reject: (id) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),
-  delete: (id) => sbFetch(`users?id=eq.${id}`, { method: 'DELETE' }),
+  getAll: () => sbFetch('anggota?select=id,username,nama_lengkap,role,status,kelompok_id,desa_id,created_at&order=created_at.asc'),
+  getPending: () => sbFetch('anggota?status=eq.pending&select=id,username,nama_lengkap,role,kelompok_id,desa_id,created_at&order=created_at.asc'),
+  approve: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) }),
+  reject: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),
+  delete: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'DELETE' }),
   register: async (data) => {
     // Insert user - Supabase kadang return 409 meski data berhasil masuk
     // karena konflik dengan auth.users internal
     try {
-      return await sbFetch('users', {
+      return await sbFetch('anggota', {
         method: 'POST',
         headers: { 'Prefer': 'return=minimal' },
         body: JSON.stringify(data)
@@ -90,7 +90,7 @@ const sbUsers = {
       throw e;
     }
   },
-  update: (id, data) => sbFetch(`users?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  update: (id, data) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 };
 
 // ============ KELOMPOK & DESA ============
@@ -224,10 +224,10 @@ const sbProgress = {
 
 // ============ MUSYAWARAH ============
 const sbMusyawarah = {
-  getAll: () => sbFetch('musyawarah?select=*,users(nama_lengkap)&order=tanggal.desc&limit=200'),
-  getByLevel: (level) => sbFetch(`musyawarah?level=eq.${level}&select=*,users(nama_lengkap)&order=tanggal.desc`),
-  getByKelompok: (kid) => sbFetch(`musyawarah?kelompok_id=eq.${kid}&select=*,users(nama_lengkap)&order=tanggal.desc`),
-  getByDesa: (desa) => sbFetch(`musyawarah?desa_id=eq.${encodeURIComponent(desa)}&select=*,users(nama_lengkap)&order=tanggal.desc`),
+  getAll: () => sbFetch('musyawarah?select=*,anggota(nama_lengkap)&order=tanggal.desc&limit=200'),
+  getByLevel: (level) => sbFetch(`musyawarah?level=eq.${level}&select=*,anggota(nama_lengkap)&order=tanggal.desc`),
+  getByKelompok: (kid) => sbFetch(`musyawarah?kelompok_id=eq.${kid}&select=*,anggota(nama_lengkap)&order=tanggal.desc`),
+  getByDesa: (desa) => sbFetch(`musyawarah?desa_id=eq.${encodeURIComponent(desa)}&select=*,anggota(nama_lengkap)&order=tanggal.desc`),
   insert: (data) => sbFetch('musyawarah', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
   update: (id, data) => sbFetch(`musyawarah?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
   delete: (id) => sbFetch(`musyawarah?id=eq.${id}`, { method:'DELETE' }),
@@ -280,7 +280,7 @@ const sbSettings = {
 // Export semua
 window.SB = {
   login: sbLogin,
-  users: sbUsers,
+  anggota: sbUsers,
   kelompok: sbKelompok,
   desa: sbDesa,
   materi: sbMateri,
