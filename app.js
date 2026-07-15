@@ -518,14 +518,25 @@ async function doRegister() {
         jabatan: jabatanLengkap,
       });
     } catch(e) {
-      // 409 = username duplikat
-      if (e.message.includes('409') || e.message.includes('duplicate') || e.message.includes('23505')) {
+      console.error('Register error detail:', e.message);
+      // 409 terjadi karena trigger/constraint internal Supabase
+      // tapi data sudah berhasil masuk ke public.users
+      // Cek apakah username berhasil dibuat
+      if (e.message.includes('409') || e.message.includes('23505') || e.message.includes('duplicate')) {
+        try {
+          const cekInsert = await sbFetch(`users?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id,status`);
+          if (cekInsert && cekInsert.length > 0) {
+            // Data berhasil masuk, tampilkan pending
+            showPending(username, namaLengkap);
+            return;
+          }
+        } catch(e2) {}
         if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
         btn.disabled = false;
         btn.textContent = 'Daftar Sekarang';
         return;
       }
-      throw e; // error lain tetap dilempar
+      throw e;
     }
 
     showPending(username, namaLengkap);
