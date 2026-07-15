@@ -273,17 +273,27 @@ const JABATAN_CONFIG = {
   ],
 };
 
-// Role mapping ke database
+// Role mapping ke database (harus sesuai constraint: admin/daerah/desa/pjp_kelompok/wali_kbm/guru/kelompok)
 const JABATAN_ROLE = {
-  daerah: 'daerah',
-  daerah_bidang: 'daerah',
-  pjp_desa_kbm: 'desa',
+  daerah:           'daerah',
+  daerah_bidang:    'daerah',
+  pjp_desa_kbm:     'desa',
   pjp_desa_sarpras: 'desa',
-  pjp_desa_bk: 'desa',
-  kelompok: 'kelompok',
-  pjp_kelompok: 'pjp_kelompok',
-  wali_kbm: 'wali_kbm',
-  guru: 'guru',
+  pjp_desa_bk:      'desa',
+  kelompok:         'kelompok',
+  pjp_kelompok:     'pjp_kelompok',
+  wali_kbm:         'wali_kbm',
+  guru:             'guru',
+};
+
+// Mapping nama desa ke ID database
+const DESA_ID_MAP = {
+  'Desa Barat 1':  'D1',
+  'Desa Barat 2':  'D2',
+  'Desa Tengah 1': 'D3',
+  'Desa Tengah 2': 'D4',
+  'Desa Timur 1':  'D5',
+  'Desa Timur 2':  'D6',
 };
 
 window.WIZ_setLevel = (level, el) => {
@@ -520,7 +530,7 @@ async function doRegister() {
         role,
         status: 'pending',
         kelompok_id: WIZ_STATE.kelompokId || null,
-        desa_id: WIZ_STATE.desaId || null,
+        desa_id: DESA_ID_MAP[WIZ_STATE.desaId] || WIZ_STATE.desaId || null,
         jabatan: jabatanLengkap,
       });
     } catch(e) {
