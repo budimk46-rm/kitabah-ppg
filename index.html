@@ -195,6 +195,47 @@ a { text-decoration: none; color: inherit; }
 .alert.error { background: var(--rose-soft); color: var(--rose); border: 1px solid #f0c9c1; display: block; }
 .alert.success { background: var(--green-soft); color: var(--green); border: 1px solid #bfd8c8; display: block; }
 .alert.warning { background: var(--gold-soft); color: #8a6a24; border: 1px solid #e0c88a; display: block; }
+.wiz-card {
+  border: 2px solid #e0d9c4;
+  border-radius: 10px;
+  padding: 14px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  color: var(--ink);
+  background: #fff;
+}
+.wiz-card:hover { border-color: var(--green); background: #f0f7f2; }
+.wiz-card.selected { border-color: var(--green); background: var(--green); color: #fff; }
+.wiz-card-sm {
+  border: 2px solid #e0d9c4;
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .15s;
+  background: #fff;
+}
+.wiz-card-sm:hover { border-color: var(--green); background: #f0f7f2; }
+.wiz-card-sm.selected { border-color: var(--green); background: var(--green); color: #fff; }
+.jabatan-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid #e0d9c4;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  background: #fff;
+}
+.jabatan-item:hover { border-color: var(--green); background: #f0f7f2; }
+.jabatan-item.selected { border-color: var(--green); background: var(--green); color: #fff; }
+.jabatan-item .jab-icon { font-size: 20px; flex-shrink: 0; }
+.jabatan-item .jab-label { font-size: 13px; font-weight: 700; }
+.jabatan-item .jab-sub { font-size: 11px; opacity: .75; }
 .login-hint {
   margin-top: 20px;
   padding: 10px 12px;
@@ -684,39 +725,128 @@ tr:hover td { background: var(--green-soft); }
         <button class="btn-primary" id="loginBtn">Masuk</button>
       </div>
 
-      <!-- Form Daftar -->
+      <!-- Form Daftar - Wizard 3 Langkah -->
       <div id="panelDaftar" style="display:none;">
-        <div class="field"><label>Jenis Akun</label>
-          <select id="regTipe">
-            <option value="umum">Pengurus / Guru Umum</option>
-            <option value="kelompok">Pengelola Kelompok</option>
-            <option value="pjp_kelompok">PJP Kelompok</option>
-            <option value="wali_kbm">Wali KBM</option>
-            <option value="guru">Guru Generus</option>
-            <option value="desa">Level Desa</option>
-            <option value="daerah">Level Daerah</option>
-          </select>
+
+        <!-- Progress bar -->
+        <div style="margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span id="wizStep1Label" style="font-size:11px; font-weight:700; color:var(--green);">1. Level & Jabatan</span>
+            <span id="wizStep2Label" style="font-size:11px; font-weight:700; color:#ccc;">2. Konteks</span>
+            <span id="wizStep3Label" style="font-size:11px; font-weight:700; color:#ccc;">3. Data Diri</span>
+          </div>
+          <div style="height:4px; background:#e0e0e0; border-radius:2px; overflow:hidden;">
+            <div id="wizProgressBar" style="height:100%; background:var(--green); border-radius:2px; width:33%; transition:width .3s;"></div>
+          </div>
         </div>
-        <div class="field" id="regKelompokField" style="display:none;"><label>Pilih Kelompok</label>
-          <select id="regKelompok"><option value="">Memuat...</option></select>
+
+        <!-- STEP 1: Level & Jabatan -->
+        <div id="wizStep1">
+          <div style="font-weight:700; font-size:14px; color:var(--ink); margin-bottom:14px;">Saya pengurus di level:</div>
+
+          <!-- Pilih Level -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:18px;" id="levelGrid">
+            <div class="wiz-card" data-val="daerah" onclick="WIZ_setLevel('daerah',this)">
+              <div style="font-size:22px;">🏛️</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">Daerah</div>
+            </div>
+            <div class="wiz-card" data-val="desa" onclick="WIZ_setLevel('desa',this)">
+              <div style="font-size:22px;">🏘️</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">Desa</div>
+            </div>
+            <div class="wiz-card" data-val="kelompok" onclick="WIZ_setLevel('kelompok',this)">
+              <div style="font-size:22px;">👨‍👩‍👧</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">Kelompok</div>
+            </div>
+          </div>
+
+          <!-- Pilih Jabatan (muncul setelah pilih level) -->
+          <div id="jabatanGrid" style="display:none;">
+            <div style="font-weight:700; font-size:14px; color:var(--ink); margin-bottom:12px;">Jabatan saya:</div>
+            <div id="jabatanOptions" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+            <!-- Pilihan Bidang (untuk Bidang PPG) -->
+            <div id="bidangField" style="display:none; margin-top:12px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Pilih Bidang PPG</label>
+              <select id="regBidang" style="width:100%; padding:10px 12px; border:1.5px solid #e0d9c4; border-radius:8px; font-size:13px;">
+                <option value="">Pilih bidang...</option>
+                <option value="Bidang Kurikulum">Bidang Kurikulum</option>
+                <option value="Bidang Tenaga Pendidik">Bidang Tenaga Pendidik</option>
+                <option value="Bidang Seni &amp; Olahraga">Bidang Seni &amp; Olahraga</option>
+                <option value="Bidang Kemandirian">Bidang Kemandirian</option>
+                <option value="Bidang Keputrian">Bidang Keputrian</option>
+                <option value="Bidang KMM Daerah">Bidang KMM Daerah</option>
+                <option value="Bidang Tahfidz">Bidang Tahfidz</option>
+                <option value="Bidang Sarana dan Prasarana">Bidang Sarana dan Prasarana</option>
+                <option value="Bidang Penggalang Dana">Bidang Penggalang Dana</option>
+                <option value="Bidang Bimbingan Konseling">Bidang Bimbingan Konseling</option>
+              </select>
+            </div>
+
+            <!-- Pilihan Kelas Usia (untuk Wali KBM) -->
+            <div id="kelasUsiaField" style="display:none; margin-top:12px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Kelas Usia</label>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;" id="kelasUsiaGrid">
+                ${['Caberawit','Pra Remaja','Remaja','Pra Nikah'].map(k =>
+                  `<div class="wiz-card-sm" data-val="${k}" onclick="WIZ_setKelasUsia('${k}',this)">${k}</div>`
+                ).join('')}
+              </div>
+            </div>
+
+            <button class="btn-primary" style="margin-top:16px; opacity:.5;" id="wizNext1" onclick="WIZ_next1()" disabled>Lanjut →</button>
+          </div>
         </div>
-        <div class="field" id="regDesaField" style="display:none;"><label>Pilih Desa</label>
-          <select id="regDesa"><option value="">Memuat...</option></select>
+
+        <!-- STEP 2: Konteks (Desa / Kelompok) -->
+        <div id="wizStep2" style="display:none;">
+          <div id="desaField" style="display:none; margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Pilih Desa</label>
+            <select id="regDesa" style="width:100%; padding:10px 12px; border:1.5px solid #e0d9c4; border-radius:8px; font-size:13px;" onchange="WIZ_onDesaChange(this.value)">
+              <option value="">Pilih desa...</option>
+              <option value="Desa Barat 1">Desa Barat 1</option>
+              <option value="Desa Barat 2">Desa Barat 2</option>
+              <option value="Desa Tengah 1">Desa Tengah 1</option>
+              <option value="Desa Tengah 2">Desa Tengah 2</option>
+              <option value="Desa Timur 1">Desa Timur 1</option>
+              <option value="Desa Timur 2">Desa Timur 2</option>
+            </select>
+          </div>
+          <div id="kelompokField" style="display:none; margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Pilih Kelompok</label>
+            <select id="regKelompok" style="width:100%; padding:10px 12px; border:1.5px solid #e0d9c4; border-radius:8px; font-size:13px;" onchange="WIZ_checkStep2()">
+              <option value="">Pilih kelompok...</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="btn-outline" style="flex:1;" onclick="WIZ_back(1)">← Kembali</button>
+            <button class="btn-primary" style="flex:2; opacity:.5;" id="wizNext2" onclick="WIZ_next2()" disabled>Lanjut →</button>
+          </div>
         </div>
-        <div class="field"><label>Nama Lengkap</label>
-          <input type="text" id="regNama" placeholder="Nama Anda">
+
+        <!-- STEP 3: Data Diri -->
+        <div id="wizStep3" style="display:none;">
+          <div id="wizSummary" style="background:#f0f7f2; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#1B3A2C;"></div>
+          <div class="field">
+            <label>Nama Lengkap</label>
+            <input type="text" id="regNama" placeholder="Nama Anda sesuai data">
+          </div>
+          <div class="field">
+            <label>Nama Pengguna</label>
+            <input type="text" id="regUser" placeholder="contoh: budi.santoso" autocomplete="username">
+          </div>
+          <div class="field">
+            <label>Kata Sandi</label>
+            <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
+          </div>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button class="btn-outline" style="flex:1;" onclick="WIZ_back(2)">← Kembali</button>
+            <button class="btn-primary" style="flex:2;" id="regBtn" onclick="doRegister()">Daftar Sekarang</button>
+          </div>
+          <div class="login-hint" style="margin-top:12px;">Setelah mendaftar, akun perlu disetujui admin sebelum dapat masuk.</div>
         </div>
-        <div class="field"><label>Nama Pengguna</label>
-          <input type="text" id="regUser" placeholder="contoh: budi.santoso" autocomplete="username">
-        </div>
-        <div class="field"><label>Kata Sandi</label>
-          <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
-        </div>
-        <button class="btn-primary" id="regBtn">Daftar</button>
-        <div class="login-hint">Setelah mendaftar, akun Anda perlu disetujui admin sebelum dapat masuk.</div>
+
       </div>
-    </div>
-  </div>
+
 
   <!-- PENDING -->
   <div class="pending-screen" id="pendingScreen" style="display:none;">

@@ -236,27 +236,251 @@ async function doLogin() {
   }
 }
 
+/* ===== WIZARD REGISTRASI ===== */
+const WIZ_STATE = {
+  level: '',       // daerah / desa / kelompok
+  jabatan: '',     // role value
+  jabatanLabel: '',
+  bidang: '',
+  kelasUsia: '',
+  desaId: '',
+  kelompokId: '',
+};
+
+const JABATAN_CONFIG = {
+  daerah: [
+    { val:'daerah', icon:'👑', label:'Ulil Amri', sub:'Pimpinan daerah' },
+    { val:'daerah', icon:'📋', label:'Penghar PPG', sub:'Pengurus harian daerah' },
+    { val:'daerah_bidang', icon:'🏢', label:'Bidang PPG', sub:'Pilih salah satu bidang' },
+  ],
+  desa: [
+    { val:'desa', icon:'👑', label:'Ulil Amri', sub:'Pimpinan desa' },
+    { val:'pjp_desa_kbm', icon:'📚', label:'PJP Desa KBM', sub:'Penanggung jawab KBM desa' },
+    { val:'pjp_desa_sarpras', icon:'🏗️', label:'PJP Desa Sarpras', sub:'Sarana dan prasarana' },
+    { val:'pjp_desa_bk', icon:'🤝', label:'PJP Desa BK', sub:'Bimbingan konseling' },
+  ],
+  kelompok: [
+    { val:'kelompok', icon:'👑', label:'Ulil Amri', sub:'Pimpinan kelompok' },
+    { val:'pjp_kelompok', icon:'📋', label:'PJP Kelompok', sub:'Penanggung jawab program' },
+    { val:'wali_kbm', icon:'🎓', label:'Wali KBM', sub:'Pilih kelas usia yang diampu' },
+    { val:'guru', icon:'👨‍🏫', label:'Guru Generus', sub:'Pengajar generus' },
+  ],
+};
+
+// Role mapping ke database
+const JABATAN_ROLE = {
+  daerah: 'daerah',
+  daerah_bidang: 'daerah',
+  pjp_desa_kbm: 'desa',
+  pjp_desa_sarpras: 'desa',
+  pjp_desa_bk: 'desa',
+  kelompok: 'kelompok',
+  pjp_kelompok: 'pjp_kelompok',
+  wali_kbm: 'wali_kbm',
+  guru: 'guru',
+};
+
+window.WIZ_setLevel = (level, el) => {
+  WIZ_STATE.level = level;
+  WIZ_STATE.jabatan = '';
+  WIZ_STATE.jabatanLabel = '';
+
+  // Highlight card yang dipilih
+  document.querySelectorAll('#levelGrid .wiz-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+
+  // Tampilkan jabatan
+  const jabs = JABATAN_CONFIG[level] || [];
+  document.getElementById('jabatanOptions').innerHTML = jabs.map(j => `
+    <div class="jabatan-item" data-val="${j.val}" onclick="WIZ_setJabatan('${j.val}','${j.label}',this)">
+      <span class="jab-icon">${j.icon}</span>
+      <div>
+        <div class="jab-label">${j.label}</div>
+        <div class="jab-sub">${j.sub}</div>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('jabatanGrid').style.display = 'block';
+  document.getElementById('bidangField').style.display = 'none';
+  document.getElementById('kelasUsiaField').style.display = 'none';
+  document.getElementById('wizNext1').disabled = true;
+  document.getElementById('wizNext1').style.opacity = '.5';
+};
+
+window.WIZ_setJabatan = (val, label, el) => {
+  WIZ_STATE.jabatan = val;
+  WIZ_STATE.jabatanLabel = label;
+  WIZ_STATE.bidang = '';
+  WIZ_STATE.kelasUsia = '';
+
+  document.querySelectorAll('#jabatanOptions .jabatan-item').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+
+  // Tampilkan field bidang atau kelas usia jika perlu
+  document.getElementById('bidangField').style.display = val === 'daerah_bidang' ? 'block' : 'none';
+  document.getElementById('kelasUsiaField').style.display = val === 'wali_kbm' ? 'block' : 'none';
+
+  // Enable next jika tidak butuh pilihan tambahan
+  if (val !== 'daerah_bidang' && val !== 'wali_kbm') {
+    document.getElementById('wizNext1').disabled = false;
+    document.getElementById('wizNext1').style.opacity = '1';
+  } else {
+    document.getElementById('wizNext1').disabled = true;
+    document.getElementById('wizNext1').style.opacity = '.5';
+  }
+};
+
+window.WIZ_setKelasUsia = (kelas, el) => {
+  WIZ_STATE.kelasUsia = kelas;
+  document.querySelectorAll('#kelasUsiaGrid .wiz-card-sm').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('wizNext1').disabled = false;
+  document.getElementById('wizNext1').style.opacity = '1';
+};
+
+document.addEventListener('change', e => {
+  if (e.target.id === 'regBidang') {
+    WIZ_STATE.bidang = e.target.value;
+    const ok = !!e.target.value;
+    document.getElementById('wizNext1').disabled = !ok;
+    document.getElementById('wizNext1').style.opacity = ok ? '1' : '.5';
+  }
+});
+
+window.WIZ_next1 = () => {
+  if (!WIZ_STATE.jabatan) return;
+  const needsDesa = ['pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
+    'kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+  const needsKelompok = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+
+  if (needsDesa || needsKelompok) {
+    // Go to step 2
+    document.getElementById('desaField').style.display = needsDesa || needsKelompok ? 'block' : 'none';
+    document.getElementById('kelompokField').style.display = needsKelompok ? 'none' : 'none'; // tampil setelah pilih desa
+    document.getElementById('wizStep1').style.display = 'none';
+    document.getElementById('wizStep2').style.display = 'block';
+    WIZ_updateProgress(2);
+  } else {
+    // Skip step 2, go to step 3
+    WIZ_goStep3();
+  }
+};
+
+window.WIZ_onDesaChange = async (desaId) => {
+  WIZ_STATE.desaId = desaId;
+  WIZ_STATE.kelompokId = '';
+  const needsKelompok = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+  const kelompokSel = document.getElementById('regKelompok');
+  const kelompokField = document.getElementById('kelompokField');
+
+  if (needsKelompok && desaId) {
+    kelompokField.style.display = 'block';
+    kelompokSel.innerHTML = '<option value="">Memuat...</option>';
+    // Load kelompok berdasarkan desa
+    try {
+      const allKlp = await sbFetch('kelompok?select=id,nama,desa_id&order=nama');
+      const klpDesa = allKlp.filter(k => {
+        // Match desa - kelompok desa_id adalah D1-D6, kita matching lewat nama desa
+        const desaMap = {'Desa Barat 1':'D1','Desa Barat 2':'D2','Desa Tengah 1':'D3',
+                         'Desa Tengah 2':'D4','Desa Timur 1':'D5','Desa Timur 2':'D6'};
+        return k.desa_id === desaMap[desaId];
+      });
+      kelompokSel.innerHTML = '<option value="">Pilih kelompok...</option>' +
+        klpDesa.map(k => `<option value="${k.id}">${k.nama}</option>`).join('');
+    } catch(e) {
+      kelompokSel.innerHTML = '<option value="">Gagal memuat</option>';
+    }
+  } else {
+    kelompokField.style.display = 'none';
+  }
+  WIZ_checkStep2();
+};
+
+window.WIZ_checkStep2 = () => {
+  const needsKelompok = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+  const desaOk = !!document.getElementById('regDesa').value;
+  const kelompokOk = !needsKelompok || !!document.getElementById('regKelompok').value;
+  const ok = desaOk && kelompokOk;
+  document.getElementById('wizNext2').disabled = !ok;
+  document.getElementById('wizNext2').style.opacity = ok ? '1' : '.5';
+  if (needsKelompok) WIZ_STATE.kelompokId = document.getElementById('regKelompok').value;
+};
+
+window.WIZ_next2 = () => {
+  WIZ_STATE.desaId = document.getElementById('regDesa').value;
+  if (['kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan)) {
+    WIZ_STATE.kelompokId = document.getElementById('regKelompok').value;
+  }
+  WIZ_goStep3();
+};
+
+function WIZ_goStep3() {
+  document.getElementById('wizStep1').style.display = 'none';
+  document.getElementById('wizStep2').style.display = 'none';
+  document.getElementById('wizStep3').style.display = 'block';
+  WIZ_updateProgress(3);
+
+  // Tampilkan ringkasan pilihan
+  const parts = [];
+  if (WIZ_STATE.level === 'daerah') parts.push('Level Daerah');
+  else if (WIZ_STATE.level === 'desa') parts.push('Level Desa');
+  else parts.push('Level Kelompok');
+  parts.push(WIZ_STATE.jabatanLabel);
+  if (WIZ_STATE.bidang) parts.push(WIZ_STATE.bidang);
+  if (WIZ_STATE.kelasUsia) parts.push('Kelas ' + WIZ_STATE.kelasUsia);
+  if (WIZ_STATE.desaId) parts.push(WIZ_STATE.desaId);
+  if (WIZ_STATE.kelompokId) {
+    const sel = document.getElementById('regKelompok');
+    const opt = sel?.options[sel?.selectedIndex];
+    if (opt?.text) parts.push(opt.text);
+  }
+  document.getElementById('wizSummary').innerHTML =
+    '✓ ' + parts.join(' › ');
+}
+
+window.WIZ_back = (fromStep) => {
+  if (fromStep === 2) {
+    document.getElementById('wizStep2').style.display = 'none';
+    document.getElementById('wizStep1').style.display = 'block';
+    WIZ_updateProgress(1);
+  } else if (fromStep === 3) {
+    document.getElementById('wizStep3').style.display = 'none';
+    const needsStep2 = ['pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
+      'kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+    if (needsStep2) {
+      document.getElementById('wizStep2').style.display = 'block';
+      WIZ_updateProgress(2);
+    } else {
+      document.getElementById('wizStep1').style.display = 'block';
+      WIZ_updateProgress(1);
+    }
+  }
+};
+
+function WIZ_updateProgress(step) {
+  const pct = step === 1 ? 33 : step === 2 ? 66 : 100;
+  document.getElementById('wizProgressBar').style.width = pct + '%';
+  ['1','2','3'].forEach(s => {
+    const el = document.getElementById('wizStep'+s+'Label');
+    if (el) el.style.color = parseInt(s) <= step ? 'var(--green)' : '#ccc';
+  });
+}
+
 async function doRegister() {
-  const tipe = document.getElementById('regTipe').value;
   const namaLengkap = document.getElementById('regNama').value.trim();
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
-  const kelompokId = document.getElementById('regKelompok').value;
-  const desaId = document.getElementById('regDesa').value;
   const alertEl = document.getElementById('loginAlert');
   alertEl.innerHTML = '';
 
+  if (!WIZ_STATE.jabatan) {
+    alertEl.innerHTML = '<div class="alert error">Pilih jenis akun terlebih dahulu.</div>'; return;
+  }
   if (!namaLengkap || !username || !password) {
     alertEl.innerHTML = '<div class="alert error">Semua field wajib diisi.</div>'; return;
   }
   if (password.length < 6) {
     alertEl.innerHTML = '<div class="alert error">Kata sandi minimal 6 karakter.</div>'; return;
-  }
-  if (['kelompok','pjp_kelompok','wali_kbm','guru'].includes(tipe) && !kelompokId) {
-    alertEl.innerHTML = '<div class="alert error">Silakan pilih kelompok.</div>'; return;
-  }
-  if (tipe === 'desa' && !desaId) {
-    alertEl.innerHTML = '<div class="alert error">Silakan pilih desa.</div>'; return;
   }
 
   const btn = document.getElementById('regBtn');
@@ -264,26 +488,30 @@ async function doRegister() {
   btn.innerHTML = '<span class="spinner"></span> Mendaftarkan...';
 
   try {
-    // Cek username unik
     const existing = await SB.users.getAll();
     if (existing.find(u => u.username.toLowerCase() === username.toLowerCase())) {
       alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai.</div>';
       return;
     }
 
-    const roleMap = {
-      umum: 'kelompok', kelompok: 'kelompok', pjp_kelompok: 'pjp_kelompok',
-      wali_kbm: 'wali_kbm', guru: 'guru', desa: 'desa', daerah: 'daerah',
-    };
+    // Buat label jabatan lengkap untuk catatan
+    const jabatanLengkap = [
+      WIZ_STATE.jabatanLabel,
+      WIZ_STATE.bidang || '',
+      WIZ_STATE.kelasUsia ? 'Kelas ' + WIZ_STATE.kelasUsia : '',
+    ].filter(Boolean).join(' - ');
+
+    const role = JABATAN_ROLE[WIZ_STATE.jabatan] || 'kelompok';
 
     await SB.users.register({
       username: username.toLowerCase(),
-      password_hash: password, // stored plain for now, app-level check
-      nama_lengkap: namaLengkap,
-      role: roleMap[tipe] || 'kelompok',
+      password_hash: password,
+      nama_lengkap: toTitleCase(namaLengkap),
+      role,
       status: 'pending',
-      kelompok_id: kelompokId || null,
-      desa_id: desaId || null,
+      kelompok_id: WIZ_STATE.kelompokId || null,
+      desa_id: WIZ_STATE.desaId || null,
+      jabatan: jabatanLengkap,
     });
 
     showPending(username, namaLengkap);
@@ -291,9 +519,11 @@ async function doRegister() {
     alertEl.innerHTML = `<div class="alert error">${escHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Daftar';
+    btn.textContent = 'Daftar Sekarang';
   }
 }
+
+
 
 function doLogout() {
   clearSession();
