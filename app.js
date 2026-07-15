@@ -5326,14 +5326,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // Jenis akun toggle
-  document.getElementById('regTipe').addEventListener('change', function() {
-    const v = this.value;
-    document.getElementById('regKelompokField').style.display =
-      ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(v) ? 'block' : 'none';
-    document.getElementById('regDesaField').style.display = v === 'desa' ? 'block' : 'none';
-  });
-
   // Login form
   document.getElementById('loginBtn').addEventListener('click', doLogin);
   document.getElementById('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
