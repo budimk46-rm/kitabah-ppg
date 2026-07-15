@@ -2724,7 +2724,7 @@ async function renderSettings() {
   };
 
   window.SET_naikKelas = () => openNaikKelasModal();
-  window.SET_kelolaMusPeserta = () => openKelolaMusPesertaModal(u.kelompok_id, u);
+  window.SET_kelolaMusPeserta = () => openKelolaMusPesertaModal(App.user.kelompok_id, App.user);
 }
 
 /* ===== KELOLA PESERTA MUSYAWARAH ===== */
