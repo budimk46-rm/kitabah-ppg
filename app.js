@@ -470,8 +470,8 @@ async function doRegister() {
   const namaLengkap = document.getElementById('regNama').value.trim();
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
-  const alertEl = document.getElementById('loginAlert');
-  alertEl.innerHTML = '';
+  const alertEl = document.getElementById('wizAlert') || document.getElementById('loginAlert');
+  if (alertEl) alertEl.innerHTML = '';
 
   if (!WIZ_STATE.jabatan) {
     alertEl.innerHTML = '<div class="alert error">Pilih jenis akun terlebih dahulu.</div>'; return;
