@@ -2609,6 +2609,7 @@ async function openMusAbsensiModal(musId, level, u) {
 
 async function renderSettings() {
   const main = document.getElementById('mainContent');
+  const u = App.user;
   const waNum = await SB.settings.get('admin_whatsapp');
 
   main.innerHTML = `
