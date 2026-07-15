@@ -499,6 +499,68 @@ function WIZ_updateProgress(step) {
   });
 }
 
+function WIZ_resetWizard() {
+  // Reset state
+  WIZ_STATE.level = '';
+  WIZ_STATE.jabatan = '';
+  WIZ_STATE.jabatanLabel = '';
+  WIZ_STATE.bidang = '';
+  WIZ_STATE.kelasUsia = '';
+  WIZ_STATE.desaId = '';
+  WIZ_STATE.kelompokId = '';
+
+  // Reset UI step 1
+  document.querySelectorAll('#levelGrid .wiz-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('jabatanGrid').style.display = 'none';
+  document.getElementById('bidangField').style.display = 'none';
+  document.getElementById('kelasUsiaField').style.display = 'none';
+  document.querySelectorAll('#kelasUsiaGrid .wiz-card-sm').forEach(c => c.classList.remove('selected'));
+
+  // Reset UI step 2
+  document.getElementById('regDesa').value = '';
+  document.getElementById('regKelompok').innerHTML = '<option value="">Pilih kelompok...</option>';
+  document.getElementById('desaField').style.display = 'none';
+  document.getElementById('kelompokField').style.display = 'none';
+
+  // Restore step 3 HTML (bisa ter-replace setelah daftar sukses)
+  const step3 = document.getElementById('wizStep3');
+  if (!step3.querySelector('#regNama')) {
+    step3.innerHTML = `
+      <div id="wizSummary" style="background:#f0f7f2; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#1B3A2C;"></div>
+      <div id="wizAlert"></div>
+      <div class="field">
+        <label>Nama Lengkap</label>
+        <input type="text" id="regNama" placeholder="Nama Anda sesuai data">
+      </div>
+      <div class="field">
+        <label>Nama Pengguna</label>
+        <input type="text" id="regUser" placeholder="contoh: budi.santoso" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Kata Sandi</label>
+        <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
+      </div>
+      <div style="display:flex; gap:8px; margin-top:4px;">
+        <button class="btn-outline" style="flex:1;" onclick="WIZ_back(3)">\u2190 Kembali</button>
+        <button class="btn-primary" style="flex:2;" id="regBtn" onclick="doRegister()">Daftar Sekarang</button>
+      </div>
+      <div class="login-hint" style="margin-top:12px;">Setelah mendaftar, akun perlu disetujui admin sebelum dapat masuk.</div>`;
+  } else {
+    // Reset form fields
+    document.getElementById('regNama').value = '';
+    document.getElementById('regUser').value = '';
+    document.getElementById('regPass').value = '';
+    const wizAlert = document.getElementById('wizAlert');
+    if (wizAlert) wizAlert.innerHTML = '';
+  }
+
+  // Tampilkan step 1, sembunyikan lainnya
+  document.getElementById('wizStep1').style.display = 'block';
+  document.getElementById('wizStep2').style.display = 'none';
+  document.getElementById('wizStep3').style.display = 'none';
+  WIZ_updateProgress(1);
+}
+
 async function doRegister() {
   const namaLengkap = document.getElementById('regNama').value.trim();
   const username = document.getElementById('regUser').value.trim();
@@ -5361,14 +5423,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('panelDaftar').style.display = tab === 'daftar' ? 'block' : 'none';
       document.getElementById('loginAlert').innerHTML = '';
       if (tab === 'daftar') {
-        // Load kelompok & desa untuk dropdown
-        const [kel, des] = await Promise.all([SB.kelompok.getAll(), SB.desa.getAll()]);
-        document.getElementById('regKelompok').innerHTML =
-          '<option value="">Pilih kelompok...</option>' +
-          kel.map(k => `<option value="${k.id}">${escHtml(k.nama)} (${escHtml(k.desa?.nama || '')})</option>`).join('');
-        document.getElementById('regDesa').innerHTML =
-          '<option value="">Pilih desa...</option>' +
-          des.map(d => `<option value="${d.id}">${escHtml(d.nama)}</option>`).join('');
+        // Reset wizard ke step 1
+        WIZ_resetWizard();
       }
     });
   });
@@ -5377,9 +5433,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('loginBtn').addEventListener('click', doLogin);
   document.getElementById('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-
-  // Register
-  document.getElementById('regBtn').addEventListener('click', doRegister);
 
   // Logout
   document.getElementById('logoutBtn').addEventListener('click', doLogout);
