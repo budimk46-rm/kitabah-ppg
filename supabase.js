@@ -223,6 +223,37 @@ const sbMusyawarah = {
   delete: (id) => sbFetch(`musyawarah?id=eq.${id}`, { method:'DELETE' }),
 };
 
+// ============ MUSYAWARAH PESERTA ============
+const sbMusPeserta = {
+  getByKelompok: (kid) =>
+    sbFetch(`musyawarah_peserta?kelompok_id=eq.${kid}&aktif=eq.true&order=urutan,nama&select=*`),
+  getByDesa: (desaId) =>
+    sbFetch(`musyawarah_peserta?desa_id=eq.${encodeURIComponent(desaId)}&aktif=eq.true&order=urutan,nama&select=*`),
+  getByDaerah: () =>
+    sbFetch(`musyawarah_peserta?level_daerah=eq.true&aktif=eq.true&order=urutan,nama&select=*`),
+  insert: (data) => sbFetch('musyawarah_peserta', {
+    method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data)
+  }),
+  update: (id, data) => sbFetch(`musyawarah_peserta?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
+  softDelete: (id) => sbFetch(`musyawarah_peserta?id=eq.${id}`, { method:'PATCH', body:JSON.stringify({aktif:false}) }),
+};
+
+// ============ MUSYAWARAH ABSENSI ============
+const sbMusAbsensi = {
+  getByMusyawarah: (musId) =>
+    sbFetch(`musyawarah_absensi?musyawarah_id=eq.${musId}&select=*,musyawarah_peserta(nama,jabatan,no_hp,wa_link)&order=created_at`),
+  upsertPeserta: (rows) => sbFetch('musyawarah_absensi?on_conflict=musyawarah_id,peserta_id', {
+    method:'POST',
+    headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify(rows)
+  }),
+  insertTamu: (data) => sbFetch('musyawarah_absensi', {
+    method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data)
+  }),
+  delete: (id) => sbFetch(`musyawarah_absensi?id=eq.${id}`, { method:'DELETE' }),
+  deleteByMusyawarah: (musId) => sbFetch(`musyawarah_absensi?musyawarah_id=eq.${musId}`, { method:'DELETE' }),
+};
+
 // ============ SETTINGS ============
 const sbSettings = {
   get: async (key) => {
@@ -251,4 +282,6 @@ window.SB = {
   progress: sbProgress,
   settings: sbSettings,
   musyawarah: sbMusyawarah,
+  musPeserta: sbMusPeserta,
+  musAbsensi: sbMusAbsensi,
 };

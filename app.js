@@ -2235,6 +2235,9 @@ async function renderMusyawarah() {
             </div>
           </div>
           ${bisa_edit ? `<div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="btn btn-outline btn-sm" onclick="MUS_absensi('${m.id}','${m.level}')" title="Absensi">
+              📋 Absensi
+            </button>
             <button class="btn-icon" onclick="MUS_edit('${m.id}')" title="Edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
             </button>
@@ -2270,6 +2273,7 @@ async function renderMusyawarah() {
       ${daftarHtml}`;
   }
 
+  window.MUS_absensi = (id, level) => openMusAbsensiModal(id, level, u);
   window.MUS_setFilter = (lv) => { filterLevel = lv; renderList(); };
 
   window.MUS_buat = () => openMusyawarahModal(null, createLevels, u, async () => {
@@ -2400,14 +2404,20 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
     };
 
     try {
+      let musId = m?.id;
       if (m) {
         await SB.musyawarah.update(m.id, data);
         showToast('Notulensi diperbarui ✓');
       } else {
-        await SB.musyawarah.insert(data);
+        const res = await SB.musyawarah.insert(data);
+        musId = res?.[0]?.id;
         showToast('Notulensi berhasil disimpan ✓');
       }
       closeModal('musyawarahModal');
+      // Buka modal absensi peserta setelah simpan
+      if (musId) {
+        await openMusAbsensiModal(musId, level, u);
+      }
       onSaved();
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
@@ -2418,6 +2428,183 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
 
   openModal('musyawarahModal');
 }
+
+async function openMusAbsensiModal(musId, level, u) {
+  let el = document.getElementById('musAbsensiModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'musAbsensiModal';
+    el.className = 'modal-overlay';
+    document.body.appendChild(el);
+  }
+
+  // Load peserta tetap sesuai level
+  let pesertaTetap = [];
+  try {
+    if (level === 'ppg_daerah') {
+      pesertaTetap = await SB.musPeserta.getByDaerah();
+    } else if (level === 'pjp_desa') {
+      pesertaTetap = await SB.musPeserta.getByDesa(u.desa_id || u.kelompok_id || '');
+    } else if (u.kelompok_id) {
+      pesertaTetap = await SB.musPeserta.getByKelompok(u.kelompok_id);
+    }
+  } catch(e) {}
+
+  // Load absensi yang sudah ada
+  let absensiList = [];
+  try { absensiList = await SB.musAbsensi.getByMusyawarah(musId); } catch(e) {}
+
+  // State absensi: peserta_id -> status
+  const absensiState = {};
+  absensiList.forEach(a => {
+    if (a.peserta_id) absensiState[a.peserta_id] = a.status;
+  });
+  // Tamu (tidak punya peserta_id)
+  let tamuList = absensiList.filter(a => !a.peserta_id);
+
+  function renderAbsensiModal() {
+    const pesertaRows = pesertaTetap.map(p => {
+      const status = absensiState[p.id] || 'H';
+      return `<tr>
+        <td>
+          <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}</div>
+        </td>
+        <td>${p.no_hp ? `<a href="${escHtml(p.wa_link||'#')}" target="_blank" style="font-size:12px; color:var(--green);">${escHtml(p.no_hp)}</a>` : '—'}</td>
+        <td>
+          <div style="display:flex; gap:5px;">
+            ${['H','I','A'].map(st => `
+              <button onclick="MABS_set('${p.id}','${st}')"
+                style="width:34px; height:32px; border:2px solid ${status===st?(st==='H'?'var(--green)':st==='I'?'var(--gold)':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${status===st?(st==='H'?'var(--green)':st==='I'?'var(--gold)':'var(--rose)'):'transparent'}; color:${status===st?'#fff':(st==='H'?'var(--green)':st==='I'?'var(--gold)':'var(--rose)')}; font-weight:800; font-size:12px; cursor:pointer;">
+                ${st}
+              </button>`).join('')}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    const tamuRows = tamuList.map((t,i) => `
+      <tr>
+        <td>
+          <div style="font-weight:700; font-size:13px;">${escHtml(t.nama_tamu||'')}</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${escHtml(t.jabatan_tamu||'Tamu')}</div>
+        </td>
+        <td>${t.no_hp_tamu || '—'}</td>
+        <td>
+          <div style="display:flex; gap:5px; align-items:center;">
+            <span class="badge badge-green">H</span>
+            <button class="btn-icon danger" onclick="MABS_hapusTamu('${t.id}')" title="Hapus tamu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`).join('');
+
+    const totalH = pesertaTetap.filter(p => (absensiState[p.id]||'H')==='H').length + tamuList.length;
+    const totalI = pesertaTetap.filter(p => (absensiState[p.id]||'H')==='I').length;
+    const totalA = pesertaTetap.filter(p => (absensiState[p.id]||'H')==='A').length;
+
+    el.innerHTML = `<div class="modal modal-lg" style="max-height:90vh;">
+      <div class="modal-head">
+        <h3 class="modal-title">📋 Absensi Peserta Musyawarah</h3>
+        <button class="modal-close" onclick="closeModal('musAbsensiModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+          <span class="badge badge-green">Hadir: ${totalH}</span>
+          <span class="badge badge-gold">Ijin: ${totalI}</span>
+          <span class="badge badge-rose">Alpha: ${totalA}</span>
+          <span class="badge badge-gray">Total: ${pesertaTetap.length + tamuList.length}</span>
+        </div>
+        ${pesertaTetap.length ? `
+        <div class="table-wrap" style="margin-bottom:14px;">
+          <table>
+            <thead><tr>
+              <th>Nama & Jabatan</th>
+              <th>No HP</th>
+              <th style="text-align:center;">H &nbsp; I &nbsp; A</th>
+            </tr></thead>
+            <tbody>${pesertaRows}</tbody>
+          </table>
+        </div>` : `<div class="empty-state" style="margin-bottom:14px;">
+          <p class="empty-title">Belum ada peserta tetap</p>
+          <p class="empty-desc">Tambahkan peserta tetap di menu Pengaturan → Peserta Musyawarah.</p>
+        </div>`}
+
+        ${tamuRows ? `
+        <div style="font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; margin-bottom:8px;">Peserta Tamu</div>
+        <div class="table-wrap" style="margin-bottom:14px;">
+          <table><tbody>${tamuRows}</tbody></table>
+        </div>` : ''}
+
+        <!-- Form tambah tamu -->
+        <div style="border:1.5px dashed var(--line); border-radius:var(--radius-sm); padding:12px; background:var(--cream-2);">
+          <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">+ Tambah Peserta Tamu (tidak ada di daftar tetap)</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <input id="tamuNama" placeholder="Nama tamu" style="flex:2; min-width:140px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+            <input id="tamuJabatan" placeholder="Jabatan" style="flex:1; min-width:100px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+            <input id="tamuHp" placeholder="No HP (opsional)" style="flex:1; min-width:120px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+            <button class="btn btn-green btn-sm" onclick="MABS_tambahTamu()">Tambah</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('musAbsensiModal')">Lewati</button>
+        <button class="btn btn-green" onclick="MABS_simpan()">💾 Simpan Absensi</button>
+      </div>
+    </div>`;
+  }
+
+  window.MABS_set = (pesertaId, status) => {
+    absensiState[pesertaId] = status;
+    renderAbsensiModal();
+  };
+
+  window.MABS_hapusTamu = async (id) => {
+    await SB.musAbsensi.delete(id);
+    tamuList = tamuList.filter(t => t.id !== id);
+    renderAbsensiModal();
+  };
+
+  window.MABS_tambahTamu = async () => {
+    const nama = document.getElementById('tamuNama').value.trim();
+    if (!nama) { showToast('Nama tamu wajib diisi', true); return; }
+    const jabatan = document.getElementById('tamuJabatan').value.trim();
+    const hp = document.getElementById('tamuHp').value.trim();
+    try {
+      const res = await SB.musAbsensi.insertTamu({
+        musyawarah_id: musId,
+        nama_tamu: toTitleCase(nama),
+        jabatan_tamu: jabatan || null,
+        no_hp_tamu: hp || null,
+        status: 'H',
+      });
+      if (res?.[0]) tamuList.push(res[0]);
+      showToast('Tamu ditambahkan');
+      renderAbsensiModal();
+    } catch(e) { showToast('Gagal: ' + e.message, true); }
+  };
+
+  window.MABS_simpan = async () => {
+    try {
+      // Upsert absensi peserta tetap
+      if (pesertaTetap.length) {
+        const rows = pesertaTetap.map(p => ({
+          musyawarah_id: musId,
+          peserta_id: p.id,
+          status: absensiState[p.id] || 'H',
+        }));
+        await SB.musAbsensi.upsertPeserta(rows);
+      }
+      showToast('Absensi musyawarah disimpan ✓');
+      closeModal('musAbsensiModal');
+    } catch(e) { showToast('Gagal: ' + e.message, true); }
+  };
+
+  renderAbsensiModal();
+  openModal('musAbsensiModal');
+}
+
 
 
 async function renderSettings() {
@@ -2436,6 +2623,18 @@ async function renderSettings() {
         <input type="text" id="waInput" value="${escHtml(waNum)}" placeholder="contoh: 0895325194794">
       </div>
       <button class="btn btn-green" onclick="SET_saveWa()">Simpan Nomor</button>
+    </div>
+
+    <div class="card" style="border:1.5px solid var(--green);">
+      <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">👥 Peserta Musyawarah</div>
+      <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
+        Kelola daftar peserta tetap musyawarah untuk kelompok ini.
+        Nama-nama ini akan otomatis muncul saat mengisi absensi musyawarah.
+      </p>
+      <button class="btn btn-green btn-sm" onclick="SET_kelolaMusPeserta()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Kelola Peserta Tetap
+      </button>
     </div>
 
     <div class="card" style="border:1.5px solid var(--gold);">
@@ -2525,6 +2724,154 @@ async function renderSettings() {
   };
 
   window.SET_naikKelas = () => openNaikKelasModal();
+  window.SET_kelolaMusPeserta = () => openKelolaMusPesertaModal(u.kelompok_id, u);
+}
+
+/* ===== KELOLA PESERTA MUSYAWARAH ===== */
+async function openKelolaMusPesertaModal(kelompokId, u) {
+  let el = document.getElementById('musPesertaModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'musPesertaModal';
+    el.className = 'modal-overlay';
+    document.body.appendChild(el);
+  }
+
+  async function renderModal() {
+    const pesertaList = kelompokId
+      ? await SB.musPeserta.getByKelompok(kelompokId)
+      : [];
+
+    el.innerHTML = `<div class="modal modal-lg">
+      <div class="modal-head">
+        <h3 class="modal-title">👥 Peserta Tetap Musyawarah</h3>
+        <button class="modal-close" onclick="closeModal('musPesertaModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
+          Daftar ini akan otomatis tampil saat absensi musyawarah. Urutan bisa diatur dengan kolom No.
+        </div>
+        ${pesertaList.length ? `
+        <div class="table-wrap" style="margin-bottom:14px;">
+          <table>
+            <thead><tr><th>No</th><th>Nama</th><th>Jabatan</th><th>No HP</th><th>Link WA</th><th>Aksi</th></tr></thead>
+            <tbody>
+              ${pesertaList.map((p,i) => `<tr>
+                <td style="text-align:center;">${p.urutan||i+1}</td>
+                <td><b>${escHtml(p.nama)}</b></td>
+                <td>${escHtml(p.jabatan||'—')}</td>
+                <td>${escHtml(p.no_hp||'—')}</td>
+                <td>${p.wa_link ? `<a href="${escHtml(p.wa_link)}" target="_blank" style="color:var(--green); font-size:12px;">WhatsApp</a>` : '—'}</td>
+                <td>
+                  <div style="display:flex; gap:4px;">
+                    <button class="btn-icon" onclick="MUP_edit('${p.id}')" title="Edit">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+                    </button>
+                    <button class="btn-icon danger" onclick="MUP_hapus('${p.id}')" title="Hapus">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` :
+        '<div class="empty-state" style="margin-bottom:14px;"><p class="empty-title">Belum ada peserta tetap</p><p class="empty-desc">Tambahkan peserta tetap musyawarah.</p></div>'}
+        <button class="btn btn-green btn-sm" onclick="MUP_tambah()">+ Tambah Peserta</button>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('musPesertaModal')">Tutup</button>
+      </div>
+    </div>`;
+
+    window._musPesertaList = pesertaList;
+
+    window.MUP_tambah = () => openFormPeserta(null);
+    window.MUP_edit = (id) => {
+      const p = pesertaList.find(x => x.id === id);
+      if (p) openFormPeserta(p);
+    };
+    window.MUP_hapus = async (id) => {
+      if (!confirm('Hapus peserta ini dari daftar tetap?')) return;
+      await SB.musPeserta.softDelete(id);
+      showToast('Peserta dihapus');
+      await renderModal();
+    };
+  }
+
+  function openFormPeserta(existing) {
+    let fel = document.getElementById('musPesertaFormModal');
+    if (!fel) {
+      fel = document.createElement('div');
+      fel.id = 'musPesertaFormModal';
+      fel.className = 'modal-overlay';
+      document.body.appendChild(fel);
+    }
+    const p = existing;
+    const urutanDef = (window._musPesertaList?.length || 0) + 1;
+
+    fel.innerHTML = `<div class="modal">
+      <div class="modal-head">
+        <h3 class="modal-title">${p ? 'Edit Peserta' : 'Tambah Peserta Tetap'}</h3>
+        <button class="modal-close" onclick="closeModal('musPesertaFormModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Nama Lengkap *</label>
+          <input id="mupNama" value="${escHtml(p?.nama||'')}" placeholder="Nama lengkap peserta">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Jabatan</label>
+            <input id="mupJabatan" value="${escHtml(p?.jabatan||'')}" placeholder="PJP Kelompok, Wali KBM, Guru, dll">
+          </div>
+          <div class="form-group">
+            <label>Urutan Tampil</label>
+            <input type="number" id="mupUrutan" value="${p?.urutan||urutanDef}" min="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>No HP / WhatsApp</label>
+          <input id="mupHp" value="${escHtml(p?.no_hp||'')}" placeholder="Contoh: 08123456789">
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Link WhatsApp akan otomatis dibuat dari nomor ini</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('musPesertaFormModal')">Batal</button>
+        <button class="btn btn-green" id="mupSaveBtn">${p ? 'Simpan' : 'Tambah'}</button>
+      </div>
+    </div>`;
+
+    document.getElementById('mupSaveBtn').onclick = async () => {
+      const nama = document.getElementById('mupNama').value.trim();
+      if (!nama) { showToast('Nama wajib diisi', true); return; }
+      const btn = document.getElementById('mupSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      const data = {
+        nama: toTitleCase(nama),
+        jabatan: document.getElementById('mupJabatan').value.trim() || null,
+        no_hp: document.getElementById('mupHp').value.trim() || null,
+        urutan: parseInt(document.getElementById('mupUrutan').value) || 1,
+        kelompok_id: kelompokId || null,
+        aktif: true,
+      };
+      try {
+        if (p) await SB.musPeserta.update(p.id, data);
+        else await SB.musPeserta.insert(data);
+        showToast(p ? 'Peserta diperbarui' : 'Peserta ditambahkan');
+        closeModal('musPesertaFormModal');
+        await renderModal();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+      }
+      btn.disabled = false;
+    };
+
+    openModal('musPesertaFormModal');
+  }
+
+  await renderModal();
+  openModal('musPesertaModal');
 }
 
 /* ===== FITUR NAIK KELAS ===== */
