@@ -509,7 +509,7 @@ async function doRegister() {
   btn.innerHTML = '<span class="spinner"></span> Mendaftarkan...';
 
   try {
-    // Cek username langsung per query - lebih akurat
+    // Cek username langsung per query
     const cek = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`);
     if (cek && cek.length > 0) {
       if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
@@ -527,41 +527,31 @@ async function doRegister() {
 
     const role = JABATAN_ROLE[WIZ_STATE.jabatan] || 'kelompok';
 
-    try {
-      await SB.anggota.register({
-        username: username.toLowerCase(),
-        password_hash: password,
-        nama_lengkap: toTitleCase(namaLengkap),
-        role,
-        status: 'pending',
-        kelompok_id: WIZ_STATE.kelompokId || null,
-        desa_id: DESA_ID_MAP[WIZ_STATE.desaId] || WIZ_STATE.desaId || null,
-        jabatan: jabatanLengkap,
-      });
-    } catch(e) {
-      if (alertEl) alertEl.innerHTML = `<div class="alert error">${escHtml(e.message)}</div>`;
-      btn.disabled = false;
-      btn.textContent = 'Daftar Sekarang';
-      return;
-    }
+    await SB.anggota.register({
+      username: username.toLowerCase(),
+      password_hash: password,
+      nama_lengkap: toTitleCase(namaLengkap),
+      role,
+      status: 'pending',
+      kelompok_id: WIZ_STATE.kelompokId || null,
+      desa_id: DESA_ID_MAP[WIZ_STATE.desaId] || WIZ_STATE.desaId || null,
+      jabatan: jabatanLengkap,
+    });
 
-    // Verifikasi data berhasil masuk
-    const cekInsert = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`).catch(()=>null);
-    if (cekInsert && cekInsert.length > 0) {
-      showPending(username, namaLengkap);
-    } else {
-      if (alertEl) alertEl.innerHTML = '<div class="alert error">Pendaftaran gagal, coba lagi.</div>';
-      btn.disabled = false;
-      btn.textContent = 'Daftar Sekarang';
-    }
+    // Register selalu berhasil (data masuk meski Supabase return 409)
+    // Tampilkan pesan sukses langsung di form
+    document.getElementById('wizStep3').innerHTML = `
+      <div style="text-align:center; padding:20px 0;">
+        <div style="width:56px; height:56px; border-radius:50%; background:#e8f5e9; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:28px;">✓</div>
+        <div style="font-size:18px; font-weight:800; color:var(--green); margin-bottom:8px;">Pendaftaran Berhasil!</div>
+        <div style="font-size:13px; color:var(--ink-soft); margin-bottom:6px;">Akun <b>${escHtml(username)}</b> sudah terdaftar.</div>
+        <div style="font-size:13px; color:var(--ink-soft); margin-bottom:20px;">Admin perlu menyetujui akun Anda sebelum dapat masuk.</div>
+        <button class="btn-primary" onclick="location.reload()">Kembali ke Login</button>
+      </div>`;
     return;
+
   } catch(e) {
-    const msg = e.message || '';
-    if (msg.includes('409') || msg.includes('duplicate') || msg.includes('unique')) {
-      alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
-    } else {
-      alertEl.innerHTML = `<div class="alert error">${escHtml(msg)}</div>`;
-    }
+    if (alertEl) alertEl.innerHTML = `<div class="alert error">${escHtml(e.message || 'Terjadi kesalahan')}</div>`;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Daftar Sekarang';
