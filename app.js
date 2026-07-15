@@ -2815,6 +2815,7 @@ async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
       showToast('Peserta dihapus');
       await renderModal();
     };
+  }  // end renderModal
 
   await renderModal();
   openModal('musPesertaModal');
