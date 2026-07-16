@@ -2510,7 +2510,7 @@ async function renderMusyawarah() {
 
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
-  // Load data musyawarah sesuai level dan konteks user
+  // Load data musyawarah
   let allMusyawarah = [];
   try {
     if (role === 'admin' || role === 'daerah') {
@@ -2518,11 +2518,9 @@ async function renderMusyawarah() {
     } else if (role === 'desa') {
       const desaId = u.desa_id || u.kelompok_id;
       allMusyawarah = await SB.musyawarah.getByDesa(desaId);
-      // Tambah level daerah juga
       const daerah = await SB.musyawarah.getByLevel('ppg_daerah');
       allMusyawarah = [...allMusyawarah, ...(daerah||[])];
     } else if (u.kelompok_id) {
-      // kelompok, pjp, guru, wali
       const klp = await SB.musyawarah.getByKelompok(u.kelompok_id);
       const desa = await SB.musyawarah.getByLevel('pjp_desa');
       const daerah = await SB.musyawarah.getByLevel('ppg_daerah');
@@ -2530,27 +2528,111 @@ async function renderMusyawarah() {
     } else {
       allMusyawarah = await SB.musyawarah.getAll();
     }
-    // Filter hanya visible levels
     allMusyawarah = allMusyawarah.filter(m => visibleLevels.includes(m.level));
-    // Dedup by id
     const seen = new Set();
     allMusyawarah = allMusyawarah.filter(m => { if(seen.has(m.id)) return false; seen.add(m.id); return true; });
   } catch(e) { console.error(e); }
 
   const nowMonth = currentMonthName();
-  const nowYear = new Date().getFullYear();
   let filterLevel = 'semua';
 
-  function renderList() {
+  // Auto-detect default level musyawarah berdasar role
+  let defaultLevel = '';
+  if (role === 'daerah') defaultLevel = 'ppg_daerah';
+  else if (role === 'desa') defaultLevel = 'pjp_desa';
+  else if (role === 'admin') defaultLevel = '';  // admin pilih sendiri
+  // kelompok level → pilih antara guru_generus atau unsur_5
+
+  function renderPage() {
     const filtered = allMusyawarah.filter(m =>
       filterLevel === 'semua' || m.level === filterLevel
     );
 
+    // === Form notulensi baru (inline) ===
+    let formHtml = '';
+    if (createLevels.length) {
+      // Pilihan jenis musyawarah
+      let jenisSelector = '';
+      if (defaultLevel && !['admin'].includes(role)) {
+        // Daerah/Desa: otomatis, tidak perlu pilih
+        const cfg = MUSYAWARAH_LEVEL[defaultLevel] || {};
+        jenisSelector = `<input type="hidden" id="musLevelInline" value="${defaultLevel}">
+          <div style="font-size:13px; color:var(--ink); margin-bottom:14px;">
+            ${cfg.icon} <b>${cfg.label}</b>
+          </div>`;
+      } else if (['pjp_kelompok','kelompok','wali_kbm','guru'].includes(role)) {
+        // Kelompok: pilih guru_generus atau unsur_5
+        const opts = createLevels.filter(lv => ['guru_generus','unsur_5'].includes(lv));
+        jenisSelector = `
+          <div style="display:flex; gap:8px; margin-bottom:14px;" id="musLevelPicker">
+            ${opts.map(lv => {
+              const cfg = MUSYAWARAH_LEVEL[lv];
+              return `<div class="wiz-card" style="flex:1; padding:12px 10px;" data-val="${lv}" onclick="MUS_pickLevel('${lv}',this)">
+                <div style="font-size:20px;">${cfg.icon}</div>
+                <div style="font-weight:700; font-size:12px; margin-top:4px;">${cfg.label.replace('Musyawarah ','')}</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <input type="hidden" id="musLevelInline" value="">`;
+      } else {
+        // Admin: dropdown semua level
+        jenisSelector = `
+          <div class="form-group" style="margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green);">Jenis Musyawarah</label>
+            <select id="musLevelInline" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih jenis...</option>
+              ${createLevels.map(lv => {
+                const cfg = MUSYAWARAH_LEVEL[lv];
+                return `<option value="${lv}">${cfg?.icon||''} ${cfg?.label||lv}</option>`;
+              }).join('')}
+            </select>
+          </div>`;
+      }
+
+      formHtml = `
+        <div class="card" style="margin-bottom:18px; border:2px solid var(--green);">
+          <div class="fw-bold color-green" style="font-size:15px; margin-bottom:14px;">+ Buat Notulensi Musyawarah</div>
+          ${jenisSelector}
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+            <div>
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tanggal</label>
+              <input type="date" id="musTglInline" value="${new Date().toISOString().slice(0,10)}" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Bulan Laporan</label>
+              <select id="musBulanInline" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+                ${[...SEM1_MONTHS,...SEM2_MONTHS].map(mn =>
+                  `<option value="${mn}" ${mn===nowMonth?'selected':''}>${mn}</option>`
+                ).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
+            <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Kendala</label>
+            <textarea id="musKendalaInline" rows="2" placeholder="Kendala yang dihadapi..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Solusi</label>
+            <textarea id="musSolusiInline" rows="2" placeholder="Solusi yang disepakati..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tindak Lanjut</label>
+            <textarea id="musTindakLanjutInline" rows="2" placeholder="Tindak lanjut, PIC, target waktu..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-green" id="musSaveInline" onclick="MUS_simpanInline()">Simpan & Isi Absensi →</button>
+        </div>`;
+    }
+
+    // === Tab filter + daftar notulensi ===
     const levelTabs = ['semua', ...visibleLevels].map(lv => {
       const cfg = MUSYAWARAH_LEVEL[lv];
       const count = lv === 'semua' ? allMusyawarah.length : allMusyawarah.filter(m => m.level === lv).length;
       return `<div onclick="MUS_setFilter('${lv}')"
-        style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0; white-space:nowrap;
+        style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0; white-space:nowrap;
           background:${filterLevel===lv?'var(--green)':'var(--white)'};
           color:${filterLevel===lv?'#fff':'var(--ink-soft)'};
           border:1.5px solid ${filterLevel===lv?'var(--green)':'var(--line)'};">
@@ -2570,7 +2652,7 @@ async function renderMusyawarah() {
             </div>
             <div style="font-size:12px; color:var(--ink-soft);">
               Bulan: <b>${escHtml(m.bulan||'')}</b>
-              ${m.users?.nama_lengkap ? ' · Oleh: '+escHtml(m.users.nama_lengkap) : ''}
+              ${m.anggota?.nama_lengkap ? ' · Oleh: '+escHtml(m.anggota.nama_lengkap) : ''}
             </div>
           </div>
           ${bisa_edit ? `<div style="display:flex; gap:6px; flex-shrink:0;">
@@ -2586,7 +2668,6 @@ async function renderMusyawarah() {
           </div>` : ''}
         </div>
         <div style="display:grid; gap:8px;">
-          ${m.peserta ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">Peserta Hadir</div><div style="font-size:13px; color:var(--ink);">${escHtml(m.peserta)}</div></div>` : ''}
           ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">Pencapaian Materi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.pencapaian)}</div></div>` : ''}
           ${m.kendala ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--rose); margin-bottom:3px;">Kendala</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.kendala)}</div></div>` : ''}
           ${m.solusi ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--gold); margin-bottom:3px;">Solusi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.solusi)}</div></div>` : ''}
@@ -2594,45 +2675,95 @@ async function renderMusyawarah() {
         </div>
       </div>`;
     }).join('') :
-    `<div class="empty-state"><p class="empty-title">Belum ada notulensi</p><p class="empty-desc">Klik tombol "+ Buat Notulensi" untuk menambahkan.</p></div>`;
+    `<div class="empty-state"><p class="empty-title">Belum ada notulensi</p><p class="empty-desc">Isi form di atas untuk menambahkan.</p></div>`;
 
     main.innerHTML = `
       <div class="page-header">
-        <div>
-          <h1 class="page-title">Musyawarah</h1>
-          <p class="page-subtitle">${filtered.length} notulensi tersimpan</p>
-        </div>
-        ${createLevels.length ? `<button class="btn btn-green btn-sm" onclick="MUS_buat()">+ Buat Notulensi</button>` : ''}
+        <h1 class="page-title">Musyawarah</h1>
       </div>
-      <!-- Tab filter level -->
+      ${formHtml}
+      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:12px;">Riwayat Notulensi</div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
         ${levelTabs}
       </div>
-      <!-- Daftar notulensi -->
       ${daftarHtml}`;
   }
 
-  window.MUS_absensi = (id, level) => openMusAbsensiModal(id, level, u);
-  window.MUS_setFilter = (lv) => { filterLevel = lv; renderList(); };
+  // Handlers
+  window.MUS_pickLevel = (lv, el) => {
+    document.querySelectorAll('#musLevelPicker .wiz-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('musLevelInline').value = lv;
+  };
 
-  window.MUS_buat = () => openMusyawarahModal(null, createLevels, u, async () => {
-    allMusyawarah = await SB.musyawarah.getAll().catch(()=>[]);
-    allMusyawarah = allMusyawarah.filter(m => visibleLevels.includes(m.level));
-    renderList();
-  });
+  window.MUS_absensi = (id, level) => openMusAbsensiModal(id, level, u);
+  window.MUS_setFilter = (lv) => { filterLevel = lv; renderPage(); };
+
+  window.MUS_simpanInline = async () => {
+    const level = document.getElementById('musLevelInline')?.value;
+    const tanggal = document.getElementById('musTglInline')?.value;
+    const bulan = document.getElementById('musBulanInline')?.value;
+    if (!level) { showToast('Pilih jenis musyawarah', true); return; }
+    if (!tanggal) { showToast('Pilih tanggal', true); return; }
+
+    const btn = document.getElementById('musSaveInline');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+
+    const data = {
+      level, tanggal, bulan,
+      tahun: new Date(tanggal).getFullYear(),
+      pencapaian: document.getElementById('musPencapaianInline')?.value.trim() || null,
+      kendala: document.getElementById('musKendalaInline')?.value.trim() || null,
+      solusi: document.getElementById('musSolusiInline')?.value.trim() || null,
+      tindak_lanjut: document.getElementById('musTindakLanjutInline')?.value.trim() || null,
+      kelompok_id: u.kelompok_id || null,
+      desa_id: u.desa_id || null,
+      dibuat_oleh: u.id,
+    };
+
+    try {
+      const res = await SB.musyawarah.insert(data);
+      const musId = res?.[0]?.id;
+      showToast('Notulensi disimpan ✓');
+
+      // Reset form
+      document.getElementById('musPencapaianInline').value = '';
+      document.getElementById('musKendalaInline').value = '';
+      document.getElementById('musSolusiInline').value = '';
+      document.getElementById('musTindakLanjutInline').value = '';
+
+      // Refresh daftar
+      try {
+        const fresh = await SB.musyawarah.getAll();
+        allMusyawarah = (fresh||[]).filter(m => visibleLevels.includes(m.level));
+        const seen2 = new Set();
+        allMusyawarah = allMusyawarah.filter(m => { if(seen2.has(m.id)) return false; seen2.add(m.id); return true; });
+      } catch(e2) {}
+
+      renderPage();
+
+      // Buka absensi setelah simpan
+      if (musId) {
+        await openMusAbsensiModal(musId, level, u);
+      }
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Simpan & Isi Absensi \u2192';
+  };
 
   window.MUS_edit = (id) => {
     const m = allMusyawarah.find(x => x.id === id);
     if (!m) return;
     openMusyawarahModal(m, createLevels, u, async () => {
-      // Refresh entry
       try {
         const fresh = await SB.musyawarah.getAll();
         allMusyawarah = (fresh||[]).filter(m => visibleLevels.includes(m.level));
-        const seen = new Set();
-        allMusyawarah = allMusyawarah.filter(m => { if(seen.has(m.id)) return false; seen.add(m.id); return true; });
+        const seen2 = new Set();
+        allMusyawarah = allMusyawarah.filter(m => { if(seen2.has(m.id)) return false; seen2.add(m.id); return true; });
       } catch(e) {}
-      renderList();
+      renderPage();
     });
   };
 
@@ -2641,10 +2772,10 @@ async function renderMusyawarah() {
     await SB.musyawarah.delete(id);
     allMusyawarah = allMusyawarah.filter(m => m.id !== id);
     showToast('Notulensi dihapus');
-    renderList();
+    renderPage();
   };
 
-  renderList();
+  renderPage();
 }
 
 function openMusyawarahModal(existing, createLevels, u, onSaved) {
