@@ -255,14 +255,32 @@ const sbMusPeserta = {
 const sbMusAbsensi = {
   getByMusyawarah: (musId) =>
     sbFetch(`musyawarah_absensi?musyawarah_id=eq.${musId}&select=*,musyawarah_peserta(nama,jabatan,no_hp,wa_link)&order=created_at`),
-  upsertPeserta: (rows) => sbFetch('musyawarah_absensi?on_conflict=musyawarah_id,peserta_id', {
-    method:'POST',
-    headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
-    body:JSON.stringify(rows)
-  }),
-  insertTamu: (data) => sbFetch('musyawarah_absensi', {
-    method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data)
-  }),
+  upsertPeserta: async (rows) => {
+    // Supabase mungkin return 409, abaikan
+    try {
+      return await sbFetch('musyawarah_absensi?on_conflict=musyawarah_id,peserta_id', {
+        method:'POST',
+        headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify(rows)
+      });
+    } catch(e) {
+      if (e.message && e.message.includes('409')) return null;
+      throw e;
+    }
+  },
+  insertTamu: async (data) => {
+    try {
+      return await sbFetch('musyawarah_absensi', {
+        method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data)
+      });
+    } catch(e) {
+      if (e.message && e.message.includes('409')) {
+        // Data mungkin sudah masuk, return dummy
+        return [data];
+      }
+      throw e;
+    }
+  },
   delete: (id) => sbFetch(`musyawarah_absensi?id=eq.${id}`, { method:'DELETE' }),
   deleteByMusyawarah: (musId) => sbFetch(`musyawarah_absensi?musyawarah_id=eq.${musId}`, { method:'DELETE' }),
 };

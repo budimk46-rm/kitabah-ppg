@@ -2779,15 +2779,29 @@ async function openMusAbsensiModal(musId, level, u) {
 
   // Load peserta tetap sesuai level
   let pesertaTetap = [];
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1',
+    'D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
   try {
     if (level === 'ppg_daerah') {
       pesertaTetap = await SB.musPeserta.getByDaerah();
     } else if (level === 'pjp_desa') {
-      pesertaTetap = await SB.musPeserta.getByDesa(u.desa_id || u.kelompok_id || '');
+      // User punya desa_id = D1, tapi peserta disimpan dengan desa_id = "Desa Barat 1"
+      const desaId = u.desa_id || '';
+      const desaNama = DESA_NAMA_MAP[desaId] || desaId;
+      // Coba kedua format
+      let p1 = await SB.musPeserta.getByDesa(desaId);
+      let p2 = desaNama !== desaId ? await SB.musPeserta.getByDesa(desaNama) : [];
+      // Gabungkan dan dedup
+      const seen = new Set();
+      pesertaTetap = [...(p1||[]), ...(p2||[])].filter(p => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id); return true;
+      });
     } else if (u.kelompok_id) {
+      // Level kelompok: guru_generus atau unsur_5
       pesertaTetap = await SB.musPeserta.getByKelompok(u.kelompok_id);
     }
-  } catch(e) {}
+  } catch(e) { console.error('Load peserta error:', e); }
 
   // Load absensi yang sudah ada
   let absensiList = [];
