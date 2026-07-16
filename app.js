@@ -2607,6 +2607,8 @@ async function renderMusyawarah() {
               </select>
             </div>
           </div>
+          <!-- Rekap otomatis -->
+          <div id="musRekapArea" style="margin-bottom:14px;"></div>
           <div style="margin-bottom:10px;">
             <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
             <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
@@ -2657,7 +2659,10 @@ async function renderMusyawarah() {
           </div>
           ${bisa_edit ? `<div style="display:flex; gap:6px; flex-shrink:0;">
             <button class="btn btn-outline btn-sm" onclick="MUS_absensi('${m.id}','${m.level}')" title="Absensi">
-              📋 Absensi
+              📋
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="MUS_pdf('${m.id}')" title="Download PDF">
+              📄
             </button>
             <button class="btn-icon" onclick="MUS_edit('${m.id}')" title="Edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
@@ -2694,10 +2699,200 @@ async function renderMusyawarah() {
     document.querySelectorAll('#musLevelPicker .wiz-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     document.getElementById('musLevelInline').value = lv;
+    // Load rekap otomatis
+    MUS_loadRekap(lv);
   };
 
   window.MUS_absensi = (id, level) => openMusAbsensiModal(id, level, u);
   window.MUS_setFilter = (lv) => { filterLevel = lv; renderPage(); };
+
+  // Auto-load rekap untuk desa/daerah yang tidak perlu pick level
+  if (defaultLevel && !['admin'].includes(role)) {
+    setTimeout(() => MUS_loadRekap(defaultLevel), 100);
+  }
+
+  window.MUS_loadRekap = async (level) => {
+    const area = document.getElementById('musRekapArea');
+    if (!area) return;
+    area.innerHTML = '<div style="text-align:center; padding:12px;"><div class="spinner dark"></div><div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Memuat data rekap...</div></div>';
+
+    if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+    if (!App.cache.materi) App.cache.materi = await SB.materi.getAll();
+
+    const now = currentMonthName();
+    const semNow = SEM1_MONTHS.includes(now) ? SEM1_MONTHS : SEM2_MONTHS;
+    const idxNow = semNow.indexOf(now);
+    const bulanLalu = idxNow > 0 ? semNow[idxNow - 1] : null;
+    const bulanIni = now;
+
+    function pctColor(p) { return p>=80?'var(--green)':p>=50?'#e6a817':'var(--rose)'; }
+    function pctBadge(p) {
+      if (p === null) return '<span style="color:var(--ink-soft);">-</span>';
+      return `<span style="font-weight:800; color:${pctColor(p)};">${p}%</span>`;
+    }
+
+    async function hitungKelompokStats(klpId, bulan) {
+      const kelasList = await SB.kelas.getByKelompok(klpId);
+      const progData = await SB.progress.getByKelompok(klpId);
+      const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+      const results = [];
+      for (const k of kelasList) {
+        const [ptList, sList] = await Promise.all([
+          SB.pertemuan.getByKelas(k.id),
+          SB.santri.getByKelas(k.id),
+        ]);
+        const ptBulan = ptList.filter(p => p.bulan === bulan);
+        let H=0,I=0,S=0,A=0,slot=0;
+        for (const p of ptBulan) {
+          const abs = await SB.absensi.getByPertemuan(p.id);
+          sList.forEach(s => {
+            const a = abs.find(x => x.santri_id === s.id);
+            const st = a?.status || 'A';
+            if(st==='H')H++; else if(st==='I')I++; else if(st==='S')S++; else A++;
+            slot++;
+          });
+        }
+        const col = bulan.toLowerCase();
+        const mk = (App.cache.materi||[]).filter(r =>
+          r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
+        );
+        const mTarget = mk.length;
+        const mCapai = mk.filter(r => progressSet.has(r.id+'|'+bulan)).length;
+        results.push({
+          kelas: k.nama_kelas || k.jenjang,
+          jumlahSantri: sList.length,
+          pertemuan: ptBulan.length,
+          pctHadir: slot>0 ? Math.round(H/slot*100) : null,
+          H, I, S, A,
+          mTarget, mCapai,
+          pctMateri: mTarget>0 ? Math.round(mCapai/mTarget*100) : null,
+        });
+      }
+      return results;
+    }
+
+    function renderRekapTable(title, rows) {
+      if (!rows.length) return `<div style="font-size:12px; color:var(--ink-soft); margin-bottom:6px;">${title}: Belum ada data</div>`;
+      return `
+        <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:6px;">${title}</div>
+        <div class="table-wrap" style="margin-bottom:12px;">
+          <table style="width:100%; border-collapse:collapse; min-width:400px;">
+            <thead><tr style="background:var(--green-soft);">
+              <th style="padding:6px 10px; text-align:left; font-size:11px;">Kelas</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px;">Santri</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px;">Pertemuan</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px;">Kehadiran</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px;">Target Materi</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 10px; font-weight:600; font-size:12.5px;">${escHtml(r.kelas)}</td>
+                <td style="text-align:center; font-size:12px;">${r.jumlahSantri}</td>
+                <td style="text-align:center; font-size:12px;">${r.pertemuan}x</td>
+                <td style="text-align:center; font-size:12px;">${pctBadge(r.pctHadir)}</td>
+                <td style="text-align:center; font-size:12px;">${pctBadge(r.pctMateri)}${r.mTarget?` <span style="font-size:10px; color:var(--ink-soft);">(${r.mCapai}/${r.mTarget})</span>`:''}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    try {
+      if ((level === 'guru_generus' || level === 'unsur_5') && u.kelompok_id) {
+        // Level kelompok: rekap per kelas usia
+        const klpNama = (App.cache.kelompok||[]).find(k=>k.id===u.kelompok_id)?.nama || u.kelompok_id;
+        const rowsLalu = bulanLalu ? await hitungKelompokStats(u.kelompok_id, bulanLalu) : [];
+        const rowsIni = await hitungKelompokStats(u.kelompok_id, bulanIni);
+        area.innerHTML = `
+          <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
+            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:12px;">📊 Rekap KBM — ${escHtml(klpNama)}</div>
+            ${bulanLalu ? renderRekapTable('Bulan ' + bulanLalu + ' (bulan lalu)', rowsLalu) : ''}
+            ${renderRekapTable('Bulan ' + bulanIni + ' (bulan ini)', rowsIni)}
+          </div>`;
+
+      } else if (level === 'pjp_desa' && u.desa_id) {
+        // Level desa: rekap per kelompok
+        const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+        let desaHtml = '';
+        for (const klp of klpDesa) {
+          const rowsLalu = bulanLalu ? await hitungKelompokStats(klp.id, bulanLalu) : [];
+          const rowsIni = await hitungKelompokStats(klp.id, bulanIni);
+          // Ringkasan per kelompok
+          const avgHadirLalu = rowsLalu.length ? Math.round(rowsLalu.reduce((n,r)=>n+(r.pctHadir||0),0)/rowsLalu.length) : null;
+          const avgMateriLalu = rowsLalu.length ? Math.round(rowsLalu.reduce((n,r)=>n+(r.pctMateri||0),0)/rowsLalu.length) : null;
+          const avgHadirIni = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctHadir||0),0)/rowsIni.length) : null;
+          const avgMateriIni = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctMateri||0),0)/rowsIni.length) : null;
+          desaHtml += `
+            <div style="border-bottom:1px solid var(--line); padding:8px 0;">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+                <div style="font-weight:700; font-size:13px;">${escHtml(klp.nama)}</div>
+                <div style="display:flex; gap:12px; font-size:12px;">
+                  ${bulanLalu ? `<span title="${bulanLalu}">Bln lalu: ${pctBadge(avgHadirLalu)} / ${pctBadge(avgMateriLalu)}</span>` : ''}
+                  <span title="${bulanIni}">Bln ini: ${pctBadge(avgHadirIni)} / ${pctBadge(avgMateriIni)}</span>
+                </div>
+              </div>
+            </div>`;
+        }
+        area.innerHTML = `
+          <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
+            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:8px;">📊 Rekap KBM per Kelompok</div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">Format: Kehadiran / Target Materi</div>
+            ${desaHtml}
+          </div>`;
+
+      } else if (level === 'ppg_daerah') {
+        // Level daerah: rekap per desa
+        const allKlp = App.cache.kelompok || [];
+        const desaMap = {};
+        allKlp.forEach(k => {
+          const dNama = k.desa?.nama || k.desa_id || '-';
+          if (!desaMap[dNama]) desaMap[dNama] = [];
+          desaMap[dNama].push(k);
+        });
+        let daerahHtml = '';
+        for (const [desaNama, klpList] of Object.entries(desaMap)) {
+          let totalHadirLalu=0, totalMateriLalu=0, cntLalu=0;
+          let totalHadirIni=0, totalMateriIni=0, cntIni=0;
+          let detailRows = '';
+          for (const klp of klpList) {
+            const rowsIni = await hitungKelompokStats(klp.id, bulanIni);
+            const avgH = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctHadir||0),0)/rowsIni.length) : null;
+            const avgM = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctMateri||0),0)/rowsIni.length) : null;
+            if (avgH!==null) { totalHadirIni+=avgH; cntIni++; }
+            if (avgM!==null) { totalMateriIni+=avgM; }
+            detailRows += `<div style="display:flex; justify-content:space-between; padding:3px 8px; font-size:11.5px;">
+              <span>${escHtml(klp.nama)}</span>
+              <span>${pctBadge(avgH)} / ${pctBadge(avgM)}</span>
+            </div>`;
+          }
+          const desaHadir = cntIni ? Math.round(totalHadirIni/cntIni) : null;
+          const desaMateri = cntIni ? Math.round(totalMateriIni/cntIni) : null;
+          const desaId = 'musRekapDesa_' + desaNama.replace(/\s/g,'_');
+          daerahHtml += `
+            <div style="border-bottom:1px solid var(--line); padding:8px 0;">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${desaId}').style.display = document.getElementById('${desaId}').style.display==='none'?'block':'none'">
+                <div style="font-weight:700; font-size:13px;">📍 ${escHtml(desaNama)} <span style="font-size:11px; color:var(--ink-soft);">(${klpList.length} klp)</span></div>
+                <div style="font-size:12px;">${pctBadge(desaHadir)} / ${pctBadge(desaMateri)} <span style="font-size:10px; color:var(--ink-soft);">▼ detail</span></div>
+              </div>
+              <div id="${desaId}" style="display:none; margin-top:6px; background:var(--white); border-radius:6px; padding:6px 0;">
+                ${detailRows}
+              </div>
+            </div>`;
+        }
+        area.innerHTML = `
+          <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
+            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:8px;">📊 Rekap KBM per Desa — Bulan ${bulanIni}</div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">Format: Kehadiran / Target Materi · Klik desa untuk detail per kelompok</div>
+            ${daerahHtml}
+          </div>`;
+      } else {
+        area.innerHTML = '';
+      }
+    } catch(e) {
+      console.error('Load rekap error:', e);
+      area.innerHTML = `<div style="color:var(--rose); font-size:12px; padding:8px;">Gagal memuat rekap: ${escHtml(e.message)}</div>`;
+    }
+  };
 
   window.MUS_simpanInline = async () => {
     const level = document.getElementById('musLevelInline')?.value;
@@ -2765,6 +2960,93 @@ async function renderMusyawarah() {
       } catch(e) {}
       renderPage();
     });
+  };
+
+  window.MUS_pdf = async (id) => {
+    const m = allMusyawarah.find(x => x.id === id);
+    if (!m) return;
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const W=595, H=842, ML=40, MR=40, MT=44;
+      const GREEN=rgb(0.106,0.227,0.173), GRAY=rgb(0.5,0.5,0.5);
+
+      let page = doc.addPage([W,H]); let y = H-MT;
+      function newPage() { page=doc.addPage([W,H]); y=H-MT; }
+      function checkY(n) { if(y<n+40) newPage(); }
+
+      const cfg = MUSYAWARAH_LEVEL[m.level] || {};
+      page.drawText((cfg.label||m.level).toUpperCase(), {x:ML,y,font:fBold,size:13,color:GREEN});
+      y-=16;
+      page.drawText('Tanggal: '+fmtDateShort(m.tanggal)+'   |   Bulan: '+(m.bulan||'-'), {x:ML,y,font:fReg,size:10,color:GRAY});
+      y-=8;
+      page.drawLine({start:{x:ML,y},end:{x:W-MR,y},thickness:1.5,color:GREEN});
+      y-=16;
+
+      // Load absensi
+      let absList = [];
+      try { absList = await SB.musAbsensi.getByMusyawarah(m.id); } catch(e){}
+      if (absList.length) {
+        page.drawText('DAFTAR HADIR', {x:ML,y,font:fBold,size:10,color:GREEN}); y-=14;
+        absList.forEach((a,i) => {
+          checkY(14);
+          const nama = a.peserta_id ? (a.musyawarah_peserta?.nama||'-') : (a.nama_tamu||'Tamu');
+          const jab = a.peserta_id ? (a.musyawarah_peserta?.jabatan||'') : (a.jabatan_tamu||'Tamu');
+          const st = a.status||'H';
+          page.drawText((i+1)+'. '+nama+' ('+jab+') - '+st, {x:ML+4,y,font:fReg,size:9,color:rgb(0.1,0.1,0.1)});
+          y-=13;
+        });
+        y-=6;
+      }
+
+      const sections = [
+        ['PENCAPAIAN MATERI', m.pencapaian],
+        ['KENDALA', m.kendala],
+        ['SOLUSI', m.solusi],
+        ['TINDAK LANJUT', m.tindak_lanjut],
+      ];
+      sections.forEach(([title, text]) => {
+        if (!text) return;
+        checkY(30);
+        page.drawText(title, {x:ML,y,font:fBold,size:10,color:GREEN}); y-=14;
+        // Wrap text
+        const words = text.split(/\s+/);
+        let line = '';
+        words.forEach(w => {
+          const test = line ? line+' '+w : w;
+          if (fReg.widthOfTextAtSize(test,9) > W-ML-MR-10) {
+            checkY(13);
+            page.drawText(line, {x:ML+4,y,font:fReg,size:9,color:rgb(0.15,0.15,0.15)});
+            y-=13; line=w;
+          } else line=test;
+        });
+        if (line) { checkY(13); page.drawText(line,{x:ML+4,y,font:fReg,size:9,color:rgb(0.15,0.15,0.15)}); y-=13; }
+        y-=6;
+      });
+
+      doc.getPages().forEach((p,i)=>{
+        p.drawText('Hal '+(i+1)+'/'+doc.getPageCount(), {x:ML,y:24,font:fReg,size:8,color:GRAY});
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes],{type:'application/pdf'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download='Notulensi_'+(cfg.label||m.level).replace(/\s/g,'_')+'_'+m.bulan+'.pdf';
+      a.click(); URL.revokeObjectURL(url);
+      showToast('PDF berhasil diunduh');
+    } catch(e) { showToast('Gagal: '+e.message, true); console.error(e); }
   };
 
   window.MUS_delete = async (id) => {
