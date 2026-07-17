@@ -2579,7 +2579,7 @@ async function renderMusyawarah() {
         jenisSelector = `
           <div class="form-group" style="margin-bottom:14px;">
             <label style="font-size:12px; font-weight:700; color:var(--green);">Jenis Musyawarah</label>
-            <select id="musLevelInline" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+            <select id="musLevelInline" onchange="MUS_loadRekap(this.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
               <option value="">Pilih jenis...</option>
               ${createLevels.map(lv => {
                 const cfg = MUSYAWARAH_LEVEL[lv];
