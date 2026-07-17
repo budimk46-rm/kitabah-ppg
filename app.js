@@ -2802,13 +2802,61 @@ async function renderMusyawarah() {
       if ((level === 'guru_generus' || level === 'unsur_5') && u.kelompok_id) {
         // Level kelompok: rekap per kelas usia
         const klpNama = (App.cache.kelompok||[]).find(k=>k.id===u.kelompok_id)?.nama || u.kelompok_id;
-        const rowsLalu = bulanLalu ? await hitungKelompokStats(u.kelompok_id, bulanLalu) : [];
-        const rowsIni = await hitungKelompokStats(u.kelompok_id, bulanIni);
+        if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
+        const tampilBulan = window._musRekapBulan;
+        const rows = await hitungKelompokStats(u.kelompok_id, tampilBulan);
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
-            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:12px;">📊 Rekap KBM — ${escHtml(klpNama)}</div>
-            ${bulanLalu ? renderRekapTable('Bulan ' + bulanLalu + ' (bulan lalu)', rowsLalu) : ''}
-            ${renderRekapTable('Bulan ' + bulanIni + ' (bulan ini)', rowsIni)}
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM — ${escHtml(klpNama)}</div>
+              <div style="display:flex; gap:6px;">
+                ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
+                  ${bulanLalu}
+                </button>` : ''}
+                <button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanIni?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanIni}';MUS_loadRekap('${level}')">
+                  ${bulanIni} ●
+                </button>
+              </div>
+            </div>
+            ${renderRekapTable('Bulan ' + tampilBulan, rows)}
+          </div>`;
+
+      } else if ((level === 'guru_generus' || level === 'unsur_5') && !u.kelompok_id) {
+        // Admin pilih Guru Generus — perlu pilih kelompok dulu
+        const allKlp = App.cache.kelompok || [];
+        const selectedKlp = window._musRekapKelompokId || '';
+        if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
+        const tampilBulan = window._musRekapBulan;
+
+        let rekapContent = '';
+        if (selectedKlp) {
+          const klpNama = allKlp.find(k=>k.id===selectedKlp)?.nama || selectedKlp;
+          const rows = await hitungKelompokStats(selectedKlp, tampilBulan);
+          rekapContent = renderRekapTable('Bulan ' + tampilBulan + ' — ' + klpNama, rows);
+        } else {
+          rekapContent = '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Pilih kelompok untuk melihat rekap KBM.</div>';
+        }
+
+        area.innerHTML = `
+          <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM Kelompok</div>
+              <div style="display:flex; gap:6px;">
+                ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
+                  ${bulanLalu}
+                </button>` : ''}
+                <button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanIni?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanIni}';MUS_loadRekap('${level}')">
+                  ${bulanIni} ●
+                </button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <select onchange="window._musRekapKelompokId=this.value;MUS_loadRekap('${level}')" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+                <option value="">Pilih kelompok...</option>
+                ${allKlp.map(k => `<option value="${k.id}" ${k.id===selectedKlp?'selected':''}>${escHtml(k.nama)} (${escHtml(k.desa?.nama||'')})</option>`).join('')}
+              </select>
+            </div>
+            ${rekapContent}
           </div>`;
 
       } else if (level === 'pjp_desa' && u.desa_id) {
@@ -2861,7 +2909,68 @@ async function renderMusyawarah() {
             ${desaHtml}
           </div>`;
 
-      } else if (level === 'ppg_daerah' || role === 'admin' || role === 'daerah') {
+      } else if (level === 'pjp_desa' && !u.desa_id) {
+        // Admin pilih PJP Desa — perlu pilih desa dulu
+        const DESA_LIST = [
+          {id:'D1',nama:'Desa Barat 1'},{id:'D2',nama:'Desa Barat 2'},
+          {id:'D3',nama:'Desa Tengah 1'},{id:'D4',nama:'Desa Tengah 2'},
+          {id:'D5',nama:'Desa Timur 1'},{id:'D6',nama:'Desa Timur 2'},
+        ];
+        const selectedDesa = window._musRekapDesaId || '';
+        if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
+        const tampilBulan = window._musRekapBulan;
+
+        let rekapContent = '';
+        if (selectedDesa) {
+          const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === selectedDesa);
+          let desaHtml = '';
+          for (const klp of klpDesa) {
+            const rows = await hitungKelompokStats(klp.id, tampilBulan);
+            const avgHadir = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctHadir||0),0)/rows.length) : null;
+            const avgMateri = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctMateri||0),0)/rows.length) : null;
+            const klpElId = 'musRekapKlp_' + klp.id;
+            let kelasDetail = rows.map(r => `
+              <div style="display:flex; justify-content:space-between; padding:3px 8px; font-size:11.5px;">
+                <span>${escHtml(r.kelas)}</span>
+                <span>${r.jumlahSantri} santri · ${r.pertemuan}x · ${pctBadge(r.pctHadir)} hadir · ${pctBadge(r.pctMateri)} materi</span>
+              </div>`).join('');
+            desaHtml += `
+              <div style="border-bottom:1px solid var(--line); padding:8px 0;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${klpElId}').style.display = document.getElementById('${klpElId}').style.display==='none'?'block':'none'">
+                  <div style="font-weight:700; font-size:13px;">${escHtml(klp.nama)}</div>
+                  <div style="font-size:12px;">${pctBadge(avgHadir)} hadir · ${pctBadge(avgMateri)} materi <span style="font-size:10px; color:var(--ink-soft);">▼</span></div>
+                </div>
+                <div id="${klpElId}" style="display:none; margin-top:6px; background:var(--white); border-radius:6px; padding:6px 0;">${kelasDetail}</div>
+              </div>`;
+          }
+          rekapContent = desaHtml || '<div style="font-size:12px; color:var(--ink-soft);">Tidak ada kelompok di desa ini.</div>';
+        } else {
+          rekapContent = '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Pilih desa untuk melihat rekap per kelompok.</div>';
+        }
+
+        area.innerHTML = `
+          <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Kelompok</div>
+              <div style="display:flex; gap:6px;">
+                ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
+                  ${bulanLalu}
+                </button>` : ''}
+                <button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanIni?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanIni}';MUS_loadRekap('${level}')">
+                  ${bulanIni} ●
+                </button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <select onchange="window._musRekapDesaId=this.value;MUS_loadRekap('${level}')" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+                <option value="">Pilih desa...</option>
+                ${DESA_LIST.map(d => `<option value="${d.id}" ${d.id===selectedDesa?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
+              </select>
+            </div>
+            ${rekapContent}
+          </div>`;
+
+      } else if (level === 'ppg_daerah') {
         // Level daerah: rekap per desa dengan kehadiran + materi
         const allKlp = App.cache.kelompok || [];
         const desaMap = {};
