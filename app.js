@@ -2721,9 +2721,10 @@ async function renderMusyawarah() {
 
     const now = currentMonthName();
     const semNow = SEM1_MONTHS.includes(now) ? SEM1_MONTHS : SEM2_MONTHS;
-    const ALL_MONTHS = [...SEM1_MONTHS, ...SEM2_MONTHS];
-    const idxAll = ALL_MONTHS.indexOf(now);
-    const bulanLalu = idxAll > 0 ? ALL_MONTHS[idxAll - 1] : null;
+    // Urutan kalender: Jan-Des agar bulan sebelumnya selalu benar
+    const KALENDER_MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const idxKal = KALENDER_MONTHS.indexOf(now);
+    const bulanLalu = idxKal > 0 ? KALENDER_MONTHS[idxKal - 1] : null;
     const bulanIni = now;
 
     function pctColor(p) { return p>=80?'var(--green)':p>=50?'#e6a817':'var(--rose)'; }
