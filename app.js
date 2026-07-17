@@ -4364,7 +4364,7 @@ async function renderRekap() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Rekap KBM</h1>
-          <p class="page-subtitle">${escHtml(kelompokNama)} · Bulan ${escHtml(selectedBulan)}</p>
+          <p style="font-size:15px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(kelompokNama)} · Bulan ${escHtml(selectedBulan)}</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <button class="btn btn-outline btn-sm" onclick="REKAP_pdfRingkas()">
@@ -4376,6 +4376,7 @@ async function renderRekap() {
             PDF Detail
           </button>
           ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="REKAP_gantiKelompok()">Ganti Kelompok</button>` : ''}
+        </div>
       </div>
 
       <!-- Ringkasan -->
@@ -4394,13 +4395,13 @@ async function renderRekap() {
         </div>
         <div class="stat-card">
           <div class="stat-num" style="color:${avgHadir===null?'var(--ink-soft)':avgHadir>=80?'var(--green)':avgHadir>=50?'#e6a817':'var(--rose)'};">
-            ${avgHadir !== null ? avgHadir + '%' : '—'}
+            ${avgHadir !== null ? avgHadir + '%' : '\u2014'}
           </div>
           <div class="stat-label">Rata-rata Kehadiran</div>
         </div>
         <div class="stat-card">
           <div class="stat-num" style="color:${avgMateri===null?'var(--ink-soft)':avgMateri>=80?'var(--green)':avgMateri>=50?'#e6a817':'var(--rose)'};">
-            ${avgMateri !== null ? avgMateri + '%' : '—'}
+            ${avgMateri !== null ? avgMateri + '%' : '\u2014'}
           </div>
           <div class="stat-label">Progress Materi</div>
         </div>
@@ -4412,7 +4413,9 @@ async function renderRekap() {
       </div>
 
       <!-- Kartu per kelas -->
-      ${kelasList.length > 0 ? kelasCards : '<div class="card"><p class="color-soft">Belum ada kelas di kelompok ini. Tambahkan kelas di menu Data Santri.</p></div>'}
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:16px;">
+        ${kelasList.length > 0 ? kelasCards : '<div class="card"><p class="color-soft">Belum ada kelas di kelompok ini.</p></div>'}
+      </div>
     `;
   }
 
