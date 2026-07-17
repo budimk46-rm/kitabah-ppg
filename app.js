@@ -2721,8 +2721,9 @@ async function renderMusyawarah() {
 
     const now = currentMonthName();
     const semNow = SEM1_MONTHS.includes(now) ? SEM1_MONTHS : SEM2_MONTHS;
-    const idxNow = semNow.indexOf(now);
-    const bulanLalu = idxNow > 0 ? semNow[idxNow - 1] : null;
+    const ALL_MONTHS = [...SEM1_MONTHS, ...SEM2_MONTHS];
+    const idxAll = ALL_MONTHS.indexOf(now);
+    const bulanLalu = idxAll > 0 ? ALL_MONTHS[idxAll - 1] : null;
     const bulanIni = now;
 
     function pctColor(p) { return p>=80?'var(--green)':p>=50?'#e6a817':'var(--rose)'; }
