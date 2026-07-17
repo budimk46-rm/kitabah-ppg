@@ -2811,37 +2811,57 @@ async function renderMusyawarah() {
           </div>`;
 
       } else if (level === 'pjp_desa' && u.desa_id) {
-        // Level desa: rekap per kelompok
+        // Level desa: rekap per kelompok dengan kehadiran + materi
         const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+        if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
+        const tampilBulan = window._musRekapBulan;
+
         let desaHtml = '';
         for (const klp of klpDesa) {
-          const rowsLalu = bulanLalu ? await hitungKelompokStats(klp.id, bulanLalu) : [];
-          const rowsIni = await hitungKelompokStats(klp.id, bulanIni);
-          // Ringkasan per kelompok
-          const avgHadirLalu = rowsLalu.length ? Math.round(rowsLalu.reduce((n,r)=>n+(r.pctHadir||0),0)/rowsLalu.length) : null;
-          const avgMateriLalu = rowsLalu.length ? Math.round(rowsLalu.reduce((n,r)=>n+(r.pctMateri||0),0)/rowsLalu.length) : null;
-          const avgHadirIni = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctHadir||0),0)/rowsIni.length) : null;
-          const avgMateriIni = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctMateri||0),0)/rowsIni.length) : null;
+          const rows = await hitungKelompokStats(klp.id, tampilBulan);
+          const avgHadir = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctHadir||0),0)/rows.length) : null;
+          const avgMateri = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctMateri||0),0)/rows.length) : null;
+          const klpElId = 'musRekapKlp_' + klp.id;
+
+          let kelasDetail = rows.map(r => `
+            <div style="display:flex; justify-content:space-between; padding:3px 8px; font-size:11.5px;">
+              <span>${escHtml(r.kelas)}</span>
+              <span>${r.jumlahSantri} santri · ${r.pertemuan}x · ${pctBadge(r.pctHadir)} hadir · ${pctBadge(r.pctMateri)} materi ${r.mTarget?'('+r.mCapai+'/'+r.mTarget+')':''}</span>
+            </div>`).join('');
+
           desaHtml += `
             <div style="border-bottom:1px solid var(--line); padding:8px 0;">
-              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${klpElId}').style.display = document.getElementById('${klpElId}').style.display==='none'?'block':'none'">
                 <div style="font-weight:700; font-size:13px;">${escHtml(klp.nama)}</div>
-                <div style="display:flex; gap:12px; font-size:12px;">
-                  ${bulanLalu ? `<span title="${bulanLalu}">Bln lalu: ${pctBadge(avgHadirLalu)} / ${pctBadge(avgMateriLalu)}</span>` : ''}
-                  <span title="${bulanIni}">Bln ini: ${pctBadge(avgHadirIni)} / ${pctBadge(avgMateriIni)}</span>
+                <div style="font-size:12px;">
+                  ${pctBadge(avgHadir)} hadir · ${pctBadge(avgMateri)} materi
+                  <span style="font-size:10px; color:var(--ink-soft); margin-left:4px;">▼ detail</span>
                 </div>
+              </div>
+              <div id="${klpElId}" style="display:none; margin-top:6px; background:var(--white); border-radius:6px; padding:6px 0;">
+                ${kelasDetail}
               </div>
             </div>`;
         }
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
-            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:8px;">📊 Rekap KBM per Kelompok</div>
-            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">Format: Kehadiran / Target Materi</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Kelompok</div>
+              <div style="display:flex; gap:6px;">
+                ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
+                  ${bulanLalu}
+                </button>` : ''}
+                <button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanIni?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanIni}';MUS_loadRekap('${level}')">
+                  ${bulanIni} ●
+                </button>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">Bulan ${tampilBulan} · Klik kelompok untuk detail per kelas usia</div>
             ${desaHtml}
           </div>`;
 
       } else if (level === 'ppg_daerah' || role === 'admin' || role === 'daerah') {
-        // Level daerah: rekap ringkas per desa — tanpa fetch absensi detail
+        // Level daerah: rekap per desa dengan kehadiran + materi
         const allKlp = App.cache.kelompok || [];
         const desaMap = {};
         allKlp.forEach(k => {
@@ -2850,48 +2870,105 @@ async function renderMusyawarah() {
           desaMap[dNama].push(k);
         });
 
-        // Fetch progress semua kelompok sekaligus (1 call per kelompok, tapi ringan)
-        const progAll = {};
+        // Default tampilkan bulan ini
+        if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
+        const tampilBulan = window._musRekapBulan;
+
+        // Fetch progress + kehadiran per kelompok (paralel)
+        const klpData = {};
         await Promise.all(allKlp.map(async klp => {
           try {
-            const prog = await SB.progress.getByKelompok(klp.id);
-            const iniCount = prog.filter(p => p.bulan === bulanIni).length;
-            const laluCount = bulanLalu ? prog.filter(p => p.bulan === bulanLalu).length : 0;
-            progAll[klp.id] = { ini: iniCount, lalu: laluCount };
-          } catch(e) { progAll[klp.id] = { ini: 0, lalu: 0 }; }
+            const [prog, kelasList] = await Promise.all([
+              SB.progress.getByKelompok(klp.id),
+              SB.kelas.getByKelompok(klp.id),
+            ]);
+            const materiCount = prog.filter(p => p.bulan === tampilBulan).length;
+
+            // Hitung kehadiran per kelas
+            let totalH=0, totalSlot=0;
+            const kelasStats = [];
+            await Promise.all(kelasList.map(async k => {
+              const [ptList, sList] = await Promise.all([
+                SB.pertemuan.getByKelas(k.id),
+                SB.santri.getByKelas(k.id),
+              ]);
+              const ptBulan = ptList.filter(p => p.bulan === tampilBulan);
+              let kH=0, kSlot=0;
+              for (const p of ptBulan) {
+                const abs = await SB.absensi.getByPertemuan(p.id);
+                sList.forEach(s => {
+                  const a = abs.find(x => x.santri_id === s.id);
+                  const st = a?.status || 'A';
+                  if (st==='H') { kH++; totalH++; }
+                  kSlot++; totalSlot++;
+                });
+              }
+              kelasStats.push({
+                nama: k.nama_kelas || k.jenjang,
+                pctHadir: kSlot > 0 ? Math.round(kH/kSlot*100) : null,
+                santri: sList.length,
+                pertemuan: ptBulan.length,
+              });
+            }));
+
+            klpData[klp.id] = {
+              materi: materiCount,
+              pctHadir: totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null,
+              kelasStats,
+            };
+          } catch(e) { klpData[klp.id] = { materi: 0, pctHadir: null, kelasStats: [] }; }
         }));
 
         let daerahHtml = '';
         for (const [desaNama, klpList] of Object.entries(desaMap)) {
-          const totalIni = klpList.reduce((n,k) => n + (progAll[k.id]?.ini||0), 0);
-          const totalLalu = klpList.reduce((n,k) => n + (progAll[k.id]?.lalu||0), 0);
-          const desaId = 'musRekapDesa_' + desaNama.replace(/\s/g,'_');
+          const totalMateri = klpList.reduce((n,k) => n + (klpData[k.id]?.materi||0), 0);
+          const hadirArr = klpList.map(k => klpData[k.id]?.pctHadir).filter(p => p !== null);
+          const avgHadir = hadirArr.length ? Math.round(hadirArr.reduce((a,b)=>a+b,0)/hadirArr.length) : null;
+          const desaElId = 'musRekapDesa_' + desaNama.replace(/\s/g,'_');
+
           let detailRows = klpList.map(klp => {
-            const p = progAll[klp.id] || {ini:0,lalu:0};
-            return `<div style="display:flex; justify-content:space-between; padding:3px 8px; font-size:11.5px;">
-              <span>${escHtml(klp.nama)}</span>
-              <span>${bulanLalu ? '<span style="color:var(--ink-soft);">'+p.lalu+' materi</span> → ' : ''}<b>${p.ini} materi</b> tercapai</span>
+            const d = klpData[klp.id] || { materi:0, pctHadir:null, kelasStats:[] };
+            const kelasDetail = d.kelasStats.map(ks =>
+              `<span style="font-size:10px; margin-left:8px; color:var(--ink-soft);">${escHtml(ks.nama)}: ${ks.pctHadir!==null?ks.pctHadir+'%':'-'}</span>`
+            ).join('');
+            return `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; font-size:11.5px; flex-wrap:wrap; gap:2px;">
+              <span style="font-weight:600;">${escHtml(klp.nama)}</span>
+              <span>
+                ${pctBadge(d.pctHadir)} hadir · <b>${d.materi}</b> materi
+                ${kelasDetail}
+              </span>
             </div>`;
           }).join('');
 
           daerahHtml += `
             <div style="border-bottom:1px solid var(--line); padding:8px 0;">
-              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${desaId}').style.display = document.getElementById('${desaId}').style.display==='none'?'block':'none'">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${desaElId}').style.display = document.getElementById('${desaElId}').style.display==='none'?'block':'none'">
                 <div style="font-weight:700; font-size:13px;">📍 ${escHtml(desaNama)} <span style="font-size:11px; color:var(--ink-soft);">(${klpList.length} klp)</span></div>
                 <div style="font-size:12px;">
-                  ${bulanLalu ? '<span style="color:var(--ink-soft);">'+totalLalu+'</span> → ' : ''}<b style="color:var(--green);">${totalIni}</b> materi
+                  ${pctBadge(avgHadir)} hadir · <b style="color:var(--green);">${totalMateri}</b> materi
                   <span style="font-size:10px; color:var(--ink-soft); margin-left:4px;">▼ detail</span>
                 </div>
               </div>
-              <div id="${desaId}" style="display:none; margin-top:6px; background:var(--white); border-radius:6px; padding:6px 0;">
+              <div id="${desaElId}" style="display:none; margin-top:6px; background:var(--white); border-radius:6px; padding:6px 0;">
                 ${detailRows}
               </div>
             </div>`;
         }
+
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
-            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:8px;">📊 Rekap Progress Materi per Desa</div>
-            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">${bulanLalu ? 'Bulan '+bulanLalu+' → ' : ''}Bulan ${bulanIni} · Klik desa untuk detail per kelompok</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Desa</div>
+              <div style="display:flex; gap:6px;">
+                ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
+                  ${bulanLalu}
+                </button>` : ''}
+                <button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanIni?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanIni}';MUS_loadRekap('${level}')">
+                  ${bulanIni} ●
+                </button>
+              </div>
+            </div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">Bulan ${tampilBulan} · Klik desa untuk detail per kelompok & kelas usia</div>
             ${daerahHtml}
           </div>`;
       } else {
