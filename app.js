@@ -2840,8 +2840,8 @@ async function renderMusyawarah() {
             ${desaHtml}
           </div>`;
 
-      } else if (level === 'ppg_daerah') {
-        // Level daerah: rekap per desa
+      } else if (level === 'ppg_daerah' || role === 'admin' || role === 'daerah') {
+        // Level daerah: rekap ringkas per desa — tanpa fetch absensi detail
         const allKlp = App.cache.kelompok || [];
         const desaMap = {};
         allKlp.forEach(k => {
@@ -2849,30 +2849,39 @@ async function renderMusyawarah() {
           if (!desaMap[dNama]) desaMap[dNama] = [];
           desaMap[dNama].push(k);
         });
+
+        // Fetch progress semua kelompok sekaligus (1 call per kelompok, tapi ringan)
+        const progAll = {};
+        await Promise.all(allKlp.map(async klp => {
+          try {
+            const prog = await SB.progress.getByKelompok(klp.id);
+            const iniCount = prog.filter(p => p.bulan === bulanIni).length;
+            const laluCount = bulanLalu ? prog.filter(p => p.bulan === bulanLalu).length : 0;
+            progAll[klp.id] = { ini: iniCount, lalu: laluCount };
+          } catch(e) { progAll[klp.id] = { ini: 0, lalu: 0 }; }
+        }));
+
         let daerahHtml = '';
         for (const [desaNama, klpList] of Object.entries(desaMap)) {
-          let totalHadirLalu=0, totalMateriLalu=0, cntLalu=0;
-          let totalHadirIni=0, totalMateriIni=0, cntIni=0;
-          let detailRows = '';
-          for (const klp of klpList) {
-            const rowsIni = await hitungKelompokStats(klp.id, bulanIni);
-            const avgH = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctHadir||0),0)/rowsIni.length) : null;
-            const avgM = rowsIni.length ? Math.round(rowsIni.reduce((n,r)=>n+(r.pctMateri||0),0)/rowsIni.length) : null;
-            if (avgH!==null) { totalHadirIni+=avgH; cntIni++; }
-            if (avgM!==null) { totalMateriIni+=avgM; }
-            detailRows += `<div style="display:flex; justify-content:space-between; padding:3px 8px; font-size:11.5px;">
-              <span>${escHtml(klp.nama)}</span>
-              <span>${pctBadge(avgH)} / ${pctBadge(avgM)}</span>
-            </div>`;
-          }
-          const desaHadir = cntIni ? Math.round(totalHadirIni/cntIni) : null;
-          const desaMateri = cntIni ? Math.round(totalMateriIni/cntIni) : null;
+          const totalIni = klpList.reduce((n,k) => n + (progAll[k.id]?.ini||0), 0);
+          const totalLalu = klpList.reduce((n,k) => n + (progAll[k.id]?.lalu||0), 0);
           const desaId = 'musRekapDesa_' + desaNama.replace(/\s/g,'_');
+          let detailRows = klpList.map(klp => {
+            const p = progAll[klp.id] || {ini:0,lalu:0};
+            return `<div style="display:flex; justify-content:space-between; padding:3px 8px; font-size:11.5px;">
+              <span>${escHtml(klp.nama)}</span>
+              <span>${bulanLalu ? '<span style="color:var(--ink-soft);">'+p.lalu+' materi</span> → ' : ''}<b>${p.ini} materi</b> tercapai</span>
+            </div>`;
+          }).join('');
+
           daerahHtml += `
             <div style="border-bottom:1px solid var(--line); padding:8px 0;">
               <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${desaId}').style.display = document.getElementById('${desaId}').style.display==='none'?'block':'none'">
                 <div style="font-weight:700; font-size:13px;">📍 ${escHtml(desaNama)} <span style="font-size:11px; color:var(--ink-soft);">(${klpList.length} klp)</span></div>
-                <div style="font-size:12px;">${pctBadge(desaHadir)} / ${pctBadge(desaMateri)} <span style="font-size:10px; color:var(--ink-soft);">▼ detail</span></div>
+                <div style="font-size:12px;">
+                  ${bulanLalu ? '<span style="color:var(--ink-soft);">'+totalLalu+'</span> → ' : ''}<b style="color:var(--green);">${totalIni}</b> materi
+                  <span style="font-size:10px; color:var(--ink-soft); margin-left:4px;">▼ detail</span>
+                </div>
               </div>
               <div id="${desaId}" style="display:none; margin-top:6px; background:var(--white); border-radius:6px; padding:6px 0;">
                 ${detailRows}
@@ -2881,8 +2890,8 @@ async function renderMusyawarah() {
         }
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
-            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:8px;">📊 Rekap KBM per Desa — Bulan ${bulanIni}</div>
-            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">Format: Kehadiran / Target Materi · Klik desa untuk detail per kelompok</div>
+            <div style="font-weight:800; font-size:14px; color:var(--green); margin-bottom:8px;">📊 Rekap Progress Materi per Desa</div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-bottom:10px;">${bulanLalu ? 'Bulan '+bulanLalu+' → ' : ''}Bulan ${bulanIni} · Klik desa untuk detail per kelompok</div>
             ${daerahHtml}
           </div>`;
       } else {
