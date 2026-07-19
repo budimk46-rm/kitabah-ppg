@@ -3394,30 +3394,46 @@ async function renderMusyawarah() {
     } catch(e) {}
     const dapukanWajib = konfig?.dapukan_wajib || [];
     console.log('Konfig musyawarah:', level, 'dapukan wajib:', dapukanWajib, 'konfig:', konfig);
+    console.log('allPeserta:', allPeserta.length, 'dapukan list:', allPeserta.map(p=>p.jabatan));
 
     // Load semua peserta yang relevan
     let allPeserta = [];
     try {
+      // Tentukan scope berdasar role + pilihan admin
+      const effectiveKlpId = u.kelompok_id || window._musRekapKelompokId || null;
+      const effectiveDesaId = u.desa_id || window._musRekapDesaId || null;
+
       if (level === 'ppg_daerah') {
+        // Load semua peserta daerah
         allPeserta = await SB.musPeserta.getByDaerah() || [];
+        // Juga load semua desa
+        const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2','D1','D2','D3','D4','D5','D6'];
+        for (const dn of DESA_NAMES) {
+          const dp = await SB.musPeserta.getByDesa(dn) || [];
+          allPeserta = [...allPeserta, ...dp];
+        }
       } else if (level === 'pjp_desa') {
-        const desaId = u.desa_id || '';
+        const desaId = effectiveDesaId || '';
         const desaNama = DESA_NAMA_MAP[desaId] || desaId;
         let p1 = await SB.musPeserta.getByDesa(desaId) || [];
         let p2 = desaNama !== desaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
-        // Juga load PJP kelompok + Wali KBM dari kelompok se-desa
+        // Juga load peserta dari kelompok se-desa
         if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
         const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
         for (const klp of klpDesa) {
           const klpPeserta = await SB.musPeserta.getByKelompok(klp.id) || [];
           p2 = [...p2, ...klpPeserta];
         }
-        const seen = new Set();
-        allPeserta = [...p1, ...p2].filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
-      } else if (u.kelompok_id) {
-        allPeserta = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
+        allPeserta = [...p1, ...p2];
+      } else if (level === 'guru_generus' || level === 'unsur_5') {
+        if (effectiveKlpId) {
+          allPeserta = await SB.musPeserta.getByKelompok(effectiveKlpId) || [];
+        }
       }
-    } catch(e) { console.error(e); }
+      // Dedup
+      const seen = new Set();
+      allPeserta = allPeserta.filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
+    } catch(e) { console.error('Load peserta error:', e); }
 
     // Filter berdasarkan konfigurasi dapukan wajib
     if (dapukanWajib.length > 0) {
