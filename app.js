@@ -2635,13 +2635,14 @@ async function renderPengurus() {
   window.PGR_tambah = (mode, ref) => {
     const user = App.user;
     if (mode === 'daerah') openKelolaMusPesertaModal(null, user, 'daerah');
-    else if (mode === 'desa') openKelolaMusPesertaModal(null, user, 'desa');
+    else if (mode === 'desa') openKelolaMusPesertaModal(ref, user, 'desa');
     else openKelolaMusPesertaModal(ref || user.kelompok_id, user, 'kelompok');
   };
   window.PGR_edit = (id, mode) => {
-    // Buka modal kelola peserta dan scroll ke item
     const user = App.user;
-    openKelolaMusPesertaModal(user.kelompok_id, user, mode);
+    if (mode === 'daerah') openKelolaMusPesertaModal(null, user, 'daerah');
+    else if (mode === 'desa') openKelolaMusPesertaModal(user.desa_id, user, 'desa');
+    else openKelolaMusPesertaModal(user.kelompok_id, user, mode);
   };
   window.PGR_hapus = async (id) => {
     if (!confirm('Hapus pengurus ini?')) return;
@@ -4283,7 +4284,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
 }
 
 /* ===== KELOLA PESERTA MUSYAWARAH ===== */
-async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
+async function openKelolaMusPesertaModal(refId, u, mode='kelompok') {
   let el = document.getElementById('musPesertaModal');
   if (!el) {
     el = document.createElement('div');
@@ -4292,7 +4293,8 @@ async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
     document.body.appendChild(el);
   }
 
-  const desaId = u.desa_id || u.kelompok_id || null;
+  const kelompokId = mode.startsWith('kelompok') ? (refId || u.kelompok_id) : null;
+  const desaId = mode === 'desa' ? (refId || u.desa_id || null) : (u.desa_id || null);
   const judulMap = {
     daerah: 'Peserta Musyawarah PPG Daerah',
     desa: 'Peserta Musyawarah PJP Desa',
