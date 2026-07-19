@@ -2594,7 +2594,7 @@ async function renderMusyawarah() {
         jenisSelector = `
           <div class="form-group" style="margin-bottom:14px;">
             <label style="font-size:12px; font-weight:700; color:var(--green);">Jenis Musyawarah</label>
-            <select id="musLevelInline" onchange="MUS_loadRekap(this.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+            <select id="musLevelInline" onchange="MUS_loadRekap(this.value);MUS_loadAbsensiInline(this.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
               <option value="">Pilih jenis...</option>
               ${createLevels.map(lv => {
                 const cfg = MUSYAWARAH_LEVEL[lv];
@@ -2622,25 +2622,49 @@ async function renderMusyawarah() {
               </select>
             </div>
           </div>
+
           <!-- Rekap otomatis -->
           <div id="musRekapArea" style="margin-bottom:14px;"></div>
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
-            <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+
+          <!-- ABSENSI PESERTA (inline, muncul setelah pilih jenis) -->
+          <div id="musAbsensiArea" style="display:none; margin-bottom:16px;">
+            <div style="font-size:13px; font-weight:700; color:var(--green); margin-bottom:10px; border-top:2px solid var(--green); padding-top:12px;">📋 Absensi Peserta</div>
+            <div id="musAbsensiStats" style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;"></div>
+            <div id="musAbsensiList"></div>
+            <!-- Tambah tamu -->
+            <div style="border:1.5px dashed var(--line); border-radius:var(--radius-sm); padding:10px; background:var(--cream-2); margin-top:10px;">
+              <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">+ Tambah Peserta Tamu</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <input id="musInlineTamuNama" placeholder="Nama" style="flex:2; min-width:120px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
+                <input id="musInlineTamuJabatan" placeholder="Jabatan" style="flex:1; min-width:80px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
+                <input id="musInlineTamuHp" placeholder="No HP" style="flex:1; min-width:100px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
+                <button class="btn btn-outline btn-sm" onclick="MUS_addTamuInline()">+</button>
+              </div>
+            </div>
           </div>
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Kendala</label>
-            <textarea id="musKendalaInline" rows="2" placeholder="Kendala yang dihadapi..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+
+          <!-- NOTULENSI -->
+          <div id="musNotulensiArea" style="display:none;">
+            <div style="font-size:13px; font-weight:700; color:var(--green); margin-bottom:10px; border-top:2px solid var(--green); padding-top:12px;">📝 Notulensi Pembahasan</div>
+            <div style="margin-bottom:10px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
+              <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Kendala</label>
+              <textarea id="musKendalaInline" rows="2" placeholder="Kendala yang dihadapi..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Solusi</label>
+              <textarea id="musSolusiInline" rows="2" placeholder="Solusi yang disepakati..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+            </div>
+            <div style="margin-bottom:14px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tindak Lanjut</label>
+              <textarea id="musTindakLanjutInline" rows="2" placeholder="Tindak lanjut, PIC, target waktu..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+            </div>
           </div>
-          <div style="margin-bottom:10px;">
-            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Solusi</label>
-            <textarea id="musSolusiInline" rows="2" placeholder="Solusi yang disepakati..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
-          </div>
-          <div style="margin-bottom:14px;">
-            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tindak Lanjut</label>
-            <textarea id="musTindakLanjutInline" rows="2" placeholder="Tindak lanjut, PIC, target waktu..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
-          </div>
-          <button class="btn btn-green" id="musSaveInline" onclick="MUS_simpanInline()">Simpan & Isi Absensi →</button>
+
+          <button class="btn btn-green" id="musSaveInline" onclick="MUS_simpanInline()" style="display:none;">Simpan Notulensi & Absensi</button>
         </div>`;
     }
 
@@ -2714,16 +2738,16 @@ async function renderMusyawarah() {
     document.querySelectorAll('#musLevelPicker .wiz-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     document.getElementById('musLevelInline').value = lv;
-    // Load rekap otomatis
     MUS_loadRekap(lv);
+    MUS_loadAbsensiInline(lv);
   };
 
   window.MUS_absensi = (id, level) => openMusAbsensiModal(id, level, u);
   window.MUS_setFilter = (lv) => { filterLevel = lv; renderPage(); };
 
-  // Auto-load rekap untuk desa/daerah yang tidak perlu pick level
+  // Auto-load untuk desa/daerah
   if (defaultLevel && !['admin'].includes(role)) {
-    setTimeout(() => MUS_loadRekap(defaultLevel), 100);
+    setTimeout(() => { MUS_loadRekap(defaultLevel); MUS_loadAbsensiInline(defaultLevel); }, 100);
   }
 
   window.MUS_loadRekap = async (level) => {
@@ -3106,6 +3130,132 @@ async function renderMusyawarah() {
     }
   };
 
+  // ── Absensi Inline State ──
+  let musInlineAbsensi = {}; // peserta_id → status
+  let musInlineTamu = []; // [{nama, jabatan, no_hp}]
+  let musInlinePeserta = []; // daftar peserta tetap
+
+  window.MUS_loadAbsensiInline = async (level) => {
+    const absensiArea = document.getElementById('musAbsensiArea');
+    const notulensiArea = document.getElementById('musNotulensiArea');
+    const saveBtn = document.getElementById('musSaveInline');
+    if (!absensiArea) return;
+
+    if (!level) {
+      absensiArea.style.display = 'none';
+      notulensiArea.style.display = 'none';
+      saveBtn.style.display = 'none';
+      return;
+    }
+
+    // Load peserta tetap sesuai level
+    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1',
+      'D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    musInlinePeserta = [];
+    musInlineAbsensi = {};
+    musInlineTamu = [];
+
+    try {
+      if (level === 'ppg_daerah') {
+        musInlinePeserta = await SB.musPeserta.getByDaerah() || [];
+      } else if (level === 'pjp_desa') {
+        const desaId = u.desa_id || '';
+        const desaNama = DESA_NAMA_MAP[desaId] || desaId;
+        let p1 = await SB.musPeserta.getByDesa(desaId) || [];
+        let p2 = desaNama !== desaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
+        const seen = new Set();
+        musInlinePeserta = [...p1, ...p2].filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
+      } else if (u.kelompok_id) {
+        musInlinePeserta = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
+      }
+    } catch(e) { console.error(e); }
+
+    // Default semua hadir
+    musInlinePeserta.forEach(p => { musInlineAbsensi[p.id] = 'H'; });
+
+    MUS_renderAbsensiInline();
+    absensiArea.style.display = 'block';
+    notulensiArea.style.display = 'block';
+    saveBtn.style.display = 'block';
+  };
+
+  window.MUS_renderAbsensiInline = () => {
+    const listEl = document.getElementById('musAbsensiList');
+    const statsEl = document.getElementById('musAbsensiStats');
+    if (!listEl) return;
+
+    const totalH = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'H').length + musInlineTamu.length;
+    const totalI = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'I').length;
+    const totalA = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'A').length;
+
+    statsEl.innerHTML = `
+      <span class="badge badge-green">Hadir: ${totalH}</span>
+      <span class="badge badge-gold">Izin: ${totalI}</span>
+      <span class="badge badge-rose">Alpha: ${totalA}</span>
+      <span class="badge badge-gray">Total: ${musInlinePeserta.length + musInlineTamu.length}</span>`;
+
+    let html = '';
+    musInlinePeserta.forEach(p => {
+      const st = musInlineAbsensi[p.id] || 'H';
+      html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
+        <div>
+          <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}${p.no_hp?' · '+escHtml(p.no_hp):''}</div>
+        </div>
+        <div style="display:flex; gap:4px;">
+          ${['H','I','A'].map(s => `
+            <button onclick="MUS_setAbsInline('${p.id}','${s}')"
+              style="width:34px; height:30px; border:2px solid ${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':'var(--rose)'):'transparent'}; color:${st===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':'var(--rose)')}; font-weight:800; font-size:12px; cursor:pointer;">
+              ${s}
+            </button>`).join('')}
+        </div>
+      </div>`;
+    });
+
+    // Tamu
+    musInlineTamu.forEach((t, i) => {
+      html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
+        <div>
+          <div style="font-weight:700; font-size:13px;">${escHtml(t.nama)} <span class="badge badge-gray" style="font-size:10px;">Tamu</span></div>
+          <div style="font-size:11px; color:var(--ink-soft);">${escHtml(t.jabatan||'')}${t.no_hp?' · '+escHtml(t.no_hp):''}</div>
+        </div>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <span class="badge badge-green">H</span>
+          <button class="btn-icon danger" onclick="MUS_removeTamuInline(${i})" title="Hapus">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
+      </div>`;
+    });
+
+    listEl.innerHTML = html || '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada peserta tetap. Tambahkan di Pengaturan → Peserta Musyawarah.</div>';
+  };
+
+  window.MUS_setAbsInline = (pid, status) => {
+    musInlineAbsensi[pid] = status;
+    MUS_renderAbsensiInline();
+  };
+
+  window.MUS_addTamuInline = () => {
+    const nama = document.getElementById('musInlineTamuNama').value.trim();
+    if (!nama) { showToast('Nama tamu wajib diisi', true); return; }
+    musInlineTamu.push({
+      nama: toTitleCase(nama),
+      jabatan: document.getElementById('musInlineTamuJabatan').value.trim() || null,
+      no_hp: document.getElementById('musInlineTamuHp').value.trim() || null,
+    });
+    document.getElementById('musInlineTamuNama').value = '';
+    document.getElementById('musInlineTamuJabatan').value = '';
+    document.getElementById('musInlineTamuHp').value = '';
+    MUS_renderAbsensiInline();
+    showToast('Tamu ditambahkan');
+  };
+
+  window.MUS_removeTamuInline = (idx) => {
+    musInlineTamu.splice(idx, 1);
+    MUS_renderAbsensiInline();
+  };
+
   window.MUS_simpanInline = async () => {
     const level = document.getElementById('musLevelInline')?.value;
     const tanggal = document.getElementById('musTglInline')?.value;
@@ -3131,13 +3281,40 @@ async function renderMusyawarah() {
     try {
       const res = await SB.musyawarah.insert(data);
       const musId = res?.[0]?.id;
-      showToast('Notulensi disimpan ✓');
+
+      // Simpan absensi peserta tetap
+      if (musId && musInlinePeserta.length) {
+        const absRows = musInlinePeserta.map(p => ({
+          musyawarah_id: musId,
+          peserta_id: p.id,
+          status: musInlineAbsensi[p.id] || 'H',
+        }));
+        await SB.musAbsensi.upsertPeserta(absRows);
+      }
+
+      // Simpan tamu
+      if (musId && musInlineTamu.length) {
+        for (const t of musInlineTamu) {
+          await SB.musAbsensi.insertTamu({
+            musyawarah_id: musId,
+            nama_tamu: t.nama,
+            jabatan_tamu: t.jabatan,
+            no_hp_tamu: t.no_hp,
+            status: 'H',
+          });
+        }
+      }
+
+      showToast('Notulensi & absensi berhasil disimpan ✓');
 
       // Reset form
       document.getElementById('musPencapaianInline').value = '';
       document.getElementById('musKendalaInline').value = '';
       document.getElementById('musSolusiInline').value = '';
       document.getElementById('musTindakLanjutInline').value = '';
+      musInlineTamu = [];
+      musInlinePeserta.forEach(p => { musInlineAbsensi[p.id] = 'H'; });
+      MUS_renderAbsensiInline();
 
       // Refresh daftar
       try {
@@ -3148,16 +3325,15 @@ async function renderMusyawarah() {
       } catch(e2) {}
 
       renderPage();
-
-      // Buka absensi setelah simpan
-      if (musId) {
-        await openMusAbsensiModal(musId, level, u);
+      // Re-trigger level selection
+      if (defaultLevel && !['admin'].includes(role)) {
+        setTimeout(() => { MUS_loadRekap(defaultLevel); MUS_loadAbsensiInline(defaultLevel); }, 200);
       }
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
     }
     btn.disabled = false;
-    btn.textContent = 'Simpan & Isi Absensi \u2192';
+    btn.textContent = 'Simpan Notulensi & Absensi';
   };
 
   window.MUS_edit = (id) => {
@@ -3609,16 +3785,28 @@ async function renderSettings() {
       <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
         Kelola daftar peserta tetap musyawarah. Nama-nama ini akan otomatis muncul saat mengisi absensi musyawarah.
       </p>
-      ${['pjp_kelompok','kelompok','guru','wali_kbm'].includes(u.role) || u.kelompok_id ? `
-      <button class="btn btn-green btn-sm" style="margin-bottom:8px;" onclick="SET_kelolaMusPeserta('kelompok')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-        Peserta Musyawarah Kelompok
-      </button>` : ''}
-      ${['desa','admin'].includes(u.role) ? `
-      <button class="btn btn-outline btn-sm" onclick="SET_kelolaMusPeserta('desa')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-        Peserta Musyawarah Desa
-      </button>` : ''}
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${u.role === 'admin' ? `
+        <button class="btn btn-outline btn-sm" onclick="SET_kelolaMusPeserta('daerah')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          Peserta Musyawarah Daerah
+        </button>` : ''}
+        ${['desa','admin'].includes(u.role) ? `
+        <button class="btn btn-outline btn-sm" onclick="SET_kelolaMusPeserta('desa')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          Peserta Musyawarah Desa
+        </button>` : ''}
+        ${['pjp_kelompok','kelompok','guru','wali_kbm','admin'].includes(u.role) || u.kelompok_id ? `
+        <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-top:4px;">Peserta Musyawarah Kelompok:</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_guru')">
+            👨‍🏫 Guru Generus
+          </button>
+          <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_5unsur')">
+            🤝 5 Unsur
+          </button>
+        </div>` : ''}
+      </div>
     </div>
 
     <div class="card" style="border:1.5px solid var(--gold);">
@@ -3710,8 +3898,14 @@ async function renderSettings() {
   window.SET_naikKelas = () => openNaikKelasModal();
   window.SET_kelolaMusPeserta = (mode) => {
     const user = App.user;
-    if (mode === 'desa') {
+    if (mode === 'daerah') {
+      openKelolaMusPesertaModal(null, user, 'daerah');
+    } else if (mode === 'desa') {
       openKelolaMusPesertaModal(null, user, 'desa');
+    } else if (mode === 'kelompok_guru') {
+      openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok_guru');
+    } else if (mode === 'kelompok_5unsur') {
+      openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok_5unsur');
     } else {
       openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok');
     }
@@ -3729,13 +3923,22 @@ async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
   }
 
   const desaId = u.desa_id || u.kelompok_id || null;
-  const judul = mode === 'desa' ? 'Peserta Musyawarah PJP Desa' : 'Peserta Musyawarah Kelompok';
+  const judulMap = {
+    daerah: 'Peserta Musyawarah PPG Daerah',
+    desa: 'Peserta Musyawarah PJP Desa',
+    kelompok: 'Peserta Musyawarah Kelompok',
+    kelompok_guru: 'Peserta Musyawarah Guru Generus',
+    kelompok_5unsur: 'Peserta Musyawarah 5 Unsur',
+  };
+  const judul = judulMap[mode] || 'Peserta Musyawarah';
 
   async function renderModal() {
     let pesertaList = [];
-    if (mode === 'desa' && desaId) {
+    if (mode === 'daerah') {
+      pesertaList = await SB.musPeserta.getByDaerah();
+    } else if (mode === 'desa' && desaId) {
       pesertaList = await SB.musPeserta.getByDesa(desaId);
-    } else if (kelompokId) {
+    } else if ((mode === 'kelompok' || mode === 'kelompok_guru' || mode === 'kelompok_5unsur') && kelompokId) {
       pesertaList = await SB.musPeserta.getByKelompok(kelompokId);
     }
 
@@ -3795,6 +3998,91 @@ async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
       await renderModal();
     };
   }  // end renderModal
+
+  function openFormPeserta(existing) {
+    let fel = document.getElementById('musPesertaFormModal');
+    if (!fel) {
+      fel = document.createElement('div');
+      fel.id = 'musPesertaFormModal';
+      fel.className = 'modal-overlay';
+      document.body.appendChild(fel);
+    }
+    const p = existing;
+    const urutanDef = (window._musPesertaList?.length || 0) + 1;
+
+    const jabSuggMap = {
+      daerah: ['Ulil Amri Daerah','Penghar PPG','Bidang Kurikulum','Bidang Tenaga Pendidik','Bidang Seni & Olahraga','Bidang Kemandirian','Bidang Keputrian','Bidang KMM Daerah','Bidang Tahfidz','Bidang Sarpras','Bidang Penggalang Dana','Bidang BK'],
+      desa: ['Ulil Amri Desa','PJP Desa KBM','PJP Desa Sarpras','PJP Desa BK','Pengurus Desa'],
+      kelompok_guru: ['PJP Kelompok','Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah','Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah'],
+      kelompok_5unsur: ['Ulil Amri Kelompok','PJP Kelompok','Sekretaris','Bendahara','Bidang Kelompok'],
+      kelompok: ['PJP Kelompok','Wali KBM','Guru','Ulil Amri'],
+    };
+    const jabSugg = jabSuggMap[mode] || jabSuggMap.kelompok;
+
+    fel.innerHTML = `<div class="modal">
+      <div class="modal-head">
+        <h3 class="modal-title">${p ? 'Edit Peserta' : 'Tambah Peserta'}</h3>
+        <button class="modal-close" onclick="closeModal('musPesertaFormModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Nama Lengkap *</label>
+          <input id="mupNama" value="${escHtml(p?.nama||'')}" placeholder="Nama lengkap peserta">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Dapukan</label>
+            <input id="mupJabatan" value="${escHtml(p?.jabatan||'')}" placeholder="Pilih atau ketik" list="jabList">
+            <datalist id="jabList">
+              ${jabSugg.map(j => `<option value="${j}">`).join('')}
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label>Urutan</label>
+            <input type="number" id="mupUrutan" value="${p?.urutan||urutanDef}" min="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>No HP / WhatsApp</label>
+          <input id="mupHp" value="${escHtml(p?.no_hp||'')}" placeholder="08xxx">
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Link WA otomatis dari nomor ini</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('musPesertaFormModal')">Batal</button>
+        <button class="btn btn-green" id="mupSaveBtn">${p ? 'Simpan' : 'Tambah'}</button>
+      </div>
+    </div>`;
+
+    document.getElementById('mupSaveBtn').onclick = async () => {
+      const nama = document.getElementById('mupNama').value.trim();
+      if (!nama) { showToast('Nama wajib diisi', true); return; }
+      const btn = document.getElementById('mupSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      const data = {
+        nama: toTitleCase(nama),
+        jabatan: document.getElementById('mupJabatan').value.trim() || null,
+        no_hp: document.getElementById('mupHp').value.trim() || null,
+        urutan: parseInt(document.getElementById('mupUrutan').value) || 1,
+        kelompok_id: (mode.startsWith('kelompok')) ? kelompokId : null,
+        desa_id: mode === 'desa' ? desaId : null,
+        level_daerah: mode === 'daerah',
+        aktif: true,
+      };
+      try {
+        if (p) await SB.musPeserta.update(p.id, data);
+        else await SB.musPeserta.insert(data);
+        showToast(p ? 'Peserta diperbarui' : 'Peserta ditambahkan');
+        closeModal('musPesertaFormModal');
+        await renderModal();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+      }
+      btn.disabled = false;
+    };
+
+    openModal('musPesertaFormModal');
+  }
 
   await renderModal();
   openModal('musPesertaModal');
