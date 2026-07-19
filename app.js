@@ -5,6 +5,14 @@
 
 const SEM1_MONTHS = ['Juli','Agustus','September','Oktober','November','Desember'];
 const SEM2_MONTHS = ['Januari','Februari','Maret','April','Mei','Juni'];
+
+// Hitung tahun ajaran otomatis: Jul-Des = "2026/2027", Jan-Jun = "2025/2026"
+function getTahunAjaran(date) {
+  const d = date || new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1; // 1-12
+  return m >= 7 ? `${y}/${y+1}` : `${y-1}/${y}`;
+}
 const JENJANG_ORDER = ['PAUD TK','SD 1','SD 2','SD 3','SD 4','SD 5','SD 6',
   'SMP 1','SMP 2','SMP 3','SMA 1','SMA 2','SMA 3','PRA 1','PRA 2','PRA 3','PRA 4'];
 
@@ -873,7 +881,7 @@ async function renderKurikulum() {
   // Ambil progress kalau role kelompok
   let progressSet = new Set();
   if (App.user.role === 'kelompok' && App.user.kelompok_id) {
-    const prog = await SB.progress.getByKelompok(App.user.kelompok_id);
+    const prog = await SB.progress.getByKelompok(App.user.kelompok_id, getTahunAjaran());
     progressSet = new Set(prog.map(p => p.materi_id + '|' + p.bulan));
     App.cache.myProgress = { set: progressSet, raw: prog };
   }
@@ -1320,7 +1328,7 @@ async function renderKurikulum() {
     if (!App.user.kelompok_id) return;
     el.disabled = true;
     try {
-      const result = await SB.progress.toggle(App.user.kelompok_id, materiId, bulan, App.user.id);
+      const result = await SB.progress.toggle(App.user.kelompok_id, materiId, bulan, App.user.id, getTahunAjaran());
       const key = materiId + '|' + bulan;
       if (result === 'checked') progressSet.add(key);
       else progressSet.delete(key);
@@ -2028,7 +2036,7 @@ async function renderAbsensi() {
     const kId = activeKelompokId || myKelompokId || null;
     if (!kId) { cachedProgressSet = new Set(); return; }
     try {
-      const progData = await SB.progress.getByKelompok(kId);
+      const progData = await SB.progress.getByKelompok(kId, getTahunAjaran());
       cachedProgressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
     } catch(e) { cachedProgressSet = new Set(); }
   }
@@ -2036,7 +2044,7 @@ async function renderAbsensi() {
   async function loadPertemuan() {
     if (!selectedKelasId) return;
     await refreshProgress(); // load progress sebelum render
-    pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
+    pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId, getTahunAjaran());
     santriList = await SB.santri.getByKelas(selectedKelasId);
     // Default: tampilkan form pertemuan BARU (bukan data lama)
     currentPertemuanId = null;
@@ -2381,6 +2389,7 @@ async function renderAbsensi() {
       const keDalamHari = pertemuanHariIni.length + 1; // ke-1, ke-2 dst dalam hari ini
 
       const newPertemuan = await SB.pertemuan.insert({
+        tahun_ajaran: getTahunAjaran(),
         kelas_id: selectedKelasId,
         tanggal: tgl,
         bulan: bulanNow,
@@ -2394,7 +2403,7 @@ async function renderAbsensi() {
       currentPertemuanId = pId;
       await doSimpanAll(pId);
       await refreshProgress(); // update cache setelah simpan
-      pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId);
+      pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId, getTahunAjaran());
       const label = keDalamHari > 1
         ? `Pertemuan ke-${kePertemuan} (pertemuan ${keDalamHari}× hari ini) berhasil disimpan ✓`
         : `Pertemuan ke-${kePertemuan} berhasil disimpan ✓`;
@@ -2459,7 +2468,7 @@ async function renderAbsensi() {
     if (kelompokId && selectedMateriIds.size > 0) {
       for (const materiId of selectedMateriIds) {
         try {
-          await SB.progress.toggle_add(kelompokId, materiId, bulan, u.id);
+          await SB.progress.toggle_add(kelompokId, materiId, bulan, u.id, getTahunAjaran());
         } catch(e) { /* abaikan error per-item */ }
       }
     }
@@ -2735,12 +2744,12 @@ async function renderMusyawarah() {
 
     async function hitungKelompokStats(klpId, bulan) {
       const kelasList = await SB.kelas.getByKelompok(klpId);
-      const progData = await SB.progress.getByKelompok(klpId);
+      const progData = await SB.progress.getByKelompok(klpId, getTahunAjaran());
       const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
       const results = [];
       for (const k of kelasList) {
         const [ptList, sList] = await Promise.all([
-          SB.pertemuan.getByKelas(k.id),
+          SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
           SB.santri.getByKelas(k.id),
         ]);
         const ptBulan = ptList.filter(p => p.bulan === bulan);
@@ -2990,7 +2999,7 @@ async function renderMusyawarah() {
         await Promise.all(allKlp.map(async klp => {
           try {
             const [prog, kelasList] = await Promise.all([
-              SB.progress.getByKelompok(klp.id),
+              SB.progress.getByKelompok(klp.id, getTahunAjaran()),
               SB.kelas.getByKelompok(klp.id),
             ]);
             const materiCount = prog.filter(p => p.bulan === tampilBulan).length;
@@ -3000,7 +3009,7 @@ async function renderMusyawarah() {
             const kelasStats = [];
             await Promise.all(kelasList.map(async k => {
               const [ptList, sList] = await Promise.all([
-                SB.pertemuan.getByKelas(k.id),
+                SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
                 SB.santri.getByKelas(k.id),
               ]);
               const ptBulan = ptList.filter(p => p.bulan === tampilBulan);
@@ -4153,14 +4162,14 @@ async function renderRekap() {
   const [kelasList, allMateri, progData] = await Promise.all([
     SB.kelas.getByKelompok(myKelompokId),
     App.cache.materi ? Promise.resolve(App.cache.materi) : SB.materi.getAll().then(d => { App.cache.materi = d; return d; }),
-    SB.progress.getByKelompok(myKelompokId),
+    SB.progress.getByKelompok(myKelompokId, getTahunAjaran()),
   ]);
 
   // Load pertemuan, santri, absensi untuk semua kelas
   const kelasData = {};
   await Promise.all(kelasList.map(async k => {
     const [pertemuanList, santriList] = await Promise.all([
-      SB.pertemuan.getByKelas(k.id),
+      SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
       SB.santri.getByKelas(k.id),
     ]);
     // Load absensi untuk semua pertemuan
@@ -4772,13 +4781,13 @@ async function renderRekapDesa() {
   const kelompokData = {};
   await Promise.all(kelompokDesa.map(async klp => {
     const kelasList = await SB.kelas.getByKelompok(klp.id);
-    const progData = await SB.progress.getByKelompok(klp.id);
+    const progData = await SB.progress.getByKelompok(klp.id, getTahunAjaran());
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
 
     const kelasData = {};
     await Promise.all(kelasList.map(async k => {
       const [pertemuanList, santriKelas] = await Promise.all([
-        SB.pertemuan.getByKelas(k.id),
+        SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
         SB.santri.getByKelas(k.id),
       ]);
       const absensiAll = {};
@@ -5174,12 +5183,12 @@ async function renderRekapDaerah() {
   const kelompokData = {};
   await Promise.all(kelompokList.map(async klp => {
     const kelasList = await SB.kelas.getByKelompok(klp.id);
-    const progData = await SB.progress.getByKelompok(klp.id);
+    const progData = await SB.progress.getByKelompok(klp.id, getTahunAjaran());
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
     const kelasData = {};
     await Promise.all(kelasList.map(async k => {
       const [pertemuanList, santriKelas] = await Promise.all([
-        SB.pertemuan.getByKelas(k.id),
+        SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
         SB.santri.getByKelas(k.id),
       ]);
       const absensiAll = {};
@@ -5849,6 +5858,7 @@ function openAddPertemuanModal(kelasId, onSaved) {
       kelas_id: kelasId, tanggal, bulan,
       tahun: new Date(tanggal).getFullYear(),
       pertemuan_ke: ke, created_by: App.user.id,
+      tahun_ajaran: getTahunAjaran(new Date(tanggal)),
     });
     showToast('Pertemuan dibuat');
     closeModal('pertemuanModal');

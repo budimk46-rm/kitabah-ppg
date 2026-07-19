@@ -152,8 +152,8 @@ const sbSantri = {
 
 // ============ PERTEMUAN ============
 const sbPertemuan = {
-  getByKelas: (kelasId) =>
-    sbFetch(`pertemuan?kelas_id=eq.${kelasId}&select=*&order=tanggal.desc`),
+  getByKelas: (kelasId, ta) =>
+    sbFetch(`pertemuan?kelas_id=eq.${kelasId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*&order=tanggal.desc`),
   insert: (data) => sbFetch('pertemuan', {
     method: 'POST',
     headers: {'Prefer':'return=representation'},
@@ -194,11 +194,11 @@ const sbAbsensi = {
 
 // ============ PROGRESS ============
 const sbProgress = {
-  getByKelompok: (kelompokId) =>
-    sbFetch(`progress?kelompok_id=eq.${kelompokId}&select=*`),
-  toggle: async (kelompokId, materiId, bulan, userId) => {
+  getByKelompok: (kelompokId, ta) =>
+    sbFetch(`progress?kelompok_id=eq.${kelompokId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*`),
+  toggle: async (kelompokId, materiId, bulan, userId, ta) => {
     const existing = await sbFetch(
-      `progress?kelompok_id=eq.${kelompokId}&materi_id=eq.${encodeURIComponent(materiId)}&bulan=eq.${bulan}`
+      `progress?kelompok_id=eq.${kelompokId}&materi_id=eq.${encodeURIComponent(materiId)}&bulan=eq.${bulan}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}`
     );
     if (existing && existing.length > 0) {
       await sbFetch(`progress?id=eq.${existing[0].id}`, { method: 'DELETE' });
@@ -207,20 +207,19 @@ const sbProgress = {
       await sbFetch('progress', {
         method: 'POST',
         headers: {'Prefer':'resolution=ignore-duplicates'},
-        body: JSON.stringify({ kelompok_id: kelompokId, materi_id: materiId, bulan, user_id: userId })
+        body: JSON.stringify({ kelompok_id: kelompokId, materi_id: materiId, bulan, user_id: userId, tahun_ajaran: ta || null })
       });
       return 'checked';
     }
   },
-  // Tambahkan progress kalau belum ada (tidak hapus kalau sudah ada)
-  toggle_add: async (kelompokId, materiId, bulan, userId) => {
+  toggle_add: async (kelompokId, materiId, bulan, userId, ta) => {
     try {
       await sbFetch('progress', {
         method: 'POST',
         headers: {'Prefer':'resolution=ignore-duplicates'},
-        body: JSON.stringify({ kelompok_id: kelompokId, materi_id: materiId, bulan, user_id: userId })
+        body: JSON.stringify({ kelompok_id: kelompokId, materi_id: materiId, bulan, user_id: userId, tahun_ajaran: ta || null })
       });
-    } catch(e) { /* abaikan duplikat */ }
+    } catch(e) {}
   },
   getAll: () => sbFetch('progress?select=*'),
 };
