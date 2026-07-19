@@ -2550,12 +2550,12 @@ async function renderPengurus() {
     return `
       <div class="table-wrap">
         <table style="width:100%; border-collapse:collapse; min-width:400px;">
-          <thead><tr style="background:var(--green-soft);">
-            <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green); width:30px;">No</th>
-            <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green);">Nama</th>
-            <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green);">Dapukan</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:var(--green); width:40px;">WA</th>
-            ${showEdit ? '<th style="padding:7px 10px; text-align:center; font-size:11px; color:var(--green); width:60px;">Aksi</th>' : ''}
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff; width:30px;">No</th>
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Dapukan</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:40px;">WA</th>
+            ${showEdit ? '<th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:60px;">Aksi</th>' : ''}
           </tr></thead>
           <tbody>
             ${list.map((p,i) => `<tr style="border-bottom:1px solid var(--line);">
