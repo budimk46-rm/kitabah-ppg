@@ -7,6 +7,12 @@ const SEM1_MONTHS = ['Juli','Agustus','September','Oktober','November','Desember
 const SEM2_MONTHS = ['Januari','Februari','Maret','April','Mei','Juni'];
 
 // Hitung tahun ajaran otomatis: Jul-Des = "2026/2027", Jan-Jun = "2025/2026"
+// Urutan kelas usia yang benar
+const KELAS_ORDER = {'Caberawit':1,'Pra Remaja':2,'Remaja':3,'Pra Nikah':4};
+function sortKelas(list) {
+  return [...list].sort((a,b) => (KELAS_ORDER[a.nama_kelas]||99) - (KELAS_ORDER[b.nama_kelas]||99));
+}
+
 function getTahunAjaran(date) {
   const d = date || new Date();
   const y = d.getFullYear();
@@ -1778,7 +1784,7 @@ async function renderSantri() {
     selectedKelasId = null;
     santriList = [];
     if (kelompokId) {
-      kelasOptions = await SB.kelas.getByKelompok(kelompokId);
+      kelasOptions = sortKelas(await SB.kelas.getByKelompok(kelompokId));
       if (kelasOptions.length) await loadSantri(kelasOptions[0].id);
       else render();
     } else {
@@ -1910,7 +1916,7 @@ async function renderSantri() {
   window.STR_loadKelompok = async (id) => { await loadKelas(id); };
   window.STR_loadKelas = async (id) => { if (id) await loadSantri(id); };
   window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
-    kelasOptions = await SB.kelas.getByKelompok(selectedKelompokId);
+    kelasOptions = sortKelas(await SB.kelas.getByKelompok(selectedKelompokId));
     render();
   });
   window.STR_addSantri = () => openAddSantriModal(selectedKelasId, null, async () => {
@@ -2021,7 +2027,7 @@ async function renderAbsensi() {
       App.cache.materi = await SB.materi.getAll();
     }
     let selectedMateriIds = new Set();
-  const kelasOptions = await SB.kelas.getByKelompok(myKelompokId);
+  const kelasOptions = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
   let activeKelompokId = myKelompokId; // track kelompok aktif untuk progress
@@ -2743,7 +2749,7 @@ async function renderMusyawarah() {
     }
 
     async function hitungKelompokStats(klpId, bulan) {
-      const kelasList = await SB.kelas.getByKelompok(klpId);
+      const kelasList = sortKelas(await SB.kelas.getByKelompok(klpId));
       const progData = await SB.progress.getByKelompok(klpId, getTahunAjaran());
       const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
       const results = [];
@@ -4159,11 +4165,13 @@ async function renderRekap() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data rekap...</div></div>';
 
   // Load semua data yang dibutuhkan
-  const [kelasList, allMateri, progData] = await Promise.all([
+  const [kelasListRaw, allMateri, progData] = await Promise.all([
     SB.kelas.getByKelompok(myKelompokId),
     App.cache.materi ? Promise.resolve(App.cache.materi) : SB.materi.getAll().then(d => { App.cache.materi = d; return d; }),
     SB.progress.getByKelompok(myKelompokId, getTahunAjaran()),
   ]);
+
+  const kelasList = sortKelas(kelasListRaw);
 
   // Load pertemuan, santri, absensi untuk semua kelas
   const kelasData = {};
@@ -4782,7 +4790,7 @@ async function renderRekapDesa() {
   // Load kelas, pertemuan, absensi, progress untuk setiap kelompok
   const kelompokData = {};
   await Promise.all(kelompokDesa.map(async klp => {
-    const kelasList = await SB.kelas.getByKelompok(klp.id);
+    const kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
     const progData = await SB.progress.getByKelompok(klp.id, getTahunAjaran());
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
 
@@ -5184,7 +5192,7 @@ async function renderRekapDaerah() {
   const allSantri = await SB.santri.getAll();
   const kelompokData = {};
   await Promise.all(kelompokList.map(async klp => {
-    const kelasList = await SB.kelas.getByKelompok(klp.id);
+    const kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
     const progData = await SB.progress.getByKelompok(klp.id, getTahunAjaran());
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
     const kelasData = {};
