@@ -4187,14 +4187,34 @@ async function renderRekap() {
   function renderDashboard() {
     // Bulan chips
     const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
-    const bulanChips = semNow.map(m => `
-      <div onclick="REKAP_setBulan('${m}')"
-        style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
-          background:${selectedBulan===m?'var(--green)':'var(--white)'};
-          color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
-          border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
-        ${m}${m===nowMonth?' ●':''}
-      </div>`).join('');
+    const semPrev = semNow === SEM1_MONTHS ? SEM2_MONTHS : SEM1_MONTHS;
+    const bulanChips = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester ini:</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${semNow.map(m => `
+            <div onclick="REKAP_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester lalu:</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${semPrev.map(m => `
+            <div onclick="REKAP_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}
+            </div>`).join('')}
+        </div>
+      </div>`;
 
     // Hitung statistik per kelas
     const kelasStats = kelasList.map(k => {
