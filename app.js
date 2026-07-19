@@ -4197,11 +4197,13 @@ async function renderRekap() {
     // Bulan chips
     const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
     const semPrev = semNow === SEM1_MONTHS ? SEM2_MONTHS : SEM1_MONTHS;
+    const sem1Label = 'Semester 1 (Jul - Des)';
+    const sem2Label = 'Semester 2 (Jan - Jun)';
     const bulanChips = `
       <div style="margin-bottom:6px;">
-        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester ini:</div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">${sem1Label}:</div>
         <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
-          ${semNow.map(m => `
+          ${SEM1_MONTHS.map(m => `
             <div onclick="REKAP_setBulan('${m}')"
               style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
                 background:${selectedBulan===m?'var(--green)':'var(--white)'};
@@ -4212,15 +4214,15 @@ async function renderRekap() {
         </div>
       </div>
       <div>
-        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester lalu:</div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">${sem2Label}:</div>
         <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
-          ${semPrev.map(m => `
+          ${SEM2_MONTHS.map(m => `
             <div onclick="REKAP_setBulan('${m}')"
               style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
                 background:${selectedBulan===m?'var(--green)':'var(--white)'};
                 color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
                 border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
-              ${m.slice(0,3)}
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
             </div>`).join('')}
         </div>
       </div>`;
