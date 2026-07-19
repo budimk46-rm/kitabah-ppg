@@ -2818,7 +2818,7 @@ async function renderMusyawarah() {
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM — ${escHtml(klpNama)}</div>
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM — ${escHtml(klpNama)} · TA ${getTahunAjaran()}</div>
               <div style="display:flex; gap:6px;">
                 ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
                   ${bulanLalu}
@@ -2850,7 +2850,7 @@ async function renderMusyawarah() {
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM Kelompok</div>
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM Kelompok · TA ${getTahunAjaran()}</div>
               <div style="display:flex; gap:6px;">
                 ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
                   ${bulanLalu}
@@ -2905,7 +2905,7 @@ async function renderMusyawarah() {
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Kelompok</div>
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Kelompok · TA ${getTahunAjaran()}</div>
               <div style="display:flex; gap:6px;">
                 ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
                   ${bulanLalu}
@@ -3078,7 +3078,7 @@ async function renderMusyawarah() {
         area.innerHTML = `
           <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--green);">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Desa</div>
+              <div style="font-weight:800; font-size:14px; color:var(--green);">📊 Rekap KBM per Desa · TA ${getTahunAjaran()}</div>
               <div style="display:flex; gap:6px;">
                 ${bulanLalu ? `<button class="btn btn-outline btn-sm" style="font-size:11px; padding:4px 10px; ${tampilBulan===bulanLalu?'background:var(--green);color:#fff;':''}" onclick="window._musRekapBulan='${bulanLalu}';MUS_loadRekap('${level}')">
                   ${bulanLalu}
@@ -4393,7 +4393,7 @@ async function renderRekap() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Rekap KBM</h1>
-          <p style="font-size:15px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(kelompokNama)} · Bulan ${escHtml(selectedBulan)}</p>
+          <p style="font-size:15px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(kelompokNama)} · Bulan ${escHtml(selectedBulan)} · TA ${getTahunAjaran()}</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <button class="btn btn-outline btn-sm" onclick="REKAP_pdfRingkas()">
@@ -4930,7 +4930,7 @@ async function renderRekapDesa() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Rekap Desa</h1>
-          <p class="page-subtitle">${escHtml(myDesaNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan}</p>
+          <p class="page-subtitle">${escHtml(myDesaNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-outline btn-sm" onclick="RD_downloadPdf()">
@@ -5339,7 +5339,7 @@ async function renderRekapDaerah() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Rekap Daerah</h1>
-          <p class="page-subtitle">PPG Sidoarjo Utara · ${kelompokList.length} kelompok · Bulan ${selectedBulan}</p>
+          <p class="page-subtitle">PPG Sidoarjo Utara · ${kelompokList.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
         </div>
         <button class="btn btn-outline btn-sm" onclick="RDA_downloadPdf()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
