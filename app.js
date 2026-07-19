@@ -660,6 +660,7 @@ function bookIcon() { return SVG('<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path
 function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'); }
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
+function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
 function userIcon() { return SVG('<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'); }
 function checkIcon() { return SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>'); }
 function chartIcon() { return SVG('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'); }
@@ -672,6 +673,7 @@ const NAV_ITEMS = {
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
@@ -679,12 +681,14 @@ const NAV_ITEMS = {
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Daerah' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   desa: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   pjp_kelompok: [
@@ -694,18 +698,21 @@ const NAV_ITEMS = {
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   wali_kbm: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   guru: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum Kelas Saya' },
     { id: 'absensi', icon: calIcon(), label: 'Input Absensi & Jurnal' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
   kelompok: [
@@ -714,6 +721,7 @@ const NAV_ITEMS = {
     { id: 'progress', icon: checkIcon(), label: 'Progress Materi' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap Progress' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
 };
@@ -766,6 +774,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
       case 'rekap_desa':  await renderRekapDesa(); break;
       case 'rekap_daerah': await renderRekapDaerah(); break;
@@ -2486,6 +2495,228 @@ async function renderAbsensi() {
   } // end lanjutAbsensi
 }
 
+/* ===== PAGE: DATA PENGURUS ===== */
+async function renderPengurus() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Load data pengurus
+  let pengurusDaerah = [], pengurusDesa = {}, pengurusKlp = {};
+  try {
+    if (isAdmin || u.role === 'daerah') {
+      pengurusDaerah = await SB.musPeserta.getByDaerah() || [];
+    }
+    if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
+    if (isAdmin || u.role === 'daerah' || u.role === 'desa') {
+      const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+      const desaList = isAdmin || u.role === 'daerah'
+        ? Object.entries(DESA_NAMA_MAP)
+        : [[u.desa_id, DESA_NAMA_MAP[u.desa_id] || u.desa_id]];
+      for (const [did, dNama] of desaList) {
+        const p = await SB.musPeserta.getByDesa(dNama) || [];
+        const p2 = await SB.musPeserta.getByDesa(did) || [];
+        const seen = new Set();
+        pengurusDesa[dNama] = [...p, ...p2].filter(x => { if(seen.has(x.id)) return false; seen.add(x.id); return true; });
+      }
+    }
+
+    if (isAdmin) {
+      for (const klp of (App.cache.kelompok||[])) {
+        pengurusKlp[klp.id] = await SB.musPeserta.getByKelompok(klp.id) || [];
+      }
+    } else if (u.kelompok_id) {
+      pengurusKlp[u.kelompok_id] = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
+    } else if (u.role === 'desa') {
+      const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+      for (const klp of klpDesa) {
+        pengurusKlp[klp.id] = await SB.musPeserta.getByKelompok(klp.id) || [];
+      }
+    }
+  } catch(e) { console.error(e); }
+
+  function waBtn(p) {
+    const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
+    return waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; background:#25d366; border-radius:50%; flex-shrink:0;" title="WhatsApp">
+      <svg viewBox="0 0 24 24" fill="#fff" width="14" height="14"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
+    </a>` : '';
+  }
+
+  function renderTable(list, title, showEdit, editMode) {
+    if (!list.length) return `<div style="font-size:12px; color:var(--ink-soft); padding:8px;">Belum ada data pengurus.</div>`;
+    return `
+      <div class="table-wrap">
+        <table style="width:100%; border-collapse:collapse; min-width:400px;">
+          <thead><tr style="background:var(--green-soft);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green); width:30px;">No</th>
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green);">Nama</th>
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green);">Dapukan</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:var(--green); width:40px;">WA</th>
+            ${showEdit ? '<th style="padding:7px 10px; text-align:center; font-size:11px; color:var(--green); width:60px;">Aksi</th>' : ''}
+          </tr></thead>
+          <tbody>
+            ${list.map((p,i) => `<tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:6px 10px; font-size:12px; color:var(--ink-soft);">${i+1}</td>
+              <td style="padding:6px 10px; font-size:13px; font-weight:600;">${escHtml(p.nama)}</td>
+              <td style="padding:6px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(p.jabatan||'-')}</td>
+              <td style="padding:6px 10px; text-align:center;">${waBtn(p)}</td>
+              ${showEdit ? `<td style="padding:6px 10px; text-align:center;">
+                <div style="display:flex; gap:3px; justify-content:center;">
+                  <button class="btn-icon" onclick="PGR_edit('${p.id}','${editMode}')" title="Edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+                  </button>
+                  <button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                  </button>
+                </div>
+              </td>` : ''}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // Build HTML
+  let html = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Data Pengurus</h1>
+        <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Direktori pengurus PPG Sidoarjo Utara</p>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="PGR_downloadPdf()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        PDF
+      </button>
+    </div>`;
+
+  // Pengurus Daerah
+  if (pengurusDaerah.length) {
+    html += `<div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div class="fw-bold color-green" style="font-size:14px;">🏛️ Pengurus Daerah</div>
+        ${isAdmin ? '<button class="btn btn-outline btn-sm" onclick="PGR_tambah(\'daerah\')">+ Tambah</button>' : ''}
+      </div>
+      ${renderTable(pengurusDaerah, 'Daerah', isAdmin, 'daerah')}
+    </div>`;
+  }
+
+  // Pengurus Desa
+  for (const [dNama, list] of Object.entries(pengurusDesa)) {
+    const canEdit = isAdmin || u.role === 'desa';
+    html += `<div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div class="fw-bold color-green" style="font-size:14px;">🏘️ ${escHtml(dNama)}</div>
+        ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="PGR_tambah('desa','${escHtml(dNama)}')">+ Tambah</button>` : ''}
+      </div>
+      ${renderTable(list, dNama, canEdit, 'desa')}
+    </div>`;
+  }
+
+  // Pengurus Kelompok
+  const allKlp = App.cache.kelompok || [];
+  for (const [kid, list] of Object.entries(pengurusKlp)) {
+    const klp = allKlp.find(k => k.id === kid);
+    const canEdit = isAdmin || u.role === 'pjp_kelompok' || u.role === 'kelompok';
+    html += `<div class="card" style="margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div class="fw-bold color-green" style="font-size:14px;">👥 ${escHtml(klp?.nama||kid)} <span style="font-size:11px; color:var(--ink-soft);">(${escHtml(klp?.desa?.nama||'')})</span></div>
+        ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="PGR_tambah('kelompok','${kid}')">+ Tambah</button>` : ''}
+      </div>
+      ${renderTable(list, klp?.nama||kid, canEdit, 'kelompok')}
+    </div>`;
+  }
+
+  main.innerHTML = html;
+
+  // Handlers
+  window.PGR_tambah = (mode, ref) => {
+    const user = App.user;
+    if (mode === 'daerah') openKelolaMusPesertaModal(null, user, 'daerah');
+    else if (mode === 'desa') openKelolaMusPesertaModal(null, user, 'desa');
+    else openKelolaMusPesertaModal(ref || user.kelompok_id, user, 'kelompok');
+  };
+  window.PGR_edit = (id, mode) => {
+    // Buka modal kelola peserta dan scroll ke item
+    const user = App.user;
+    openKelolaMusPesertaModal(user.kelompok_id, user, mode);
+  };
+  window.PGR_hapus = async (id) => {
+    if (!confirm('Hapus pengurus ini?')) return;
+    await SB.musPeserta.softDelete(id);
+    showToast('Pengurus dihapus');
+    renderPengurus();
+  };
+  window.PGR_downloadPdf = async () => {
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((res,rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload=res; s.onerror=rej; document.head.appendChild(s);
+      });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const W=595,H=842,ML=40,MR=40,MT=44;
+      const GREEN=rgb(0.106,0.227,0.173),GRAY=rgb(0.5,0.5,0.5),LGREEN=rgb(0.91,0.96,0.91);
+
+      let page = doc.addPage([W,H]); let y = H-MT;
+      function newPage(){page=doc.addPage([W,H]);y=H-MT;}
+      function checkY(n){if(y<n+36)newPage();}
+
+      page.drawText('DATA PENGURUS PPG SIDOARJO UTARA', {x:ML,y,font:fBold,size:13,color:GREEN});
+      y-=14;
+      page.drawText('Dicetak: '+new Date().toLocaleDateString('id-ID'), {x:ML,y,font:fReg,size:9,color:GRAY});
+      y-=8; page.drawLine({start:{x:ML,y},end:{x:W-MR,y},thickness:1.5,color:GREEN}); y-=16;
+
+      function drawSection(title, list) {
+        checkY(30);
+        page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:18,color:GREEN});
+        page.drawText(title, {x:ML+5,y,font:fBold,size:10,color:rgb(1,1,1)});
+        y-=22;
+        list.forEach((p,i) => {
+          checkY(14);
+          const bg = i%2===0?LGREEN:rgb(1,1,1);
+          page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:13,color:bg});
+          page.drawText((i+1)+'.', {x:ML+3,y:y-1,font:fReg,size:8,color:GRAY});
+          page.drawText(p.nama||'-', {x:ML+20,y:y-1,font:fBold,size:8.5,color:rgb(0.1,0.1,0.1)});
+          page.drawText(p.jabatan||'-', {x:ML+180,y:y-1,font:fReg,size:8,color:rgb(0.3,0.3,0.3)});
+          page.drawText(p.no_hp||'-', {x:ML+360,y:y-1,font:fReg,size:8,color:rgb(0.3,0.3,0.3)});
+          y-=13;
+        });
+        y-=8;
+      }
+
+      if (pengurusDaerah.length) drawSection('PENGURUS DAERAH', pengurusDaerah);
+      for (const [dNama, list] of Object.entries(pengurusDesa)) {
+        if (list.length) drawSection('PENGURUS '+dNama.toUpperCase(), list);
+      }
+      for (const [kid, list] of Object.entries(pengurusKlp)) {
+        const klp = allKlp.find(k=>k.id===kid);
+        if (list.length) drawSection('KELOMPOK '+(klp?.nama||kid).toUpperCase(), list);
+      }
+
+      doc.getPages().forEach((p,i)=>{
+        p.drawText('Hal '+(i+1)+'/'+doc.getPageCount(), {x:ML,y:24,font:fReg,size:8,color:GRAY});
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes],{type:'application/pdf'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download='Data_Pengurus_PPG.pdf'; a.click();
+      URL.revokeObjectURL(url);
+      showToast('PDF berhasil diunduh');
+    } catch(e) { showToast('Gagal: '+e.message, true); }
+  };
+}
+
 /* ===== PAGE: MUSYAWARAH ===== */
 const MUSYAWARAH_LEVEL = {
   guru_generus: { label: 'Musyawarah Guru Generus', icon: '👨‍🏫', warna: 'badge-green', roles: ['pjp_kelompok','wali_kbm','guru','kelompok','admin'] },
@@ -3821,49 +4052,24 @@ async function renderSettings() {
     <div class="card" style="border:1.5px solid var(--green);">
       <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">👥 Peserta Musyawarah</div>
       <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
-        Kelola daftar peserta tetap dan konfigurasi dapukan yang wajib hadir di setiap jenis musyawarah.
+        Konfigurasi dapukan wajib hadir dan kelola data peserta musyawarah.
       </p>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <!-- Konfigurasi dapukan wajib hadir -->
-        <div style="font-size:12px; font-weight:700; color:var(--green); margin-top:4px;">Konfigurasi Peserta Wajib Hadir:</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
         ${['pjp_kelompok','kelompok','admin'].includes(u.role) ? `
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="SET_konfig('guru_generus')">
-            👨‍🏫 Mus. Guru Generus
-          </button>
-          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="SET_konfig('unsur_5')">
-            🤝 Mus. 5 Unsur
-          </button>
-        </div>` : ''}
+        <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('guru_generus')">
+          👨‍🏫 Konfig Mus. Guru
+        </button>
+        <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('unsur_5')">
+          🤝 Konfig Mus. 5 Unsur
+        </button>` : ''}
         ${['desa','admin'].includes(u.role) ? `
-        <button class="btn btn-outline btn-sm" onclick="SET_konfig('pjp_desa')">
-          🏘️ Mus. PJP Desa
+        <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('pjp_desa')">
+          🏘️ Konfig Mus. PJP Desa
         </button>` : ''}
         ${u.role === 'admin' ? `
-        <button class="btn btn-outline btn-sm" onclick="SET_konfig('ppg_daerah')">
-          🏛️ Mus. PPG Daerah
+        <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('ppg_daerah')">
+          🏛️ Konfig Mus. PPG Daerah
         </button>` : ''}
-
-        <div style="border-top:1px solid var(--line); margin-top:6px; padding-top:10px;">
-          <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:8px;">Kelola Data Peserta:</div>
-          ${u.role === 'admin' ? `
-          <button class="btn btn-outline btn-sm" style="margin-bottom:6px;" onclick="SET_kelolaMusPeserta('daerah')">
-            🏛️ Pengurus Daerah
-          </button>` : ''}
-          ${['desa','admin'].includes(u.role) ? `
-          <button class="btn btn-outline btn-sm" style="margin-bottom:6px;" onclick="SET_kelolaMusPeserta('desa')">
-            🏘️ Pengurus Desa
-          </button>` : ''}
-          ${['pjp_kelompok','kelompok','guru','wali_kbm','admin'].includes(u.role) || u.kelompok_id ? `
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_guru')">
-              👨‍🏫 Guru Generus
-            </button>
-            <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_5unsur')">
-              🤝 5 Unsur
-            </button>
-          </div>` : ''}
-        </div>
       </div>
     </div>
 
