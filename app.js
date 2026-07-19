@@ -2636,7 +2636,7 @@ async function renderMusyawarah() {
               <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">+ Tambah Peserta Tamu</div>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 <input id="musInlineTamuNama" placeholder="Nama" style="flex:2; min-width:120px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
-                <input id="musInlineTamuJabatan" placeholder="Jabatan" style="flex:1; min-width:80px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
+                <input id="musInlineTamuJabatan" placeholder="Dapukan" style="flex:1; min-width:80px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
                 <input id="musInlineTamuHp" placeholder="No HP" style="flex:1; min-width:100px; padding:7px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12px;">
                 <button class="btn btn-outline btn-sm" onclick="MUS_addTamuInline()">+</button>
               </div>
@@ -3148,27 +3148,53 @@ async function renderMusyawarah() {
       return;
     }
 
-    // Load peserta tetap sesuai level
     const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1',
       'D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
     musInlinePeserta = [];
     musInlineAbsensi = {};
     musInlineTamu = [];
 
+    // Load konfigurasi dapukan wajib hadir
+    let konfig = null;
+    try {
+      const res = await SB.musKonfig.get(level, u.kelompok_id || null, u.desa_id || null);
+      if (res && res.length) konfig = res[0];
+    } catch(e) {}
+    const dapukanWajib = konfig?.dapukan_wajib || [];
+
+    // Load semua peserta yang relevan
+    let allPeserta = [];
     try {
       if (level === 'ppg_daerah') {
-        musInlinePeserta = await SB.musPeserta.getByDaerah() || [];
+        allPeserta = await SB.musPeserta.getByDaerah() || [];
       } else if (level === 'pjp_desa') {
         const desaId = u.desa_id || '';
         const desaNama = DESA_NAMA_MAP[desaId] || desaId;
         let p1 = await SB.musPeserta.getByDesa(desaId) || [];
         let p2 = desaNama !== desaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
+        // Juga load PJP kelompok + Wali KBM dari kelompok se-desa
+        if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+        const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
+        for (const klp of klpDesa) {
+          const klpPeserta = await SB.musPeserta.getByKelompok(klp.id) || [];
+          p2 = [...p2, ...klpPeserta];
+        }
         const seen = new Set();
-        musInlinePeserta = [...p1, ...p2].filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
+        allPeserta = [...p1, ...p2].filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
       } else if (u.kelompok_id) {
-        musInlinePeserta = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
+        allPeserta = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
       }
     } catch(e) { console.error(e); }
+
+    // Filter berdasarkan konfigurasi dapukan wajib
+    if (dapukanWajib.length > 0) {
+      musInlinePeserta = allPeserta.filter(p =>
+        dapukanWajib.some(d => (p.jabatan||'').toLowerCase().includes(d.toLowerCase()))
+      );
+    } else {
+      // Belum dikonfigurasi — tampilkan semua
+      musInlinePeserta = allPeserta;
+    }
 
     // Default semua hadir
     musInlinePeserta.forEach(p => { musInlineAbsensi[p.id] = 'H'; });
@@ -3197,15 +3223,21 @@ async function renderMusyawarah() {
     let html = '';
     musInlinePeserta.forEach(p => {
       const st = musInlineAbsensi[p.id] || 'H';
+      const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
       html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
-        <div>
-          <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
-          <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}${p.no_hp?' · '+escHtml(p.no_hp):''}</div>
+        <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
+            <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}</div>
+          </div>
+          ${waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="flex-shrink:0; width:28px; height:28px; background:#25d366; border-radius:50%; display:flex; align-items:center; justify-content:center;" title="WhatsApp ${escHtml(p.nama)}">
+            <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
+          </a>` : ''}
         </div>
-        <div style="display:flex; gap:4px;">
-          ${['H','I','A'].map(s => `
+        <div style="display:flex; gap:4px; flex-shrink:0;">
+          ${['H','I','S','A'].map(s => `
             <button onclick="MUS_setAbsInline('${p.id}','${s}')"
-              style="width:34px; height:30px; border:2px solid ${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':'var(--rose)'):'transparent'}; color:${st===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':'var(--rose)')}; font-weight:800; font-size:12px; cursor:pointer;">
+              style="width:32px; height:30px; border:2px solid ${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'transparent'}; color:${st===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)')}; font-weight:800; font-size:11px; cursor:pointer;">
               ${s}
             </button>`).join('')}
         </div>
@@ -3214,10 +3246,16 @@ async function renderMusyawarah() {
 
     // Tamu
     musInlineTamu.forEach((t, i) => {
+      const waLink = t.no_hp ? 'https://wa.me/62'+t.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '';
       html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
-        <div>
-          <div style="font-weight:700; font-size:13px;">${escHtml(t.nama)} <span class="badge badge-gray" style="font-size:10px;">Tamu</span></div>
-          <div style="font-size:11px; color:var(--ink-soft);">${escHtml(t.jabatan||'')}${t.no_hp?' · '+escHtml(t.no_hp):''}</div>
+        <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13px;">${escHtml(t.nama)} <span class="badge badge-gray" style="font-size:10px;">Tamu</span></div>
+            <div style="font-size:11px; color:var(--ink-soft);">${escHtml(t.jabatan||'')}</div>
+          </div>
+          ${waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="flex-shrink:0; width:28px; height:28px; background:#25d366; border-radius:50%; display:flex; align-items:center; justify-content:center;" title="WhatsApp">
+            <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
+          </a>` : ''}
         </div>
         <div style="display:flex; gap:4px; align-items:center;">
           <span class="badge badge-green">H</span>
@@ -3674,7 +3712,7 @@ async function openMusAbsensiModal(musId, level, u) {
         <div class="table-wrap" style="margin-bottom:14px;">
           <table>
             <thead><tr>
-              <th>Nama & Jabatan</th>
+              <th>Nama & Dapukan</th>
               <th>No HP</th>
               <th style="text-align:center;">H &nbsp; I &nbsp; A</th>
             </tr></thead>
@@ -3696,7 +3734,7 @@ async function openMusAbsensiModal(musId, level, u) {
           <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">+ Tambah Peserta Tamu (tidak ada di daftar tetap)</div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <input id="tamuNama" placeholder="Nama tamu" style="flex:2; min-width:140px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
-            <input id="tamuJabatan" placeholder="Jabatan" style="flex:1; min-width:100px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+            <input id="tamuJabatan" placeholder="Dapukan" style="flex:1; min-width:100px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
             <input id="tamuHp" placeholder="No HP (opsional)" style="flex:1; min-width:120px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
             <button class="btn btn-green btn-sm" onclick="MABS_tambahTamu()">Tambah</button>
           </div>
@@ -3783,29 +3821,49 @@ async function renderSettings() {
     <div class="card" style="border:1.5px solid var(--green);">
       <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">👥 Peserta Musyawarah</div>
       <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
-        Kelola daftar peserta tetap musyawarah. Nama-nama ini akan otomatis muncul saat mengisi absensi musyawarah.
+        Kelola daftar peserta tetap dan konfigurasi dapukan yang wajib hadir di setiap jenis musyawarah.
       </p>
       <div style="display:flex; flex-direction:column; gap:8px;">
-        ${u.role === 'admin' ? `
-        <button class="btn btn-outline btn-sm" onclick="SET_kelolaMusPeserta('daerah')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          Peserta Musyawarah Daerah
-        </button>` : ''}
-        ${['desa','admin'].includes(u.role) ? `
-        <button class="btn btn-outline btn-sm" onclick="SET_kelolaMusPeserta('desa')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          Peserta Musyawarah Desa
-        </button>` : ''}
-        ${['pjp_kelompok','kelompok','guru','wali_kbm','admin'].includes(u.role) || u.kelompok_id ? `
-        <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-top:4px;">Peserta Musyawarah Kelompok:</div>
+        <!-- Konfigurasi dapukan wajib hadir -->
+        <div style="font-size:12px; font-weight:700; color:var(--green); margin-top:4px;">Konfigurasi Peserta Wajib Hadir:</div>
+        ${['pjp_kelompok','kelompok','admin'].includes(u.role) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_guru')">
-            👨‍🏫 Guru Generus
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="SET_konfig('guru_generus')">
+            👨‍🏫 Mus. Guru Generus
           </button>
-          <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_5unsur')">
-            🤝 5 Unsur
+          <button class="btn btn-outline btn-sm" style="flex:1;" onclick="SET_konfig('unsur_5')">
+            🤝 Mus. 5 Unsur
           </button>
         </div>` : ''}
+        ${['desa','admin'].includes(u.role) ? `
+        <button class="btn btn-outline btn-sm" onclick="SET_konfig('pjp_desa')">
+          🏘️ Mus. PJP Desa
+        </button>` : ''}
+        ${u.role === 'admin' ? `
+        <button class="btn btn-outline btn-sm" onclick="SET_konfig('ppg_daerah')">
+          🏛️ Mus. PPG Daerah
+        </button>` : ''}
+
+        <div style="border-top:1px solid var(--line); margin-top:6px; padding-top:10px;">
+          <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:8px;">Kelola Data Peserta:</div>
+          ${u.role === 'admin' ? `
+          <button class="btn btn-outline btn-sm" style="margin-bottom:6px;" onclick="SET_kelolaMusPeserta('daerah')">
+            🏛️ Pengurus Daerah
+          </button>` : ''}
+          ${['desa','admin'].includes(u.role) ? `
+          <button class="btn btn-outline btn-sm" style="margin-bottom:6px;" onclick="SET_kelolaMusPeserta('desa')">
+            🏘️ Pengurus Desa
+          </button>` : ''}
+          ${['pjp_kelompok','kelompok','guru','wali_kbm','admin'].includes(u.role) || u.kelompok_id ? `
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_guru')">
+              👨‍🏫 Guru Generus
+            </button>
+            <button class="btn btn-green btn-sm" style="flex:1;" onclick="SET_kelolaMusPeserta('kelompok_5unsur')">
+              🤝 5 Unsur
+            </button>
+          </div>` : ''}
+        </div>
       </div>
     </div>
 
@@ -3898,18 +3956,124 @@ async function renderSettings() {
   window.SET_naikKelas = () => openNaikKelasModal();
   window.SET_kelolaMusPeserta = (mode) => {
     const user = App.user;
-    if (mode === 'daerah') {
-      openKelolaMusPesertaModal(null, user, 'daerah');
-    } else if (mode === 'desa') {
-      openKelolaMusPesertaModal(null, user, 'desa');
-    } else if (mode === 'kelompok_guru') {
-      openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok_guru');
-    } else if (mode === 'kelompok_5unsur') {
-      openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok_5unsur');
-    } else {
-      openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok');
+    if (mode === 'daerah') openKelolaMusPesertaModal(null, user, 'daerah');
+    else if (mode === 'desa') openKelolaMusPesertaModal(null, user, 'desa');
+    else if (mode === 'kelompok_guru') openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok_guru');
+    else if (mode === 'kelompok_5unsur') openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok_5unsur');
+    else openKelolaMusPesertaModal(user.kelompok_id, user, 'kelompok');
+  };
+  window.SET_konfig = (levelMus) => openKonfigMusyawarahModal(levelMus, App.user);
+}
+
+/* ===== KONFIGURASI PESERTA MUSYAWARAH ===== */
+async function openKonfigMusyawarahModal(levelMus, u) {
+  let el = document.getElementById('konfigMusModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'konfigMusModal';
+    el.className = 'modal-overlay';
+    document.body.appendChild(el);
+  }
+
+  const cfg = MUSYAWARAH_LEVEL[levelMus] || {};
+  const kelompokId = u.kelompok_id || null;
+  const desaId = u.desa_id || null;
+
+  // Daftar semua dapukan yang tersedia per level
+  const DAPUKAN_OPTIONS = {
+    guru_generus: [
+      'PJP Kelompok',
+      'Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah',
+      'Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah',
+      'Guru Generus',
+    ],
+    unsur_5: [
+      'Ulil Amri Kelompok','PJP Kelompok',
+      'Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah',
+      'Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah',
+      'Guru Generus','Sekretaris','Bendahara','BK Kelompok','Bidang Kelompok',
+    ],
+    pjp_desa: [
+      'Ulil Amri Desa','PJP Desa KBM','PJP Desa Sarpras','PJP Desa BK',
+      'PJP Kelompok',
+      'Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah',
+      'Guru Generus','BK Kelompok','Pengurus Desa',
+    ],
+    ppg_daerah: [
+      'Ulil Amri Daerah','Penghar PPG',
+      'Bidang Kurikulum','Bidang Tenaga Pendidik','Bidang Seni & Olahraga','Bidang Kemandirian',
+      'Bidang Keputrian','Bidang KMM Daerah','Bidang Tahfidz','Bidang Sarana dan Prasarana',
+      'Bidang Penggalang Dana','Bidang Bimbingan Konseling',
+      'Ulil Amri Desa','PJP Desa KBM',
+    ],
+  };
+
+  const options = DAPUKAN_OPTIONS[levelMus] || [];
+
+  // Load konfigurasi existing
+  let existing = null;
+  try {
+    const res = await SB.musKonfig.get(levelMus, kelompokId, desaId);
+    if (res && res.length) existing = res[0];
+  } catch(e) {}
+
+  const selectedDapukan = new Set(existing?.dapukan_wajib || []);
+
+  function renderKonfig() {
+    const checkboxes = options.map(d => `
+      <label style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:1.5px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:8px; cursor:pointer; background:${selectedDapukan.has(d)?'var(--green-soft)':'var(--white)'}; transition:all .15s;" onclick="KONFIG_toggle('${escHtml(d)}')">
+        <div style="width:20px; height:20px; border:2px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:4px; display:flex; align-items:center; justify-content:center; background:${selectedDapukan.has(d)?'var(--green)':'transparent'}; flex-shrink:0;">
+          ${selectedDapukan.has(d) ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+        </div>
+        <span style="font-size:13px; font-weight:${selectedDapukan.has(d)?'700':'500'}; color:${selectedDapukan.has(d)?'var(--green)':'var(--ink)'};">${escHtml(d)}</span>
+      </label>`).join('');
+
+    el.innerHTML = `<div class="modal modal-lg">
+      <div class="modal-head">
+        <h3 class="modal-title">Konfigurasi ${cfg.icon||''} ${cfg.label||levelMus}</h3>
+        <button class="modal-close" onclick="closeModal('konfigMusModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
+          Centang dapukan yang <b>wajib hadir</b> di musyawarah ini. Peserta dengan dapukan yang dicentang akan otomatis muncul di form absensi.
+        </div>
+        <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">Dipilih: ${selectedDapukan.size} dapukan</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px;">
+          ${checkboxes}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('konfigMusModal')">Batal</button>
+        <button class="btn btn-green" onclick="KONFIG_simpan()">Simpan Konfigurasi</button>
+      </div>
+    </div>`;
+  }
+
+  window.KONFIG_toggle = (dapukan) => {
+    if (selectedDapukan.has(dapukan)) selectedDapukan.delete(dapukan);
+    else selectedDapukan.add(dapukan);
+    renderKonfig();
+  };
+
+  window.KONFIG_simpan = async () => {
+    try {
+      await SB.musKonfig.upsert({
+        level_musyawarah: levelMus,
+        kelompok_id: kelompokId,
+        desa_id: desaId,
+        dapukan_wajib: [...selectedDapukan],
+        dibuat_oleh: u.id,
+        updated_at: new Date().toISOString(),
+      });
+      showToast('Konfigurasi peserta disimpan ✓');
+      closeModal('konfigMusModal');
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
     }
   };
+
+  renderKonfig();
+  openModal('konfigMusModal');
 }
 
 /* ===== KELOLA PESERTA MUSYAWARAH ===== */
@@ -3954,7 +4118,7 @@ async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
         ${pesertaList.length ? `
         <div class="table-wrap" style="margin-bottom:14px;">
           <table>
-            <thead><tr><th>No</th><th>Nama</th><th>Jabatan</th><th>No HP</th><th>Link WA</th><th>Aksi</th></tr></thead>
+            <thead><tr><th>No</th><th>Nama</th><th>Dapukan</th><th>No HP</th><th>Link WA</th><th>Aksi</th></tr></thead>
             <tbody>
               ${pesertaList.map((p,i) => `<tr>
                 <td style="text-align:center;">${p.urutan||i+1}</td>
@@ -4032,7 +4196,7 @@ async function openKelolaMusPesertaModal(kelompokId, u, mode='kelompok') {
         <div class="form-row">
           <div class="form-group">
             <label>Dapukan</label>
-            <input id="mupJabatan" value="${escHtml(p?.jabatan||'')}" placeholder="Pilih atau ketik" list="jabList">
+            <input id="mupJabatan" value="${escHtml(p?.jabatan||'')}" placeholder="Pilih atau ketik dapukan" list="jabList">
             <datalist id="jabList">
               ${jabSugg.map(j => `<option value="${j}">`).join('')}
             </datalist>

@@ -284,6 +284,23 @@ const sbMusAbsensi = {
   deleteByMusyawarah: (musId) => sbFetch(`musyawarah_absensi?musyawarah_id=eq.${musId}`, { method:'DELETE' }),
 };
 
+// ============ MUSYAWARAH KONFIGURASI ============
+const sbMusKonfig = {
+  get: (level, kelompokId, desaId) => {
+    let q = `musyawarah_konfigurasi?level_musyawarah=eq.${level}`;
+    if (kelompokId) q += `&kelompok_id=eq.${kelompokId}`;
+    else q += '&kelompok_id=is.null';
+    if (desaId) q += `&desa_id=eq.${encodeURIComponent(desaId)}`;
+    else q += '&desa_id=is.null';
+    return sbFetch(q + '&select=*&limit=1');
+  },
+  upsert: (data) => sbFetch('musyawarah_konfigurasi?on_conflict=level_musyawarah,kelompok_id,desa_id', {
+    method: 'POST',
+    headers: {'Prefer':'resolution=merge-duplicates,return=representation'},
+    body: JSON.stringify(data),
+  }),
+};
+
 // ============ SETTINGS ============
 const sbSettings = {
   get: async (key) => {
@@ -314,4 +331,5 @@ window.SB = {
   musyawarah: sbMusyawarah,
   musPeserta: sbMusPeserta,
   musAbsensi: sbMusAbsensi,
+  musKonfig: sbMusKonfig,
 };
