@@ -3393,6 +3393,7 @@ async function renderMusyawarah() {
       if (res && res.length) konfig = res[0];
     } catch(e) {}
     const dapukanWajib = konfig?.dapukan_wajib || [];
+    console.log('Konfig musyawarah:', level, 'dapukan wajib:', dapukanWajib, 'konfig:', konfig);
 
     // Load semua peserta yang relevan
     let allPeserta = [];
@@ -3420,9 +3421,14 @@ async function renderMusyawarah() {
 
     // Filter berdasarkan konfigurasi dapukan wajib
     if (dapukanWajib.length > 0) {
-      musInlinePeserta = allPeserta.filter(p =>
-        dapukanWajib.some(d => (p.jabatan||'').toLowerCase().includes(d.toLowerCase()))
-      );
+      musInlinePeserta = allPeserta.filter(p => {
+        const pDap = (p.jabatan||'').toLowerCase().trim();
+        return dapukanWajib.some(d => {
+          const dLow = d.toLowerCase().trim();
+          // Exact match atau contains (untuk "Guru Generus" cocok dengan "Guru Caberawit" dll)
+          return pDap === dLow || pDap.includes(dLow) || dLow.includes(pDap);
+        });
+      });
     } else {
       // Belum dikonfigurasi — tampilkan semua
       musInlinePeserta = allPeserta;

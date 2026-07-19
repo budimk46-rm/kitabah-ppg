@@ -286,19 +286,47 @@ const sbMusAbsensi = {
 
 // ============ MUSYAWARAH KONFIGURASI ============
 const sbMusKonfig = {
-  get: (level, kelompokId, desaId) => {
+  get: async (level, kelompokId, desaId) => {
+    // Coba spesifik dulu
     let q = `musyawarah_konfigurasi?level_musyawarah=eq.${level}`;
     if (kelompokId) q += `&kelompok_id=eq.${kelompokId}`;
     else q += '&kelompok_id=is.null';
     if (desaId) q += `&desa_id=eq.${encodeURIComponent(desaId)}`;
     else q += '&desa_id=is.null';
-    return sbFetch(q + '&select=*&limit=1');
+    let res = await sbFetch(q + '&select=*&limit=1');
+    if (res && res.length) return res;
+    // Fallback: cari global (null/null)
+    if (kelompokId || desaId) {
+      const q2 = `musyawarah_konfigurasi?level_musyawarah=eq.${level}&kelompok_id=is.null&desa_id=is.null&select=*&limit=1`;
+      res = await sbFetch(q2);
+      if (res && res.length) return res;
+    }
+    return [];
   },
-  upsert: (data) => sbFetch('musyawarah_konfigurasi?on_conflict=level_musyawarah,kelompok_id,desa_id', {
-    method: 'POST',
-    headers: {'Prefer':'resolution=merge-duplicates,return=representation'},
-    body: JSON.stringify(data),
-  }),
+  upsert: async (data) => {
+    // Manual upsert karena unique constraint dengan NULL gagal di PostgreSQL
+    let q = `musyawarah_konfigurasi?level_musyawarah=eq.${data.level_musyawarah}`;
+    if (data.kelompok_id) q += `&kelompok_id=eq.${data.kelompok_id}`;
+    else q += '&kelompok_id=is.null';
+    if (data.desa_id) q += `&desa_id=eq.${encodeURIComponent(data.desa_id)}`;
+    else q += '&desa_id=is.null';
+    const existing = await sbFetch(q + '&select=id&limit=1');
+    if (existing && existing.length) {
+      // Update
+      return await sbFetch(`musyawarah_konfigurasi?id=eq.${existing[0].id}`, {
+        method: 'PATCH',
+        headers: {'Prefer':'return=representation'},
+        body: JSON.stringify({ dapukan_wajib: data.dapukan_wajib, dibuat_oleh: data.dibuat_oleh, updated_at: data.updated_at }),
+      });
+    } else {
+      // Insert
+      return await sbFetch('musyawarah_konfigurasi', {
+        method: 'POST',
+        headers: {'Prefer':'return=representation'},
+        body: JSON.stringify(data),
+      });
+    }
+  },
 };
 
 // ============ SETTINGS ============
