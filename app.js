@@ -3421,29 +3421,14 @@ async function renderMusyawarah() {
             p2 = [...p2, ...kp];
           }
           allPeserta = [...p1, ...p2];
-        } else {
-          // Admin tanpa pilihan desa → load semua desa + semua kelompok
-          const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
-          for (const dn of DESA_NAMES) {
-            const dp = await SB.musPeserta.getByDesa(dn) || [];
-            allPeserta = [...allPeserta, ...dp];
-          }
-          for (const klp of (App.cache.kelompok||[])) {
-            const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
-            allPeserta = [...allPeserta, ...kp];
-          }
         }
+        // Jika belum pilih desa, allPeserta tetap kosong → pesan minta pilih
 
       } else if (level === 'guru_generus' || level === 'unsur_5') {
         if (effectiveKlpId) {
           allPeserta = await SB.musPeserta.getByKelompok(effectiveKlpId) || [];
-        } else {
-          // Admin tanpa pilihan kelompok → load semua kelompok
-          for (const klp of (App.cache.kelompok||[])) {
-            const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
-            allPeserta = [...allPeserta, ...kp];
-          }
         }
+        // Jika belum pilih kelompok, allPeserta tetap kosong → pesan minta pilih
       }
       // Dedup
       const seen = new Set();
@@ -3558,7 +3543,9 @@ async function renderMusyawarah() {
       </div>`;
     });
 
-    listEl.innerHTML = html || '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada peserta tetap. Tambahkan di Pengaturan → Peserta Musyawarah.</div>';
+    listEl.innerHTML = html || (musInlinePeserta.length === 0 && musInlineTamu.length === 0
+      ? '<div style="font-size:13px; color:var(--ink-soft); padding:12px 0; text-align:center;">Pilih desa atau kelompok di atas terlebih dahulu untuk menampilkan peserta.</div>'
+      : '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada peserta tetap. Tambahkan di Data Pengurus.</div>');
   };
 
   window.MUS_setAbsInline = (pid, status) => {
