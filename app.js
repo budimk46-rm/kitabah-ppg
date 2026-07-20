@@ -661,6 +661,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function listIcon() { return SVG('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'); }
 function userIcon() { return SVG('<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'); }
 function checkIcon() { return SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>'); }
 function chartIcon() { return SVG('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'); }
@@ -673,6 +674,7 @@ const NAV_ITEMS = {
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -775,6 +777,7 @@ async function renderPage(page) {
       case 'absensi':     await renderAbsensi(); break;
       case 'santri':      await renderSantri(); break;
       case 'kelola_kelas': await renderKelolaKelas(); break;
+      case 'daftar_kelas': await renderDaftarKelas(); break;
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
@@ -1986,6 +1989,60 @@ async function renderKelolaKelas() {
   } else {
     render();
   }
+}
+
+/* ===== PAGE: DAFTAR KELAS TIAP KELOMPOK (admin only) ===== */
+async function renderDaftarKelas() {
+  const main = document.getElementById('mainContent');
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const allKlp = App.cache.kelompok || [];
+
+  // Load kelas per kelompok
+  const kelasPerKlp = {};
+  await Promise.all(allKlp.map(async klp => {
+    kelasPerKlp[klp.id] = sortKelas(await SB.kelas.getByKelompok(klp.id));
+  }));
+
+  // Group by desa
+  const desaMap = {};
+  allKlp.forEach(k => {
+    const dNama = k.desa?.nama || k.desa_id || '-';
+    if (!desaMap[dNama]) desaMap[dNama] = [];
+    desaMap[dNama].push(k);
+  });
+
+  let html = `
+    <div class="page-header">
+      <h1 class="page-title">Kelas Tiap Kelompok</h1>
+      <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Daftar nama kelas yang dibuat di setiap kelompok</p>
+    </div>`;
+
+  for (const [desaNama, klpList] of Object.entries(desaMap)) {
+    html += `<div class="card" style="margin-bottom:14px;">
+      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:12px;">🏘️ ${escHtml(desaNama)}</div>`;
+
+    for (const klp of klpList) {
+      const kelasList = kelasPerKlp[klp.id] || [];
+      const kelasChips = kelasList.length
+        ? kelasList.map(k => {
+            const label = k.nama_kelas || k.jenjang;
+            return `<span style="display:inline-block; padding:4px 10px; border-radius:16px; font-size:12px; font-weight:600; background:var(--green-soft); color:var(--green); border:1px solid var(--green); margin:2px;">${escHtml(label)}</span>`;
+          }).join('')
+        : '<span style="font-size:12px; color:var(--ink-soft);">Belum ada kelas</span>';
+
+      html += `
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
+          <div style="font-weight:700; font-size:13px; min-width:140px;">${escHtml(klp.nama)}</div>
+          <div style="flex:1; display:flex; flex-wrap:wrap; gap:2px;">${kelasChips}</div>
+          <div style="font-size:11px; color:var(--ink-soft); min-width:50px; text-align:right;">${kelasList.length} kelas</div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  main.innerHTML = html;
 }
 
 /* ===== PAGE: ABSENSI & JURNAL ===== */
