@@ -2780,7 +2780,7 @@ async function renderProker() {
             <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:6px;">
               <div style="flex:1; min-width:200px;">
                 <div style="font-weight:700; font-size:13px;">${escHtml(p.nama_program)}</div>
-                <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(p.detail_program||'')}</div>
+                <div style="font-size:13.5px; color:#111; margin-top:4px; white-space:pre-wrap;">${escHtml(p.detail_program||'')}</div>
                 <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">
                   📅 ${escHtml(p.bulan_mulai||'Belum ditentukan')} · 💰 ${fmtRp(p.anggaran)}
                 </div>
@@ -2951,7 +2951,9 @@ async function renderProker() {
           }).join('')}
         </div>
       </div>
-      <div class="form-group"><label>Anggaran (Rp)</label><input type="number" id="pkAnggaran" value="${p?.anggaran||0}"></div>
+      <div class="form-group"><label>Anggaran (Rp)</label><input type="number" id="pkAnggaran" value="${p?.anggaran||0}">
+        <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Total anggaran untuk semua bulan pelaksanaan yang dipilih, bukan per bulan.</div>
+      </div>
     `, async () => {
       const bulanChecked = [...document.querySelectorAll('#pkBulanGrid input:checked')].map(c => c.value);
       const data = {
@@ -2980,16 +2982,34 @@ async function renderProker() {
       <div class="form-group"><label>Tanggal Kegiatan</label><input type="date" id="lpTgl" value="${p?.tanggal_kegiatan||new Date().toISOString().slice(0,10)}"></div>
       <div class="form-group"><label>Deskripsi</label><textarea id="lpDesc" rows="4" placeholder="Tempat, jam, jumlah peserta, keterangan...">${escHtml(p?.deskripsi||'')}</textarea></div>
       <div class="form-group"><label>Realisasi Anggaran (Rp)</label><input type="number" id="lpReal" value="${p?.realisasi_anggaran||0}"></div>
-      <div class="form-group"><label>Foto Kegiatan</label><input type="file" id="lpFoto" accept="image/*"><div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Max 1MB. Opsional.</div></div>
+      <div class="form-group"><label>Foto Kegiatan</label><input type="file" id="lpFoto" accept="image/*"><div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Foto otomatis dikompres. Opsional.</div></div>
     `, async () => {
       let fotoUrl = p?.foto_url || null;
       const fileInput = document.getElementById('lpFoto');
       if (fileInput.files.length) {
         const file = fileInput.files[0];
-        if (file.size > 1048576) { showToast('Foto max 1MB',true); return; }
-        fotoUrl = await new Promise((res,rej) => {
+        // Auto compress: resize max 800px & compress to JPEG 60%
+        fotoUrl = await new Promise((res, rej) => {
           const reader = new FileReader();
-          reader.onload = () => res(reader.result);
+          reader.onload = () => {
+            const img = new window.Image();
+            img.onload = () => {
+              const MAX = 800;
+              let w = img.width, h = img.height;
+              if (w > MAX || h > MAX) {
+                if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                else { w = Math.round(w * MAX / h); h = MAX; }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              const compressed = canvas.toDataURL('image/jpeg', 0.6);
+              res(compressed);
+            };
+            img.onerror = rej;
+            img.src = reader.result;
+          };
           reader.onerror = rej;
           reader.readAsDataURL(file);
         });
