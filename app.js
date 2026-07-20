@@ -4088,6 +4088,7 @@ async function renderSettings() {
       <h1 class="page-title">Pengaturan</h1>
     </div>
 
+    ${u.role === 'admin' ? `
     <div class="card">
       <div class="fw-bold color-green" style="margin-bottom:16px; font-size:15px;">📱 Nomor WhatsApp Admin</div>
       <div class="form-group" style="margin-bottom:14px; max-width:360px;">
@@ -4095,12 +4096,12 @@ async function renderSettings() {
         <input type="text" id="waInput" value="${escHtml(waNum)}" placeholder="contoh: 0895325194794">
       </div>
       <button class="btn btn-green" onclick="SET_saveWa()">Simpan Nomor</button>
-    </div>
+    </div>` : ''}
 
     <div class="card" style="border:1.5px solid var(--green);">
       <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">👥 Peserta Musyawarah</div>
       <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
-        Konfigurasi dapukan wajib hadir dan kelola data peserta musyawarah.
+        Konfigurasi dapukan wajib hadir di setiap jenis musyawarah.
       </p>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
         ${['pjp_kelompok','kelompok','admin'].includes(u.role) ? `
@@ -4121,6 +4122,7 @@ async function renderSettings() {
       </div>
     </div>
 
+    ${['admin','pjp_kelompok','guru'].includes(u.role) ? `
     <div class="card" style="border:1.5px solid var(--gold);">
       <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">🎓 Naik Kelas Tahunan</div>
       <p style="font-size:13px; color:var(--ink-soft); margin:0 0 12px;">
@@ -4131,8 +4133,9 @@ async function renderSettings() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
         Proses Naik Kelas
       </button>
-    </div>
+    </div>` : ''}
 
+    ${u.role === 'admin' ? `
     <div class="card" style="border:2px solid var(--rose); background:var(--rose-soft);">
       <div class="fw-bold" style="color:var(--rose); font-size:15px; margin-bottom:8px;">🗑️ Reset Data Uji Coba</div>
       <p style="font-size:13px; color:var(--ink); margin:0 0 12px;">
@@ -4150,7 +4153,7 @@ async function renderSettings() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
         Hapus Data Transaksi
       </button>
-    </div>
+    </div>` : ''}
   `;
 
   window.SET_saveWa = async () => {
