@@ -8,9 +8,17 @@ const SEM2_MONTHS = ['Januari','Februari','Maret','April','Mei','Juni'];
 
 // Hitung tahun ajaran otomatis: Jul-Des = "2026/2027", Jan-Jun = "2025/2026"
 // Urutan kelas usia yang benar
-const KELAS_ORDER = {'Caberawit':1,'Pra Remaja':2,'Remaja':3,'Pra Nikah':4};
+const KELAS_ORDER = {'CABERAWIT':1,'PRA REMAJA':2,'REMAJA':3,'PRA NIKAH':4};
+function getKelasOrder(namaKelas) {
+  const nm = (namaKelas||'').toUpperCase().trim();
+  if (nm.startsWith('CABERAWIT')) return 1000 + nm.charCodeAt(nm.length-1);
+  if (nm.startsWith('PRA REMAJA')) return 2000 + nm.charCodeAt(nm.length-1);
+  if (nm.startsWith('REMAJA')) return 3000 + nm.charCodeAt(nm.length-1);
+  if (nm.startsWith('PRA NIKAH')) return 4000 + nm.charCodeAt(nm.length-1);
+  return 9000 + nm.charCodeAt(0);
+}
 function sortKelas(list) {
-  return [...list].sort((a,b) => (KELAS_ORDER[a.nama_kelas]||99) - (KELAS_ORDER[b.nama_kelas]||99));
+  return [...list].sort((a,b) => getKelasOrder(a.nama_kelas) - getKelasOrder(b.nama_kelas));
 }
 
 function getTahunAjaran(date) {
@@ -6471,7 +6479,7 @@ function openAddKelasModal(kelompokId, onSaved) {
   </div>`;
 
   document.getElementById('kelasSaveBtn').onclick = async () => {
-    const nama_kelas = document.getElementById('kelasNama').value.trim();
+    const nama_kelas = document.getElementById('kelasNama').value.trim().toUpperCase();
     const jenjang = document.getElementById('kelasJenjang').value;
     const semester = document.getElementById('kelasSem').value;
     if (!kelompokId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
