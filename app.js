@@ -6225,46 +6225,43 @@ async function renderRekapDaerah() {
       const avgMD = materiDesa.length ? Math.round(materiDesa.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/materiDesa.length) : null;
 
       let klpIdx = 0;
-      const klpCards = klpDesa.map(({kelompok:klp, stats:s}) => {
+      const klpRows = klpDesa.map(({kelompok:klp, stats:s}) => {
         klpIdx++;
-        const uid = desaNama.replace(/\s/g,'') + '_' + klp.id;
-        const kelasRows = (s?.perKelas||[]).map(k => `
-          <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:4px;">
-            <div style="font-size:12px; font-weight:600; min-width:100px;">${escHtml(k.nama)}</div>
-            <div style="display:flex; gap:8px; font-size:11.5px; flex-wrap:wrap;">
-              <span>${k.santri} santri</span>
-              <span>${k.pertemuan}x ptm</span>
-              <span style="font-weight:700; color:${k.pctHadir===null?'var(--ink-soft)':k.pctHadir>=80?'var(--green)':k.pctHadir>=50?'#e6a817':'var(--rose)'};">${k.pctHadir!==null?k.pctHadir+'%':'-'} hadir</span>
-              <span style="font-weight:700; color:${k.pctMateri===null?'var(--ink-soft)':k.pctMateri>=80?'var(--green)':k.pctMateri>=50?'#e6a817':'var(--rose)'};">${k.pctMateri!==null?k.pctMateri+'%':'-'} materi</span>
-            </div>
-          </div>`).join('');
+        const uid = desaNama.replace(/\s/g,'') + '_' + klpIdx;
+        const kelasDetail = (s?.perKelas||[]).map(k => `
+          <tr style="background:var(--green-soft);">
+            <td style="padding:4px 10px 4px 28px; font-size:11.5px; color:var(--ink-soft);">↳ ${escHtml(k.nama)}</td>
+            <td style="text-align:center; font-size:11px;">${k.santri}</td>
+            <td style="text-align:center; font-size:11px;">${k.pertemuan}x</td>
+            <td style="padding:4px 10px;">${pctBar(k.pctHadir)}</td>
+            <td style="padding:4px 10px;">${pctBar(k.pctMateri)}</td>
+          </tr>`).join('');
 
         const generusDetail = TINGKATAN_LIST.map(t => {
           const g = s?.generus[t] || {L:0,P:0};
-          const total = g.L + g.P;
-          return `<span style="font-size:11px;"><b>${TINGKATAN_LABELS[t]||t}</b>: <span style="color:#1a6b3a;">${g.L}L</span>·<span style="color:#a6483b;">${g.P}P</span> (${total})</span>`;
-        }).join(' | ');
+          return `<span style="color:#1a6b3a;">${g.L}L</span><span style="color:#a6483b;">${g.P}P</span>`;
+        }).join('<span style="color:var(--line); margin:0 3px;">|</span>');
 
         return `
-          <div style="border-bottom:2px solid var(--line); padding:10px 12px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
-              <div style="font-weight:800; font-size:13.5px; color:var(--green);">${escHtml(klp.nama)}</div>
-              <div style="display:flex; gap:8px; font-size:12px;">
-                <span>${s?.totalGenerus||0} generus</span>
-                <span style="font-weight:700; color:${s?.pctHadir===null?'var(--ink-soft)':s?.pctHadir>=80?'var(--green)':s?.pctHadir>=50?'#e6a817':'var(--rose)'};">${s?.pctHadir!==null?s.pctHadir+'%':'-'} hadir</span>
-                <span style="font-weight:700; color:${s?.pctMateri===null?'var(--ink-soft)':s?.pctMateri>=80?'var(--green)':s?.pctMateri>=50?'#e6a817':'var(--rose)'};">${s?.pctMateri!==null?s.pctMateri+'%':'-'} materi</span>
-              </div>
-            </div>
-            <div style="margin-bottom:4px;">${kelasRows}</div>
-            <div style="margin-top:6px;">
-              <button style="font-size:11px; color:var(--ink-soft); background:none; border:1px solid var(--line); border-radius:12px; padding:3px 10px; cursor:pointer;" onclick="document.getElementById('gen_${uid}').style.display=document.getElementById('gen_${uid}').style.display==='none'?'block':'none'">
-                👥 Generus per Tingkatan ▼
-              </button>
-              <div id="gen_${uid}" style="display:none; margin-top:6px; font-size:11.5px; color:var(--ink-soft); background:var(--green-soft); border-radius:6px; padding:6px 10px;">
-                ${generusDetail}
-              </div>
-            </div>
-          </div>`;
+          <tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="document.getElementById('kd_${uid}').style.display=document.getElementById('kd_${uid}').style.display==='none'?'':'none'">
+            <td style="padding:7px 10px; font-size:12.5px; font-weight:600;">${escHtml(klp.nama)} <span style="font-size:10px; color:var(--ink-soft);">▼</span></td>
+            <td style="text-align:center; font-size:12px;">${s?.totalGenerus||0}</td>
+            <td style="text-align:center; font-size:12px;">${s?.totalPertemuan||0}x</td>
+            <td style="padding:6px 10px; min-width:90px;">${pctBar(s?.pctHadir)}</td>
+            <td style="padding:6px 10px; min-width:90px;">${pctBar(s?.pctMateri)}</td>
+          </tr>
+          <tr id="kd_${uid}" style="display:none;">
+            <td colspan="5" style="padding:0;">
+              <table style="width:100%; border-collapse:collapse;">
+                ${kelasDetail}
+                <tr style="background:#f8f8f4;">
+                  <td colspan="5" style="padding:5px 10px 5px 28px; font-size:11px; color:var(--ink-soft);">
+                    👥 ${generusDetail}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>`;
       }).join('');
 
       return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
@@ -6284,7 +6281,18 @@ async function renderRekapDaerah() {
             </div>
           </div>
         </div>
-        ${klpCards}
+        <div class="table-wrap">
+          <table style="width:100%; border-collapse:collapse; min-width:480px;">
+            <thead><tr style="background:var(--green);">
+              <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+              <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Generus</th>
+              <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Pertemuan</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px;">Kehadiran</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px;">Prog. Materi</th>
+            </tr></thead>
+            <tbody>${klpRows}</tbody>
+          </table>
+        </div>
       </div>`;
     }).join('');
 
