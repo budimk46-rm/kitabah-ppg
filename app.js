@@ -5711,29 +5711,41 @@ async function renderRekapDesa() {
     if (!d) return null;
     let totalPertemuan = 0, totalH = 0, totalI = 0, totalS = 0, totalA = 0, totalSlot = 0;
     let materiTarget = 0, materiTercapai = 0;
+    const perKelas = [];
 
     d.kelasList.forEach(k => {
       const kd = d.kelasData[k.id];
       const perBulan = kd.pertemuanList.filter(p => p.bulan === bulan);
-      totalPertemuan += perBulan.length;
+      let kH=0, kI=0, kS=0, kA=0, kSlot=0;
       perBulan.forEach(p => {
         const absen = kd.absensiAll[p.id] || [];
         kd.santriKelas.forEach(s => {
           const a = absen.find(x => x.santri_id === s.id);
           const st = a?.status || 'A';
-          if (st==='H') totalH++; else if (st==='I') totalI++;
-          else if (st==='S') totalS++; else totalA++;
-          totalSlot++;
+          if (st==='H') { kH++; totalH++; } else if (st==='I') { kI++; totalI++; }
+          else if (st==='S') { kS++; totalS++; } else { kA++; totalA++; }
+          kSlot++; totalSlot++;
         });
       });
+      totalPertemuan += perBulan.length;
 
       // Progress materi
       const col = bulan.toLowerCase();
       const materiKelas = (App.cache.materi||[]).filter(r =>
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
-      materiTarget += materiKelas.length;
-      materiTercapai += materiKelas.filter(r => d.progressSet.has(r.id+'|'+bulan)).length;
+      const kMT = materiKelas.length;
+      const kMC = materiKelas.filter(r => d.progressSet.has(r.id+'|'+bulan)).length;
+      materiTarget += kMT;
+      materiTercapai += kMC;
+      perKelas.push({
+        nama: k.nama_kelas || k.jenjang,
+        santri: kd.santriKelas.length,
+        pertemuan: perBulan.length,
+        pctHadir: kSlot > 0 ? Math.round(kH/kSlot*100) : null,
+        pctMateri: kMT > 0 ? Math.round(kMC/kMT*100) : null,
+        materiCapai: kMC, materiTarget: kMT,
+      });
     });
 
     const pctHadir = totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null;
@@ -5751,7 +5763,7 @@ async function renderRekapDesa() {
     });
     const totalGenerus = santriKlp.length;
 
-    return { totalPertemuan, totalH, totalI, totalS, totalA, totalSlot, pctHadir, pctMateri, materiTarget, materiTercapai, generus, totalGenerus };
+    return { totalPertemuan, totalH, totalI, totalS, totalA, totalSlot, pctHadir, pctMateri, materiTarget, materiTercapai, generus, totalGenerus, perKelas };
   }
 
   function pctBar(pct, w=80) {
@@ -5766,15 +5778,33 @@ async function renderRekapDesa() {
   }
 
   function renderDashboard() {
-    // Bulan chips
-    const bulanChips = semNow.map(m => `
-      <div onclick="RD_setBulan('${m}')"
-        style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
-          background:${selectedBulan===m?'var(--green)':'var(--white)'};
-          color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
-          border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
-        ${m}${m===nowMonth?' ●':''}
-      </div>`).join('');
+    const bulanChips = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 1 (Jul - Des):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM1_MONTHS.map(m => `
+            <div onclick="RD_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 2 (Jan - Jun):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM2_MONTHS.map(m => `
+            <div onclick="RD_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>`;
 
     // Hitung stats per kelompok
     const klpStats = kelompokDesa.map(klp => ({
@@ -5792,51 +5822,77 @@ async function renderRekapDesa() {
     const avgHadir = totalDesa.hadir.length ? Math.round(totalDesa.hadir.reduce((n,k)=>n+(k.stats.pctHadir||0),0)/totalDesa.hadir.length) : null;
     const avgMateri = totalDesa.materi.length ? Math.round(totalDesa.materi.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/totalDesa.materi.length) : null;
 
-    // Kartu per kelompok
-    const kartuHtml = klpStats.map(({kelompok: klp, stats: s}) => {
-      if (!s) return '';
-      const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
-      const generusRow = TINGKATAN_LIST.map(t => `
-        <div style="text-align:center; min-width:60px;">
-          <div style="font-size:10px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; margin-bottom:2px;">${TINGKATAN_LABELS[t]?.split(' ')[0]||t}</div>
-          <div style="font-size:12px;">
-            <span style="color:#1a6b3a; font-weight:700;">${s.generus[t].L||0}L</span>
-            <span style="color:#a6483b; font-weight:700; margin-left:3px;">${s.generus[t].P||0}P</span>
-          </div>
-        </div>`).join('');
+    const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
 
-      return `<div class="card" style="margin-bottom:12px; padding:14px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+    // Tabel per kelompok (format rekap daerah, detail langsung terbuka)
+    const klpRows = klpStats.map(({kelompok:klp, stats:s}) => {
+      const kelasRows = (s?.perKelas||[]).map(k => `
+        <tr style="background:var(--green-soft);">
+          <td style="padding:4px 10px; font-size:11.5px; color:var(--ink-soft);">↳ ${escHtml(k.nama)}</td>
+          <td style="text-align:center; font-size:11px;">${k.santri}</td>
+          <td style="text-align:center; font-size:11px;">${k.pertemuan}x</td>
+          <td style="padding:4px 10px;">${pctBar(s?.pctHadir!==undefined?k.pctHadir:null, 60)}</td>
+          <td style="padding:4px 10px;">${pctBar(k.pctMateri, 60)}</td>
+        </tr>`).join('');
+
+      const generusDetail = TINGKATAN_LIST.map(t => {
+        const g = s?.generus[t] || {L:0,P:0};
+        return `<span style="color:#1a6b3a;">${g.L}L</span><span style="color:#a6483b;">${g.P}P</span>`;
+      }).join('<span style="color:var(--line); margin:0 3px;">|</span>');
+
+      return `
+        <tr style="border-bottom:2px solid var(--green-soft);">
+          <td style="padding:7px 10px; font-size:12.5px; font-weight:700; color:var(--green);">${escHtml(klp.nama)}</td>
+          <td style="text-align:center; font-size:12px; font-weight:700;">${s?.totalGenerus||0}</td>
+          <td style="text-align:center; font-size:12px; font-weight:700;">${s?.totalPertemuan||0}x</td>
+          <td style="padding:6px 10px; min-width:80px;">${pctBar(s?.pctHadir, 60)}</td>
+          <td style="padding:6px 10px; min-width:80px;">${pctBar(s?.pctMateri, 60)}</td>
+        </tr>
+        ${kelasRows}
+        <tr style="background:#f8f8f4;">
+          <td colspan="5" style="padding:5px 10px; font-size:11px; color:var(--ink-soft);">
+            👥 ${generusDetail}
+          </td>
+        </tr>`;
+    }).join('');
+
+    const tabelHtml = `
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div style="background:var(--green); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div>
-            <div style="font-weight:800; font-size:15px; color:var(--green);">${escHtml(klp.nama)}</div>
-            <div style="font-size:12px; color:var(--ink-soft);">${s.totalGenerus} generus · ${s.totalPertemuan} pertemuan bulan ini</div>
+            <div style="font-weight:800; font-size:15px; color:#fff;">📍 ${escHtml(myDesaNama)}</div>
+            <div style="font-size:12px; color:rgba(255,255,255,.75);">${kelompokDesa.length} kelompok · ${totalDesa.generus} generus</div>
           </div>
-          <div style="display:flex; gap:6px;">
-            ${s.totalSlot>0?`<span class="badge badge-green">H:${s.totalH}</span><span class="badge badge-gold">I:${s.totalI}</span><span class="badge" style="background:#e0f7fb;">S:${s.totalS}</span><span class="badge badge-rose">A:${s.totalA}</span>`:'<span class="badge badge-gray">Belum ada pertemuan</span>'}
+          <div style="display:flex; gap:10px;">
+            <div style="text-align:center;">
+              <div style="font-size:16px; font-weight:800; color:${avgHadir===null?'rgba(255,255,255,.5)':avgHadir>=80?'#a3e6c0':avgHadir>=50?'#ffd97d':'#ffaaaa'};">${avgHadir!==null?avgHadir+'%':'—'}</div>
+              <div style="font-size:10px; color:rgba(255,255,255,.7);">Kehadiran</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:16px; font-weight:800; color:${avgMateri===null?'rgba(255,255,255,.5)':avgMateri>=80?'#a3e6c0':avgMateri>=50?'#ffd97d':'#ffaaaa'};">${avgMateri!==null?avgMateri+'%':'—'}</div>
+              <div style="font-size:10px; color:rgba(255,255,255,.7);">Materi</div>
+            </div>
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-          <div>
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px;">Kehadiran</div>
-            ${pctBar(s.pctHadir)}
-          </div>
-          <div>
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px;">Progress Materi</div>
-            ${pctBar(s.pctMateri)}
-            ${s.materiTarget>0?`<div style="font-size:10px; color:var(--ink-soft); margin-top:2px;">${s.materiTercapai}/${s.materiTarget} materi</div>`:''}
-          </div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:10px;">
-          ${generusRow}
+        <div class="table-wrap">
+          <table style="width:100%; border-collapse:collapse; min-width:480px;">
+            <thead><tr style="background:var(--green);">
+              <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok / Kelas</th>
+              <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Generus</th>
+              <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Pertemuan</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px;">Kehadiran</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px;">Prog. Materi</th>
+            </tr></thead>
+            <tbody>${klpRows}</tbody>
+          </table>
         </div>
       </div>`;
-    }).join('');
 
     main.innerHTML = `
       <div class="page-header">
         <div>
           <h1 class="page-title">Rekap Desa</h1>
-          <p class="page-subtitle">${escHtml(myDesaNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(myDesaNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-outline btn-sm" onclick="RD_downloadPdf()">
@@ -5851,7 +5907,7 @@ async function renderRekapDesa() {
       <div class="stat-grid" style="margin-bottom:16px;">
         <div class="stat-card"><div class="stat-num">${kelompokDesa.length}</div><div class="stat-label">Kelompok</div></div>
         <div class="stat-card"><div class="stat-num">${totalDesa.generus}</div><div class="stat-label">Total Generus</div></div>
-        <div class="stat-card"><div class="stat-num">${totalDesa.pertemuan}</div><div class="stat-label">Pertemuan Bulan Ini</div></div>
+        <div class="stat-card"><div class="stat-num">${totalDesa.pertemuan}</div><div class="stat-label">Pertemuan</div></div>
         <div class="stat-card">
           <div class="stat-num" style="color:${avgHadir===null?'var(--ink-soft)':avgHadir>=80?'var(--green)':avgHadir>=50?'#e6a817':'var(--rose)'};">${avgHadir!==null?avgHadir+'%':'—'}</div>
           <div class="stat-label">Rata-rata Kehadiran</div>
@@ -5862,13 +5918,9 @@ async function renderRekapDesa() {
         </div>
       </div>
 
-      <!-- Filter bulan -->
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
-        ${bulanChips}
-      </div>
+      <div style="margin-bottom:16px;">${bulanChips}</div>
 
-      <!-- Kartu per kelompok -->
-      ${kartuHtml || '<div class="card"><p class="color-soft">Tidak ada data kelompok.</p></div>'}
+      ${tabelHtml}
     `;
   }
 
