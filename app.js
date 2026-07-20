@@ -6229,7 +6229,7 @@ async function renderRekapDaerah() {
         klpIdx++;
         const uid = desaNama.replace(/\s/g,'') + '_' + klpIdx;
         const kelasDetail = (s?.perKelas||[]).map(k => `
-          <tr style="background:var(--green-soft);">
+          <tr class="kd_row" style="display:none; background:var(--green-soft);">
             <td style="padding:4px 10px; font-size:11.5px; color:var(--ink-soft);">↳ ${escHtml(k.nama)}</td>
             <td style="text-align:center; font-size:11px;">${k.santri}</td>
             <td style="text-align:center; font-size:11px;">${k.pertemuan}x</td>
@@ -6243,23 +6243,17 @@ async function renderRekapDaerah() {
         }).join('<span style="color:var(--line); margin:0 3px;">|</span>');
 
         return `
-          <tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="document.getElementById('kd_${uid}').style.display=document.getElementById('kd_${uid}').style.display==='none'?'':'none'">
+          <tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="var el=this.nextElementSibling;while(el&&el.classList.contains('kd_row')){el.style.display=el.style.display==='none'?'table-row':'none';el=el.nextElementSibling;}">
             <td style="padding:7px 10px; font-size:12.5px; font-weight:600;">${escHtml(klp.nama)} <span style="font-size:10px; color:var(--ink-soft);">▼</span></td>
             <td style="text-align:center; font-size:12px;">${s?.totalGenerus||0}</td>
             <td style="text-align:center; font-size:12px;">${s?.totalPertemuan||0}x</td>
             <td style="padding:6px 10px; min-width:90px;">${pctBar(s?.pctHadir)}</td>
             <td style="padding:6px 10px; min-width:90px;">${pctBar(s?.pctMateri)}</td>
           </tr>
-          <tr id="kd_${uid}" style="display:none;">
-            <td colspan="5" style="padding:0;">
-              <table style="width:100%; border-collapse:collapse;">
-                ${kelasDetail}
-                <tr style="background:#f8f8f4;">
-                  <td colspan="5" style="padding:5px 10px; font-size:11px; color:var(--ink-soft);">
-                    👥 ${generusDetail}
-                  </td>
-                </tr>
-              </table>
+          ${kelasDetail}
+          <tr class="kd_row" style="display:none; background:#f8f8f4;">
+            <td colspan="5" style="padding:5px 10px; font-size:11px; color:var(--ink-soft);">
+              👥 ${generusDetail}
             </td>
           </tr>`;
       }).join('');
