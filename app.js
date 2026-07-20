@@ -669,6 +669,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function briefcaseIcon() { return SVG('<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>'); }
 function listIcon() { return SVG('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'); }
 function userIcon() { return SVG('<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'); }
 function checkIcon() { return SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>'); }
@@ -684,6 +685,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -693,6 +695,7 @@ const NAV_ITEMS = {
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
@@ -786,6 +789,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
       case 'rekap_desa':  await renderRekapDesa(); break;
@@ -2667,6 +2671,326 @@ async function renderAbsensi() {
 
   await loadPertemuan();
   } // end lanjutAbsensi
+}
+
+/* ===== PAGE: PROGRAM KERJA PPG ===== */
+async function renderProker() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin' || u.role === 'daerah';
+  const tahun = new Date().getFullYear();
+  const BIDANG_LIST = ['Kurikulum','Tenaga Pendidik','Seni & Olahraga','Kemandirian','Keputrian','KMM Daerah','Tahfidz','Sarana dan Prasarana','Penggalang Dana','Bimbingan Konseling'];
+  const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  let allProker = [], allLaporan = [], allDana = [];
+  try {
+    [allProker, allDana] = await Promise.all([
+      SB.proker.getAll(tahun),
+      SB.sumberDana.getAll(tahun),
+    ]);
+    // Load laporan per program
+    const laporanPromises = (allProker||[]).map(p => SB.laporan.getByProgram(p.id));
+    const laporanResults = await Promise.all(laporanPromises);
+    allProker.forEach((p, i) => { p._laporan = laporanResults[i] || []; });
+  } catch(e) { console.error(e); }
+
+  function fmtRp(n) { return 'Rp ' + (n||0).toLocaleString('id-ID'); }
+
+  function render() {
+    const totalAnggaran = allProker.reduce((n,p) => n + (p.anggaran||0), 0);
+    const totalRealisasi = allProker.reduce((n,p) => n + p._laporan.reduce((s,l) => s + (l.realisasi_anggaran||0), 0), 0);
+    const totalProgram = allProker.length;
+    const programDgLaporan = allProker.filter(p => p._laporan.length > 0).length;
+
+    const totalTargetDana = allDana.reduce((n,d) => n + (d.estimasi_total_tahun||0), 0);
+    const totalRealisasiDana = allDana.reduce((n,d) => n + (d.realisasi||0), 0);
+    const saldo = totalTargetDana - totalAnggaran;
+    const pctDana = totalTargetDana > 0 ? Math.round(totalRealisasiDana/totalTargetDana*100) : 0;
+
+    // Neraca
+    const neracaHtml = `
+      <div class="card" style="border:2px solid var(--green); margin-bottom:16px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div>
+            <div style="font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase;">Kebutuhan Anggaran</div>
+            <div style="font-size:22px; font-weight:800; color:var(--green);">${fmtRp(totalAnggaran)}</div>
+            <div style="font-size:12px; color:var(--ink-soft);">${totalProgram} program · ${programDgLaporan} sudah laporan</div>
+          </div>
+          <div>
+            <div style="font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase;">Target Sumber Dana</div>
+            <div style="font-size:22px; font-weight:800; color:${saldo>=0?'var(--green)':'var(--rose)'};">${fmtRp(totalTargetDana)}</div>
+            <div style="font-size:12px; color:var(--ink-soft);">Saldo: <b style="color:${saldo>=0?'var(--green)':'var(--rose)'};">${fmtRp(saldo)}</b> ${saldo>=0?'(surplus)':'(defisit)'}</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:4px;">Realisasi Dana: ${fmtRp(totalRealisasiDana)} (${pctDana}%)</div>
+          <div style="height:8px; background:var(--line); border-radius:4px; overflow:hidden;">
+            <div style="width:${Math.min(pctDana,100)}%; height:100%; background:${pctDana>=80?'var(--green)':pctDana>=50?'#e6a817':'var(--rose)'}; border-radius:4px;"></div>
+          </div>
+        </div>
+      </div>`;
+
+    // Sumber Dana
+    const danaRows = allDana.map(d => `
+      <tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:7px 10px; font-weight:600; font-size:13px;">${escHtml(d.nama_sumber)}</td>
+        <td style="font-size:12px; color:var(--ink-soft);">${escHtml(d.frekuensi||'')} ${d.jumlah_unit>1?'× '+d.jumlah_unit:''}</td>
+        <td style="text-align:right; font-size:12px; font-weight:600;">${fmtRp(d.estimasi_total_tahun)}</td>
+        <td style="text-align:right; font-size:12px; font-weight:700; color:var(--green);">${fmtRp(d.realisasi)}</td>
+        ${isAdmin ? `<td style="text-align:center;">
+          <div style="display:flex; gap:3px; justify-content:center;">
+            <button class="btn-icon" onclick="PK_editDana('${d.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+            <button class="btn-icon danger" onclick="PK_hapusDana('${d.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+          </div>
+        </td>` : ''}
+      </tr>`).join('');
+
+    const danaHtml = `
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <div class="fw-bold color-green" style="font-size:14px;">💰 Sumber Dana</div>
+          ${isAdmin ? '<button class="btn btn-outline btn-sm" onclick="PK_tambahDana()">+ Tambah</button>' : ''}
+        </div>
+        ${allDana.length ? `<div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:400px;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Sumber</th>
+            <th style="font-size:11px; color:#fff; padding:7px 8px;">Frekuensi</th>
+            <th style="text-align:right; font-size:11px; color:#fff; padding:7px 10px;">Target/Tahun</th>
+            <th style="text-align:right; font-size:11px; color:#fff; padding:7px 10px;">Realisasi</th>
+            ${isAdmin ? '<th style="font-size:11px; color:#fff; padding:7px 8px; width:50px;">Aksi</th>' : ''}
+          </tr></thead>
+          <tbody>${danaRows}</tbody>
+        </table></div>` : '<div style="font-size:12px; color:var(--ink-soft);">Belum ada sumber dana.</div>'}
+      </div>`;
+
+    // Program Kerja per Bidang
+    const bidangCards = BIDANG_LIST.map(bidang => {
+      const programs = allProker.filter(p => p.bidang === bidang);
+      if (!programs.length && !isAdmin) return '';
+      const totalBidang = programs.reduce((n,p) => n + (p.anggaran||0), 0);
+      const totalRealBidang = programs.reduce((n,p) => n + p._laporan.reduce((s,l) => s + (l.realisasi_anggaran||0), 0), 0);
+
+      const progRows = programs.map(p => {
+        const lapCount = p._laporan.length;
+        const realP = p._laporan.reduce((s,l) => s + (l.realisasi_anggaran||0), 0);
+        return `
+          <div style="border-bottom:1px solid var(--line); padding:10px 0;">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+              <div style="flex:1; min-width:200px;">
+                <div style="font-weight:700; font-size:13px;">${escHtml(p.nama_program)}</div>
+                <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(p.detail_program||'')}</div>
+                <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">
+                  📅 ${escHtml(p.bulan_mulai||'')}${p.bulan_selesai&&p.bulan_selesai!==p.bulan_mulai?' - '+escHtml(p.bulan_selesai):''} · 💰 ${fmtRp(p.anggaran)}
+                </div>
+              </div>
+              <div style="display:flex; gap:4px; flex-shrink:0;">
+                <span class="badge ${lapCount?'badge-green':'badge-gray'}">${lapCount} laporan</span>
+                ${isAdmin ? `
+                <button class="btn-icon" onclick="PK_editProker('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                <button class="btn-icon danger" onclick="PK_hapusProker('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
+              </div>
+            </div>
+            ${lapCount ? `<details style="margin-top:8px;">
+              <summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--green);">Lihat ${lapCount} laporan (realisasi: ${fmtRp(realP)})</summary>
+              <div style="margin-top:6px;">
+                ${p._laporan.map(l => `
+                  <div style="background:var(--green-soft); border-radius:6px; padding:8px 10px; margin-bottom:6px;">
+                    <div style="font-weight:600; font-size:12.5px;">${escHtml(l.nama_kegiatan)}</div>
+                    <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">
+                      ${l.tanggal_kegiatan ? '📅 '+fmtDateShort(l.tanggal_kegiatan)+' · ' : ''}💰 ${fmtRp(l.realisasi_anggaran)}
+                    </div>
+                    ${l.deskripsi ? `<div style="font-size:12px; color:var(--ink); margin-top:4px; white-space:pre-wrap;">${escHtml(l.deskripsi)}</div>` : ''}
+                    ${l.foto_url ? `<img src="${escHtml(l.foto_url)}" style="max-width:100%; max-height:200px; border-radius:6px; margin-top:6px;">` : ''}
+                    ${isAdmin ? `<div style="margin-top:4px;"><button class="btn-icon danger" onclick="PK_hapusLaporan('${l.id}','${p.id}')" title="Hapus laporan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>` : ''}
+                  </div>`).join('')}
+              </div>
+            </details>` : ''}
+            ${isAdmin ? `<button class="btn btn-outline btn-sm" style="margin-top:6px; font-size:11px;" onclick="PK_tambahLaporan('${p.id}')">+ Tambah Laporan</button>` : ''}
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="card" style="margin-bottom:14px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+            <div>
+              <div class="fw-bold color-green" style="font-size:14px;">📋 ${escHtml(bidang)}</div>
+              <div style="font-size:12px; color:var(--ink-soft);">${programs.length} program · ${fmtRp(totalBidang)}</div>
+            </div>
+            ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="PK_tambahProker('${escHtml(bidang)}')">+ Program</button>` : ''}
+          </div>
+          ${progRows || '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada program kerja.</div>'}
+        </div>`;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Program Kerja PPG</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Tahun ${tahun} · TA ${getTahunAjaran()}</p>
+        </div>
+      </div>
+      ${neracaHtml}
+      ${danaHtml}
+      <div class="fw-bold color-green" style="font-size:15px; margin-bottom:12px;">📋 Program Kerja per Bidang</div>
+      ${bidangCards}`;
+  }
+
+  // === HANDLERS ===
+  window.PK_tambahDana = () => openDanaModal(null);
+  window.PK_editDana = (id) => openDanaModal(allDana.find(d=>d.id===id));
+  window.PK_hapusDana = async (id) => {
+    if (!confirm('Hapus sumber dana ini?')) return;
+    await SB.sumberDana.delete(id);
+    allDana = allDana.filter(d=>d.id!==id);
+    showToast('Dihapus'); render();
+  };
+
+  window.PK_tambahProker = (bidang) => openProkerModal(null, bidang);
+  window.PK_editProker = (id) => openProkerModal(allProker.find(p=>p.id===id));
+  window.PK_hapusProker = async (id) => {
+    if (!confirm('Hapus program kerja ini beserta laporannya?')) return;
+    await SB.proker.delete(id);
+    allProker = allProker.filter(p=>p.id!==id);
+    showToast('Dihapus'); render();
+  };
+
+  window.PK_tambahLaporan = (prokerId) => openLaporanModal(null, prokerId);
+  window.PK_hapusLaporan = async (lapId, prokerId) => {
+    if (!confirm('Hapus laporan ini?')) return;
+    await SB.laporan.delete(lapId);
+    const pk = allProker.find(p=>p.id===prokerId);
+    if (pk) pk._laporan = pk._laporan.filter(l=>l.id!==lapId);
+    showToast('Dihapus'); render();
+  };
+
+  // === MODAL SUMBER DANA ===
+  function openDanaModal(existing) {
+    const p = existing;
+    showModal('danaModal', `
+      <h3 class="modal-title">${p?'Edit':'Tambah'} Sumber Dana</h3>
+    `, `
+      <div class="form-group"><label>Nama Sumber *</label><input id="dnNama" value="${escHtml(p?.nama_sumber||'')}"></div>
+      <div class="form-group"><label>Deskripsi</label><input id="dnDesc" value="${escHtml(p?.deskripsi||'')}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Estimasi/Periode (Rp)</label><input type="number" id="dnEst" value="${p?.estimasi_per_periode||0}"></div>
+        <div class="form-group"><label>Frekuensi</label><input id="dnFreq" value="${escHtml(p?.frekuensi||'')}" placeholder="misal: tiap bulan"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Jumlah Unit</label><input type="number" id="dnUnit" value="${p?.jumlah_unit||1}"></div>
+        <div class="form-group"><label>Total/Tahun (Rp)</label><input type="number" id="dnTotal" value="${p?.estimasi_total_tahun||0}"></div>
+      </div>
+      <div class="form-group"><label>Realisasi (Rp)</label><input type="number" id="dnReal" value="${p?.realisasi||0}"></div>
+    `, async () => {
+      const data = {
+        nama_sumber: document.getElementById('dnNama').value.trim(),
+        deskripsi: document.getElementById('dnDesc').value.trim()||null,
+        estimasi_per_periode: parseInt(document.getElementById('dnEst').value)||0,
+        frekuensi: document.getElementById('dnFreq').value.trim()||null,
+        jumlah_unit: parseInt(document.getElementById('dnUnit').value)||1,
+        estimasi_total_tahun: parseInt(document.getElementById('dnTotal').value)||0,
+        realisasi: parseInt(document.getElementById('dnReal').value)||0,
+        tahun, tahun_ajaran: getTahunAjaran(), dibuat_oleh: u.id,
+      };
+      if (!data.nama_sumber) { showToast('Nama wajib diisi',true); return; }
+      if (p) { await SB.sumberDana.update(p.id, data); Object.assign(p, data); }
+      else { const r = await SB.sumberDana.insert(data); if(r?.[0]) allDana.push(r[0]); else allDana.push(data); }
+      showToast('Tersimpan'); closeModal('danaModal'); render();
+    });
+  }
+
+  // === MODAL PROGRAM KERJA ===
+  function openProkerModal(existing, bidangDefault) {
+    const p = existing;
+    const bidang = p?.bidang || bidangDefault || '';
+    showModal('prokerModal', `
+      <h3 class="modal-title">${p?'Edit':'Tambah'} Program Kerja</h3>
+    `, `
+      <div class="form-group"><label>Bidang</label>
+        <select id="pkBidang">${BIDANG_LIST.map(b=>`<option value="${b}" ${b===bidang?'selected':''}>${b}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label>Nama Program *</label><input id="pkNama" value="${escHtml(p?.nama_program||'')}"></div>
+      <div class="form-group"><label>Detail Program</label><textarea id="pkDetail" rows="3">${escHtml(p?.detail_program||'')}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Bulan Mulai</label><select id="pkMulai">${BULAN_NAMES.map(b=>`<option value="${b}" ${b===(p?.bulan_mulai||'')?'selected':''}>${b}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Bulan Selesai</label><select id="pkSelesai">${BULAN_NAMES.map(b=>`<option value="${b}" ${b===(p?.bulan_selesai||'')?'selected':''}>${b}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-group"><label>Anggaran (Rp)</label><input type="number" id="pkAnggaran" value="${p?.anggaran||0}"></div>
+    `, async () => {
+      const data = {
+        bidang: document.getElementById('pkBidang').value,
+        nama_program: document.getElementById('pkNama').value.trim(),
+        detail_program: document.getElementById('pkDetail').value.trim()||null,
+        bulan_mulai: document.getElementById('pkMulai').value,
+        bulan_selesai: document.getElementById('pkSelesai').value,
+        anggaran: parseInt(document.getElementById('pkAnggaran').value)||0,
+        tahun, tahun_ajaran: getTahunAjaran(), dibuat_oleh: u.id,
+      };
+      if (!data.nama_program) { showToast('Nama program wajib diisi',true); return; }
+      if (p) { await SB.proker.update(p.id, data); Object.assign(p, data); }
+      else { const r = await SB.proker.insert(data); if(r?.[0]){r[0]._laporan=[];allProker.push(r[0]);} }
+      showToast('Tersimpan'); closeModal('prokerModal'); render();
+    });
+  }
+
+  // === MODAL LAPORAN KEGIATAN ===
+  function openLaporanModal(existing, prokerId) {
+    const p = existing;
+    showModal('laporanModal', `
+      <h3 class="modal-title">${p?'Edit':'Tambah'} Laporan Kegiatan</h3>
+    `, `
+      <div class="form-group"><label>Nama Kegiatan *</label><input id="lpNama" value="${escHtml(p?.nama_kegiatan||'')}"></div>
+      <div class="form-group"><label>Tanggal Kegiatan</label><input type="date" id="lpTgl" value="${p?.tanggal_kegiatan||new Date().toISOString().slice(0,10)}"></div>
+      <div class="form-group"><label>Deskripsi</label><textarea id="lpDesc" rows="4" placeholder="Tempat, jam, jumlah peserta, keterangan...">${escHtml(p?.deskripsi||'')}</textarea></div>
+      <div class="form-group"><label>Realisasi Anggaran (Rp)</label><input type="number" id="lpReal" value="${p?.realisasi_anggaran||0}"></div>
+      <div class="form-group"><label>Foto Kegiatan</label><input type="file" id="lpFoto" accept="image/*"><div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Max 1MB. Opsional.</div></div>
+    `, async () => {
+      let fotoUrl = p?.foto_url || null;
+      const fileInput = document.getElementById('lpFoto');
+      if (fileInput.files.length) {
+        const file = fileInput.files[0];
+        if (file.size > 1048576) { showToast('Foto max 1MB',true); return; }
+        fotoUrl = await new Promise((res,rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result);
+          reader.onerror = rej;
+          reader.readAsDataURL(file);
+        });
+      }
+      const data = {
+        program_kerja_id: prokerId,
+        nama_kegiatan: document.getElementById('lpNama').value.trim(),
+        tanggal_kegiatan: document.getElementById('lpTgl').value||null,
+        deskripsi: document.getElementById('lpDesc').value.trim()||null,
+        realisasi_anggaran: parseInt(document.getElementById('lpReal').value)||0,
+        foto_url: fotoUrl, dibuat_oleh: u.id,
+      };
+      if (!data.nama_kegiatan) { showToast('Nama kegiatan wajib diisi',true); return; }
+      const r = await SB.laporan.insert(data);
+      const pk = allProker.find(p=>p.id===prokerId);
+      if (pk && r?.[0]) pk._laporan.push(r[0]);
+      showToast('Laporan tersimpan'); closeModal('laporanModal'); render();
+    });
+  }
+
+  // === GENERIC MODAL HELPER ===
+  function showModal(id, headerHtml, bodyHtml, onSave) {
+    let el = document.getElementById(id);
+    if (!el) { el = document.createElement('div'); el.id = id; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head">${headerHtml}<button class="modal-close" onclick="closeModal('${id}')">✕</button></div>
+      <div class="modal-body">${bodyHtml}</div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('${id}')">Batal</button>
+        <button class="btn btn-green" id="${id}Save">Simpan</button>
+      </div>
+    </div>`;
+    document.getElementById(id+'Save').onclick = onSave;
+    openModal(id);
+  }
+
+  render();
 }
 
 /* ===== PAGE: DATA PENGURUS ===== */

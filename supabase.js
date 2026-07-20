@@ -336,6 +336,38 @@ const sbMusKonfig = {
   },
 };
 
+// ============ PROGRAM KERJA ============
+const sbProker = {
+  getAll: (tahun) => sbFetch(`program_kerja?tahun=eq.${tahun}&select=*&order=bidang,bulan_mulai`),
+  insert: async (data) => {
+    try { return await sbFetch('program_kerja', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }); }
+    catch(e) { if (e.message?.includes('409')) return [data]; throw e; }
+  },
+  update: (id, data) => sbFetch(`program_kerja?id=eq.${id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`program_kerja?id=eq.${id}`, { method:'DELETE' }),
+};
+
+const sbLaporan = {
+  getByProgram: (prokerId) => sbFetch(`laporan_kegiatan?program_kerja_id=eq.${prokerId}&select=*&order=tanggal_kegiatan.desc`),
+  getAll: (tahun) => sbFetch(`laporan_kegiatan?select=*,program_kerja!inner(tahun)&program_kerja.tahun=eq.${tahun}&order=tanggal_kegiatan.desc`),
+  insert: async (data) => {
+    try { return await sbFetch('laporan_kegiatan', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }); }
+    catch(e) { if (e.message?.includes('409')) return [data]; throw e; }
+  },
+  update: (id, data) => sbFetch(`laporan_kegiatan?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`laporan_kegiatan?id=eq.${id}`, { method:'DELETE' }),
+};
+
+const sbSumberDana = {
+  getAll: (tahun) => sbFetch(`sumber_dana?tahun=eq.${tahun}&select=*&order=created_at`),
+  insert: async (data) => {
+    try { return await sbFetch('sumber_dana', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }); }
+    catch(e) { if (e.message?.includes('409')) return [data]; throw e; }
+  },
+  update: (id, data) => sbFetch(`sumber_dana?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`sumber_dana?id=eq.${id}`, { method:'DELETE' }),
+};
+
 // ============ SETTINGS ============
 const sbSettings = {
   get: async (key) => {
@@ -367,4 +399,7 @@ window.SB = {
   musPeserta: sbMusPeserta,
   musAbsensi: sbMusAbsensi,
   musKonfig: sbMusKonfig,
+  proker: sbProker,
+  laporan: sbLaporan,
+  sumberDana: sbSumberDana,
 };
