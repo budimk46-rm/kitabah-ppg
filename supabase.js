@@ -129,7 +129,14 @@ const sbMateri = {
 const sbKelas = {
   getByKelompok: (kelompokId) =>
     sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,kelompok_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
-  insert: (data) => sbFetch('kelas', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
+  insert: async (data) => {
+    try {
+      return await sbFetch('kelas', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) });
+    } catch(e) {
+      if (e.message && e.message.includes('409')) return [data];
+      throw e;
+    }
+  },
   delete: (id) => sbFetch(`kelas?id=eq.${id}`, { method: 'DELETE' }),
 };
 

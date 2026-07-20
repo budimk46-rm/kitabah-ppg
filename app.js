@@ -6417,15 +6417,18 @@ function openAddKelasModal(kelompokId, onSaved) {
     const nama_kelas = document.getElementById('kelasNama').value.trim();
     const jenjang = document.getElementById('kelasJenjang').value;
     const semester = document.getElementById('kelasSem').value;
+    if (!kelompokId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
+    if (!nama_kelas) { showToast('Nama kelas wajib diisi', true); return; }
     const btn = document.getElementById('kelasSaveBtn');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
     try {
-      await SB.kelas.insert({ kelompok_id: kelompokId, nama_kelas, jenjang, semester });
+      await SB.kelas.insert({ kelompok_id: kelompokId, nama_kelas, jenjang, semester: parseInt(semester) });
       showToast('Kelas berhasil ditambahkan');
       closeModal('kelasModal');
       onSaved();
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
+      console.error('Insert kelas error:', e);
     }
     btn.disabled = false; btn.textContent = 'Simpan Kelas';
   };
