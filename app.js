@@ -1622,11 +1622,62 @@ async function renderSantri() {
 
   // ── Stat cards ringkasan ──
   const grandTotal = TINGKATAN_LIST.reduce((n,t) => n + (statsTotal[t].L||0) + (statsTotal[t].P||0), 0);
+  const grandL = TINGKATAN_LIST.reduce((n,t) => n + (statsTotal[t].L||0), 0);
+  const grandP = TINGKATAN_LIST.reduce((n,t) => n + (statsTotal[t].P||0), 0);
+
+  // ── Hitung naik kelas (tahun depan pindah tingkatan) ──
+  function hitungTingkatanTahunDepan(tglLahir) {
+    if (!tglLahir) return '';
+    const lahir = new Date(tglLahir);
+    const nextYear = new Date().getFullYear() + 1;
+    const juli = new Date(nextYear, 6, 1);
+    let usia = juli.getFullYear() - lahir.getFullYear();
+    const bl = lahir.getMonth();
+    const tg = lahir.getDate();
+    if (bl > 6 || (bl === 6 && tg > 1)) usia--;
+    if (usia < 13) return 'caberawit';
+    if (usia < 16) return 'pra_remaja';
+    if (usia < 19) return 'remaja';
+    return 'pra_nikah';
+  }
+
+  // Map kelompok nama ke santri
+  santriFiltered.forEach(s => {
+    s.kelompok_nama = s.kelas?.kelompok?.nama || '';
+  });
+
+  const naikKelas = { caberawit_to_pra_remaja: [], pra_remaja_to_remaja: [], remaja_to_pra_nikah: [] };
+  santriFiltered.forEach(s => {
+    const tNow = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+    const tNext = hitungTingkatanTahunDepan(s.tgl_lahir);
+    if (tNow && tNext && tNow !== tNext) {
+      const key = tNow + '_to_' + tNext;
+      if (naikKelas[key]) naikKelas[key].push(s);
+    }
+  });
+
+  const totalNaik = naikKelas.caberawit_to_pra_remaja.length + naikKelas.pra_remaja_to_remaja.length + naikKelas.remaja_to_pra_nikah.length;
+
+  function naikDetail(list, label) {
+    if (!list.length) return '';
+    // Group by kelompok
+    const byKlp = {};
+    list.forEach(s => {
+      const kn = s.kelompok_nama || s.kelompok_id || '-';
+      if (!byKlp[kn]) byKlp[kn] = 0;
+      byKlp[kn]++;
+    });
+    return Object.entries(byKlp).map(([k,v]) => `${escHtml(k)}: ${v}`).join(', ');
+  }
+
   const statCards = `
     <div class="stat-grid" style="margin-bottom:16px;">
       <div class="stat-card">
         <div class="stat-num">${grandTotal}</div>
         <div class="stat-label">Total Generus</div>
+        <div style="font-size:11px; margin-top:3px; color:var(--ink-soft);">
+          <span style="color:#1a6b3a;">${grandL} L</span> · <span style="color:#a6483b;">${grandP} P</span>
+        </div>
       </div>
       ${TINGKATAN_LIST.map(t => `
       <div class="stat-card">
@@ -1636,7 +1687,45 @@ async function renderSantri() {
           <span style="color:#1a6b3a;">${statsTotal[t].L||0}L</span> · <span style="color:#a6483b;">${statsTotal[t].P||0}P</span>
         </div>
       </div>`).join('')}
-    </div>`;
+    </div>
+
+    ${totalNaik > 0 ? `
+    <div class="card" style="margin-bottom:16px; border:1.5px solid var(--gold); background:#fffbf0;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div class="fw-bold" style="color:var(--gold); font-size:14px;">🎓 Prediksi Naik Kelas Tahun Depan</div>
+        <div class="badge badge-gold" style="font-size:13px; font-weight:800;">${totalNaik} santri</div>
+      </div>
+      ${naikKelas.caberawit_to_pra_remaja.length ? `
+      <div style="padding:8px 0; border-bottom:1px solid var(--line);">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+          <div style="font-size:13px;"><b>CABERAWIT → PRA REMAJA</b> <span class="badge badge-green">${naikKelas.caberawit_to_pra_remaja.length}</span></div>
+          <button class="btn btn-outline btn-sm" style="font-size:11px; padding:3px 8px;" onclick="document.getElementById('nkDetail1').style.display=document.getElementById('nkDetail1').style.display==='none'?'block':'none'">Detail</button>
+        </div>
+        <div id="nkDetail1" style="display:none; margin-top:6px; font-size:12px; color:var(--ink-soft); background:var(--white); border-radius:6px; padding:6px 10px;">
+          ${naikDetail(naikKelas.caberawit_to_pra_remaja)}
+        </div>
+      </div>` : ''}
+      ${naikKelas.pra_remaja_to_remaja.length ? `
+      <div style="padding:8px 0; border-bottom:1px solid var(--line);">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+          <div style="font-size:13px;"><b>PRA REMAJA → REMAJA</b> <span class="badge badge-green">${naikKelas.pra_remaja_to_remaja.length}</span></div>
+          <button class="btn btn-outline btn-sm" style="font-size:11px; padding:3px 8px;" onclick="document.getElementById('nkDetail2').style.display=document.getElementById('nkDetail2').style.display==='none'?'block':'none'">Detail</button>
+        </div>
+        <div id="nkDetail2" style="display:none; margin-top:6px; font-size:12px; color:var(--ink-soft); background:var(--white); border-radius:6px; padding:6px 10px;">
+          ${naikDetail(naikKelas.pra_remaja_to_remaja)}
+        </div>
+      </div>` : ''}
+      ${naikKelas.remaja_to_pra_nikah.length ? `
+      <div style="padding:8px 0;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+          <div style="font-size:13px;"><b>REMAJA → PRA NIKAH</b> <span class="badge badge-green">${naikKelas.remaja_to_pra_nikah.length}</span></div>
+          <button class="btn btn-outline btn-sm" style="font-size:11px; padding:3px 8px;" onclick="document.getElementById('nkDetail3').style.display=document.getElementById('nkDetail3').style.display==='none'?'block':'none'">Detail</button>
+        </div>
+        <div id="nkDetail3" style="display:none; margin-top:6px; font-size:12px; color:var(--ink-soft); background:var(--white); border-radius:6px; padding:6px 10px;">
+          ${naikDetail(naikKelas.remaja_to_pra_nikah)}
+        </div>
+      </div>` : ''}
+    </div>` : ''}`;
 
   // ── Render awal: dashboard saja, form ada di bawah ──
   main.innerHTML = `
