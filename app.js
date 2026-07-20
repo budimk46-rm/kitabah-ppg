@@ -227,7 +227,7 @@ async function loadPendingWaBtn(username, namaLengkap) {
     if (!wa) return;
     let num = wa.replace(/[^0-9]/g, '');
     if (num.startsWith('0')) num = '62' + num.slice(1);
-    const msg = `Halo Admin Kitabah, saya ${namaLengkap} (username: ${username}) baru mendaftar. Mohon diperiksa. Terima kasih.`;
+    const msg = `Halo Admin PPG SIDUTA, saya ${namaLengkap} (username: ${username}) baru mendaftar. Mohon diperiksa. Terima kasih.`;
     const btn = document.getElementById('pendingWaBtn');
     btn.style.display = 'flex';
     btn.onclick = () => window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank');

@@ -2,7 +2,7 @@
    KITABAH v2 — Service Worker v5
    ============================================================ */
 
-const CACHE_NAME = 'kitabah-v2-cache-v5';
+const CACHE_NAME = 'ppg-siduta-cache-v1';
 
 const APP_SHELL = [
   './index.html',

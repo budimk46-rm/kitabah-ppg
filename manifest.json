@@ -1,7 +1,7 @@
 {
-  "name": "Kitabah — PPG Sidoarjo Utara",
-  "short_name": "Kitabah",
-  "description": "Buku Target Kurikulum Generus PPG Sidoarjo Utara",
+  "name": "PPG SIDUTA — Sidoarjo Utara",
+  "short_name": "PPG SIDUTA",
+  "description": "Aplikasi Pendidikan Generus PPG Sidoarjo Utara",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1B3A2C",
