@@ -1390,14 +1390,21 @@ async function renderUsers() {
   }
 
   function userRows(list) {
-    if (!list.length) return '<tr><td colspan="6" style="text-align:center; color:var(--ink-soft); padding:24px;">Tidak ada data</td></tr>';
+    if (!list.length) return '<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:24px;">Tidak ada data</td></tr>';
     return list.map(u => `
       <tr>
-        <td><b>${escHtml(u.nama_lengkap)}</b><br><span class="text-xs color-soft">@${escHtml(u.username)}</span></td>
-        <td>${escHtml(ROLE_LABELS[u.role] || u.role)}</td>
-        <td>${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : (u.desa_id ? escHtml(desaMap[u.desa_id] || u.desa_id) : '—')}</td>
+        <td>
+          <b>${escHtml(u.nama_lengkap)}</b>
+          ${u.jabatan ? `<br><span style="font-size:11px; color:var(--green);">${escHtml(u.jabatan)}</span>` : ''}
+        </td>
+        <td><span style="font-size:12px;">${escHtml(ROLE_LABELS[u.role] || u.role)}</span></td>
+        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : (u.desa_id ? escHtml(desaMap[u.desa_id] || u.desa_id) : '—')}</td>
+        <td style="font-size:11px; font-family:monospace;">
+          <div>👤 ${escHtml(u.username)}</div>
+          <div>🔑 ${escHtml(u.password_hash || '-')}</div>
+        </td>
         <td>${badge(u.status)}</td>
-        <td>${fmtDateShort(u.created_at)}</td>
+        <td style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(u.created_at)}</td>
         <td>
           <div style="display:flex; gap:6px;">
             ${u.status === 'pending' ? `
@@ -1423,14 +1430,14 @@ async function renderUsers() {
     <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft); margin-bottom:6px;">
       <div class="fw-bold color-green" style="margin-bottom:12px;">👥 Menunggu Persetujuan (${pending.length})</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Role</th><th>Kelompok / Desa</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>User & Password</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
         <tbody>${userRows(pending)}</tbody>
       </table></div>
     </div>` : ''}
     <div class="card">
       <div class="fw-bold color-green" style="margin-bottom:12px;">✅ Pengguna Aktif (${approved.length})</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Role</th><th>Kelompok / Desa</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>User & Password</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
         <tbody>${userRows(approved)}</tbody>
       </table></div>
     </div>
@@ -1438,7 +1445,7 @@ async function renderUsers() {
     <div class="card">
       <div class="fw-bold" style="color:var(--rose); margin-bottom:12px;">✕ Ditolak (${rejected.length})</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama</th><th>Role</th><th>Kelompok / Desa</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>User & Password</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
         <tbody>${userRows(rejected)}</tbody>
       </table></div>
     </div>` : ''}
