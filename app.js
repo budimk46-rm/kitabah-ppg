@@ -6159,14 +6159,33 @@ async function renderRekapDaerah() {
   }
 
   function renderDashboard() {
-    const bulanChips = semNow.map(m => `
-      <div onclick="RDA_setBulan('${m}')"
-        style="padding:5px 12px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
-          background:${selectedBulan===m?'var(--green)':'var(--white)'};
-          color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
-          border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
-        ${m}${m===nowMonth?' ●':''}
-      </div>`).join('');
+    const bulanChips = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 1 (Jul - Des):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM1_MONTHS.map(m => `
+            <div onclick="RDA_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 2 (Jan - Jun):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM2_MONTHS.map(m => `
+            <div onclick="RDA_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>`;
 
     // Hitung stats semua kelompok
     const allKlpStats = kelompokList.map(klp => ({
@@ -6227,13 +6246,13 @@ async function renderRekapDaerah() {
         </div>
         <div class="table-wrap">
           <table style="width:100%; border-collapse:collapse; min-width:600px;">
-            <thead><tr style="background:var(--green-soft);">
-              <th style="padding:7px 10px; text-align:left; font-size:11px; color:var(--green);">Kelompok</th>
-              <th style="text-align:center; font-size:11px; color:var(--green); padding:7px 4px;">Generus</th>
-              <th style="text-align:center; font-size:11px; color:var(--green); padding:7px 4px;">Pertemuan</th>
-              <th style="font-size:11px; color:var(--green); padding:7px 10px;">Kehadiran</th>
-              <th style="font-size:11px; color:var(--green); padding:7px 10px;">Prog. Materi</th>
-              <th style="font-size:11px; color:var(--green); padding:7px 10px; text-align:center;">Generus per Tingkatan (L/P)</th>
+            <thead><tr style="background:var(--green);">
+              <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+              <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Generus</th>
+              <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Pertemuan</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px;">Kehadiran</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px;">Prog. Materi</th>
+              <th style="font-size:11px; color:#fff; padding:7px 10px; text-align:center;">Generus per Tingkatan (L/P)</th>
             </tr></thead>
             <tbody>${klpRows}</tbody>
           </table>
