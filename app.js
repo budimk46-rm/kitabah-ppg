@@ -672,6 +672,7 @@ const NAV_ITEMS = {
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum & Materi', section: 'KONTEN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -681,6 +682,7 @@ const NAV_ITEMS = {
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Daerah' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
@@ -688,6 +690,7 @@ const NAV_ITEMS = {
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
@@ -771,6 +774,7 @@ async function renderPage(page) {
       case 'progress':    await renderProgress(); break;
       case 'absensi':     await renderAbsensi(); break;
       case 'santri':      await renderSantri(); break;
+      case 'kelola_kelas': await renderKelolaKelas(); break;
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
@@ -1640,10 +1644,7 @@ async function renderSantri() {
       ${tabelFull}
       <div style="margin-top:8px; font-size:11px; color:var(--ink-soft);">L = Laki-laki · P = Perempuan · Tingkatan dihitung dari usia per 1 Juli ${new Date().getFullYear()}</div>
     </div>
-    <div class="card">
-      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:14px;">Kelola Data Generus</div>
-      <div id="santriFormArea"></div>
-    </div>`;
+  `;
 
   // ── Fungsi Download PDF ──
   window.STR_downloadPdf = async () => {
@@ -1783,11 +1784,27 @@ async function renderSantri() {
       console.error(e);
     }
   };
+}
 
-  // ── Render form kelola di bawah dashboard ──
+/* ===== PAGE: KELOLA KELAS GENERUS ===== */
+async function renderKelolaKelas() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
+  main.innerHTML = `
+    <div class="page-header">
+      <h1 class="page-title">Kelola Kelas Generus</h1>
+    </div>
+    <div class="card">
+      <div id="santriFormArea"></div>
+    </div>`;
+
   const formEl = document.getElementById('santriFormArea');
 
-  // ── Form Kelola Data Generus ──
+  // ── Form Kelola Kelas Generus ──
   const isAdminForm = u.role === 'admin';
 
   let selectedKelompokId = u.kelompok_id || null;
