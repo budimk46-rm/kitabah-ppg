@@ -707,7 +707,6 @@ const NAV_ITEMS = {
   pjp_kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN' },
-    { id: 'progress', icon: checkIcon(), label: 'Progress Materi' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
@@ -731,7 +730,6 @@ const NAV_ITEMS = {
   kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
-    { id: 'progress', icon: checkIcon(), label: 'Progress Materi' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap Progress' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
@@ -781,7 +779,6 @@ async function renderPage(page) {
     switch(page) {
       case 'dashboard':   await renderDashboard(); break;
       case 'kurikulum':   await renderKurikulum(); break;
-      case 'progress':    await renderProgress(); break;
       case 'absensi':     await renderAbsensi(); break;
       case 'santri':      await renderSantri(); break;
       case 'kelola_kelas': await renderKelolaKelas(); break;
@@ -891,7 +888,6 @@ function getQuickMenuItems() {
     { page: 'kurikulum', emoji: '📖', label: 'Kurikulum', roles: ['admin','kelompok','pjp_kelompok','wali_kbm','guru'] },
     { page: 'absensi', emoji: '📋', label: 'Absensi & Jurnal', roles: ['admin','guru','pjp_kelompok'] },
     { page: 'santri', emoji: '👥', label: 'Data Santri', roles: ['admin','kelompok','pjp_kelompok'] },
-    { page: 'progress', emoji: '✅', label: 'Progress Materi', roles: ['admin','kelompok','pjp_kelompok'] },
     { page: 'users', emoji: '⚙️', label: 'Kelola Pengguna', roles: ['admin'] },
     { page: 'rekap', emoji: '📊', label: 'Rekap KBM', roles: ['admin','kelompok','pjp_kelompok','wali_kbm'] },
     { page: 'rekap_desa', emoji: '🏡', label: 'Rekap Desa', roles: ['admin','desa'] },
