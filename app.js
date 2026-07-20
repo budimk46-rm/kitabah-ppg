@@ -2679,7 +2679,7 @@ async function renderProker() {
   const u = App.user;
   const isAdmin = u.role === 'admin' || u.role === 'daerah';
   const tahun = new Date().getFullYear();
-  const BIDANG_LIST = ['Kurikulum','Tenaga Pendidik','Seni & Olahraga','Kemandirian','Keputrian','KMM Daerah','Tahfidz','Sarana dan Prasarana','Penggalang Dana','Bimbingan Konseling'];
+  const BIDANG_LIST = ['Sekretariat','Kurikulum','Tenaga Pendidik','Seni & Olahraga','Kemandirian','Keputrian','KMM Daerah','Tahfidz','Sarana dan Prasarana','Penggalang Dana','Bimbingan Konseling'];
   const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
@@ -2782,7 +2782,7 @@ async function renderProker() {
                 <div style="font-weight:700; font-size:13px;">${escHtml(p.nama_program)}</div>
                 <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escHtml(p.detail_program||'')}</div>
                 <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">
-                  📅 ${escHtml(p.bulan_mulai||'')}${p.bulan_selesai&&p.bulan_selesai!==p.bulan_mulai?' - '+escHtml(p.bulan_selesai):''} · 💰 ${fmtRp(p.anggaran)}
+                  📅 ${escHtml(p.bulan_mulai||'Belum ditentukan')} · 💰 ${fmtRp(p.anggaran)}
                 </div>
               </div>
               <div style="display:flex; gap:4px; flex-shrink:0;">
@@ -2868,28 +2868,58 @@ async function renderProker() {
   // === MODAL SUMBER DANA ===
   function openDanaModal(existing) {
     const p = existing;
+    // Detect freq number from existing data
+    const freqMap = {'1x per tahun':1,'2x per tahun':2,'3x per tahun':3,'4x per tahun (triwulan)':4,'6x per tahun (2 bulan sekali)':6,'12x per tahun (tiap bulan)':12};
+    if (p) p._freqNum = freqMap[p.frekuensi] || (p.estimasi_per_periode && p.jumlah_unit && p.estimasi_total_tahun ? Math.round(p.estimasi_total_tahun / (p.estimasi_per_periode * p.jumlah_unit)) : 1);
+
+    window.PK_hitungDana = () => {
+      const est = parseInt(document.getElementById('dnEst')?.value)||0;
+      const unit = parseInt(document.getElementById('dnUnit')?.value)||1;
+      const freq = parseInt(document.getElementById('dnFreq')?.value)||1;
+      const total = est * unit * freq;
+      const el = document.getElementById('dnTotalDisplay');
+      if (el) el.textContent = 'Rp ' + total.toLocaleString('id-ID');
+    };
+
     showModal('danaModal', `
       <h3 class="modal-title">${p?'Edit':'Tambah'} Sumber Dana</h3>
     `, `
       <div class="form-group"><label>Nama Sumber *</label><input id="dnNama" value="${escHtml(p?.nama_sumber||'')}"></div>
       <div class="form-group"><label>Deskripsi</label><input id="dnDesc" value="${escHtml(p?.deskripsi||'')}"></div>
       <div class="form-row">
-        <div class="form-group"><label>Estimasi/Periode (Rp)</label><input type="number" id="dnEst" value="${p?.estimasi_per_periode||0}"></div>
-        <div class="form-group"><label>Frekuensi</label><input id="dnFreq" value="${escHtml(p?.frekuensi||'')}" placeholder="misal: tiap bulan"></div>
+        <div class="form-group"><label>Estimasi/Periode (Rp)</label><input type="number" id="dnEst" value="${p?.estimasi_per_periode||0}" oninput="PK_hitungDana()"></div>
+        <div class="form-group"><label>Jumlah Unit</label><input type="number" id="dnUnit" value="${p?.jumlah_unit||1}" oninput="PK_hitungDana()"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Jumlah Unit</label><input type="number" id="dnUnit" value="${p?.jumlah_unit||1}"></div>
-        <div class="form-group"><label>Total/Tahun (Rp)</label><input type="number" id="dnTotal" value="${p?.estimasi_total_tahun||0}"></div>
+        <div class="form-group"><label>Frekuensi</label>
+          <select id="dnFreq" onchange="PK_hitungDana()">
+            <option value="1" ${(p?.frekuensi||'')==='1x per tahun'?'selected':''}>1x per tahun</option>
+            <option value="2" ${(p?.frekuensi||'')==='2x per tahun'?'selected':''}>2x per tahun</option>
+            <option value="3" ${(p?.frekuensi||'')==='3x per tahun'?'selected':''}>3x per tahun</option>
+            <option value="4" ${(p?.frekuensi||'')==='4x per tahun (triwulan)'?'selected':''}>4x per tahun (triwulan)</option>
+            <option value="6" ${(p?.frekuensi||'')==='6x per tahun (2 bulan sekali)'||String(p?._freqNum)==='6'?'selected':''}>6x per tahun (2 bulan sekali)</option>
+            <option value="12" ${(p?.frekuensi||'')==='12x per tahun (tiap bulan)'||String(p?._freqNum)==='12'?'selected':''}>12x per tahun (tiap bulan)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Total/Tahun (otomatis)</label>
+          <div id="dnTotalDisplay" style="font-size:18px; font-weight:800; color:var(--green); padding:6px 0;">Rp 0</div>
+        </div>
       </div>
       <div class="form-group"><label>Realisasi (Rp)</label><input type="number" id="dnReal" value="${p?.realisasi||0}"></div>
+      <script>window.PK_hitungDana&&PK_hitungDana();</script>
     `, async () => {
+      const est = parseInt(document.getElementById('dnEst').value)||0;
+      const unit = parseInt(document.getElementById('dnUnit').value)||1;
+      const freqVal = parseInt(document.getElementById('dnFreq').value)||1;
+      const freqLabels = {'1':'1x per tahun','2':'2x per tahun','3':'3x per tahun','4':'4x per tahun (triwulan)','6':'6x per tahun (2 bulan sekali)','12':'12x per tahun (tiap bulan)'};
+      const totalTahun = est * unit * freqVal;
       const data = {
         nama_sumber: document.getElementById('dnNama').value.trim(),
         deskripsi: document.getElementById('dnDesc').value.trim()||null,
-        estimasi_per_periode: parseInt(document.getElementById('dnEst').value)||0,
-        frekuensi: document.getElementById('dnFreq').value.trim()||null,
-        jumlah_unit: parseInt(document.getElementById('dnUnit').value)||1,
-        estimasi_total_tahun: parseInt(document.getElementById('dnTotal').value)||0,
+        estimasi_per_periode: est,
+        frekuensi: freqLabels[freqVal] || freqVal+'x per tahun',
+        jumlah_unit: unit,
+        estimasi_total_tahun: totalTahun,
         realisasi: parseInt(document.getElementById('dnReal').value)||0,
         tahun, tahun_ajaran: getTahunAjaran(), dibuat_oleh: u.id,
       };
@@ -2904,6 +2934,7 @@ async function renderProker() {
   function openProkerModal(existing, bidangDefault) {
     const p = existing;
     const bidang = p?.bidang || bidangDefault || '';
+    const selectedBulanArr = (p?.bulan_mulai||'').split(',').map(s=>s.trim()).filter(Boolean);
     showModal('prokerModal', `
       <h3 class="modal-title">${p?'Edit':'Tambah'} Program Kerja</h3>
     `, `
@@ -2912,18 +2943,25 @@ async function renderProker() {
       </div>
       <div class="form-group"><label>Nama Program *</label><input id="pkNama" value="${escHtml(p?.nama_program||'')}"></div>
       <div class="form-group"><label>Detail Program</label><textarea id="pkDetail" rows="3">${escHtml(p?.detail_program||'')}</textarea></div>
-      <div class="form-row">
-        <div class="form-group"><label>Bulan Mulai</label><select id="pkMulai">${BULAN_NAMES.map(b=>`<option value="${b}" ${b===(p?.bulan_mulai||'')?'selected':''}>${b}</option>`).join('')}</select></div>
-        <div class="form-group"><label>Bulan Selesai</label><select id="pkSelesai">${BULAN_NAMES.map(b=>`<option value="${b}" ${b===(p?.bulan_selesai||'')?'selected':''}>${b}</option>`).join('')}</select></div>
+      <div class="form-group"><label>Bulan Pelaksanaan</label>
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:4px;" id="pkBulanGrid">
+          ${BULAN_NAMES.map(b => {
+            const checked = selectedBulanArr.includes(b);
+            return `<label style="display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:6px; cursor:pointer; font-size:12px; border:1.5px solid ${checked?'var(--green)':'var(--line)'}; background:${checked?'var(--green-soft)':'var(--white)'};">
+              <input type="checkbox" value="${b}" ${checked?'checked':''} style="accent-color:var(--green);"> ${b.slice(0,3)}
+            </label>`;
+          }).join('')}
+        </div>
       </div>
       <div class="form-group"><label>Anggaran (Rp)</label><input type="number" id="pkAnggaran" value="${p?.anggaran||0}"></div>
     `, async () => {
+      const bulanChecked = [...document.querySelectorAll('#pkBulanGrid input:checked')].map(c => c.value);
       const data = {
         bidang: document.getElementById('pkBidang').value,
         nama_program: document.getElementById('pkNama').value.trim(),
         detail_program: document.getElementById('pkDetail').value.trim()||null,
-        bulan_mulai: document.getElementById('pkMulai').value,
-        bulan_selesai: document.getElementById('pkSelesai').value,
+        bulan_mulai: bulanChecked.join(', '),
+        bulan_selesai: null,
         anggaran: parseInt(document.getElementById('pkAnggaran').value)||0,
         tahun, tahun_ajaran: getTahunAjaran(), dibuat_oleh: u.id,
       };
@@ -2988,6 +3026,11 @@ async function renderProker() {
     </div>`;
     document.getElementById(id+'Save').onclick = onSave;
     openModal(id);
+    // Auto-trigger hitung dana jika ada
+    if (window.PK_hitungDana && document.getElementById('dnEst')) {
+      // Set freq dropdown dari existing
+      setTimeout(() => PK_hitungDana(), 50);
+    }
   }
 
   render();
