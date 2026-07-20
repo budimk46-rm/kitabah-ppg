@@ -6230,7 +6230,7 @@ async function renderRekapDaerah() {
         const uid = desaNama.replace(/\s/g,'') + '_' + klpIdx;
         const kelasDetail = (s?.perKelas||[]).map(k => `
           <tr style="background:var(--green-soft);">
-            <td style="padding:4px 10px 4px 28px; font-size:11.5px; color:var(--ink-soft);">↳ ${escHtml(k.nama)}</td>
+            <td style="padding:4px 10px; font-size:11.5px; color:var(--ink-soft);">↳ ${escHtml(k.nama)}</td>
             <td style="text-align:center; font-size:11px;">${k.santri}</td>
             <td style="text-align:center; font-size:11px;">${k.pertemuan}x</td>
             <td style="padding:4px 10px;">${pctBar(k.pctHadir)}</td>
@@ -6255,7 +6255,7 @@ async function renderRekapDaerah() {
               <table style="width:100%; border-collapse:collapse;">
                 ${kelasDetail}
                 <tr style="background:#f8f8f4;">
-                  <td colspan="5" style="padding:5px 10px 5px 28px; font-size:11px; color:var(--ink-soft);">
+                  <td colspan="5" style="padding:5px 10px; font-size:11px; color:var(--ink-soft);">
                     👥 ${generusDetail}
                   </td>
                 </tr>
