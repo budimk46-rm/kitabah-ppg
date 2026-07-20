@@ -2848,7 +2848,7 @@ async function renderProker() {
   };
 
   window.PK_tambahProker = (bidang) => openProkerModal(null, bidang);
-  window.PK_editProker = (id) => openProkerModal(allProker.find(p=>p.id===id));
+  window.PK_editProker = (id) => { const p = allProker.find(x=>x.id===id); if(p) openProkerModal(p, p.bidang); };
   window.PK_hapusProker = async (id) => {
     if (!confirm('Hapus program kerja ini beserta laporannya?')) return;
     await SB.proker.delete(id);
@@ -2936,11 +2936,9 @@ async function renderProker() {
     const bidang = p?.bidang || bidangDefault || '';
     const selectedBulanArr = (p?.bulan_mulai||'').split(',').map(s=>s.trim()).filter(Boolean);
     showModal('prokerModal', `
-      <h3 class="modal-title">${p?'Edit':'Tambah'} Program Kerja</h3>
+      <h3 class="modal-title">${p?'Edit':'Tambah'} Program Kerja — ${escHtml(bidang)}</h3>
     `, `
-      <div class="form-group"><label>Bidang</label>
-        <select id="pkBidang">${BIDANG_LIST.map(b=>`<option value="${b}" ${b===bidang?'selected':''}>${b}</option>`).join('')}</select>
-      </div>
+      <input type="hidden" id="pkBidang" value="${escHtml(bidang)}">
       <div class="form-group"><label>Nama Program *</label><input id="pkNama" value="${escHtml(p?.nama_program||'')}"></div>
       <div class="form-group"><label>Detail Program</label><textarea id="pkDetail" rows="3">${escHtml(p?.detail_program||'')}</textarea></div>
       <div class="form-group"><label>Bulan Pelaksanaan</label>
