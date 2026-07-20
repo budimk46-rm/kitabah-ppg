@@ -4234,35 +4234,43 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   const desaId = u.desa_id || null;
 
   // Daftar semua dapukan yang tersedia per level
-  const DAPUKAN_OPTIONS = {
-    guru_generus: [
-      'PJP Kelompok',
-      'Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah',
-      'Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah',
-      'Guru Generus',
-    ],
-    unsur_5: [
-      'Ulil Amri Kelompok','PJP Kelompok',
-      'Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah',
-      'Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah',
-      'Guru Generus','Sekretaris','Bendahara','BK Kelompok','Bidang Kelompok',
-    ],
-    pjp_desa: [
-      'Ulil Amri Desa','PJP Desa KBM','PJP Desa Sarpras','PJP Desa BK',
-      'PJP Kelompok',
-      'Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah',
-      'Guru Generus','BK Kelompok','Pengurus Desa',
-    ],
-    ppg_daerah: [
-      'Ulil Amri Daerah','Penghar PPG',
-      'Bidang Kurikulum','Bidang Tenaga Pendidik','Bidang Seni & Olahraga','Bidang Kemandirian',
-      'Bidang Keputrian','Bidang KMM Daerah','Bidang Tahfidz','Bidang Sarana dan Prasarana',
-      'Bidang Penggalang Dana','Bidang Bimbingan Konseling',
-      'Ulil Amri Desa','PJP Desa KBM',
-    ],
-  };
+  // Load dapukan dari database (dinamis)
+  let allPesertaForKonfig = [];
+  try {
+    if (levelMus === 'ppg_daerah') {
+      allPesertaForKonfig = await SB.musPeserta.getByDaerah() || [];
+      // Juga ambil dapukan dari semua desa
+      const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
+      for (const dn of DESA_NAMES) {
+        const dp = await SB.musPeserta.getByDesa(dn) || [];
+        allPesertaForKonfig = [...allPesertaForKonfig, ...dp];
+      }
+    } else if (levelMus === 'pjp_desa') {
+      // Ambil dari semua desa + semua kelompok
+      const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
+      for (const dn of DESA_NAMES) {
+        const dp = await SB.musPeserta.getByDesa(dn) || [];
+        allPesertaForKonfig = [...allPesertaForKonfig, ...dp];
+      }
+      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+      for (const klp of (App.cache.kelompok||[])) {
+        const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+        allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+      }
+    } else {
+      // guru_generus / unsur_5 → ambil dari semua kelompok
+      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+      for (const klp of (App.cache.kelompok||[])) {
+        const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+        allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+      }
+    }
+  } catch(e) { console.error(e); }
 
-  const options = DAPUKAN_OPTIONS[levelMus] || [];
+  // Ekstrak daftar dapukan unik dari data pengurus
+  const options = [...new Set(
+    allPesertaForKonfig.map(p => (p.jabatan||'').trim()).filter(j => j)
+  )].sort();
 
   // Load konfigurasi existing
   let existing = null;
@@ -4343,13 +4351,13 @@ async function openKelolaMusPesertaModal(refId, u, mode='kelompok') {
   const kelompokId = mode.startsWith('kelompok') ? (refId || u.kelompok_id) : null;
   const desaId = mode === 'desa' ? (refId || u.desa_id || null) : (u.desa_id || null);
   const judulMap = {
-    daerah: 'Peserta Musyawarah PPG Daerah',
-    desa: 'Peserta Musyawarah PJP Desa',
-    kelompok: 'Peserta Musyawarah Kelompok',
-    kelompok_guru: 'Peserta Musyawarah Guru Generus',
-    kelompok_5unsur: 'Peserta Musyawarah 5 Unsur',
+    daerah: 'Data Pengurus Daerah',
+    desa: 'Data Pengurus Desa',
+    kelompok: 'Data Pengurus Kelompok',
+    kelompok_guru: 'Data Pengurus Kelompok — Guru Generus',
+    kelompok_5unsur: 'Data Pengurus Kelompok — 5 Unsur',
   };
-  const judul = judulMap[mode] || 'Peserta Musyawarah';
+  const judul = judulMap[mode] || 'Data Pengurus';
 
   async function renderModal() {
     let pesertaList = [];
