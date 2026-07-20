@@ -3394,7 +3394,6 @@ async function renderMusyawarah() {
     } catch(e) {}
     const dapukanWajib = konfig?.dapukan_wajib || [];
     console.log('Konfig musyawarah:', level, 'dapukan wajib:', dapukanWajib, 'konfig:', konfig);
-    console.log('allPeserta:', allPeserta.length, 'dapukan list:', allPeserta.map(p=>p.jabatan));
 
     // Load semua peserta yang relevan
     let allPeserta = [];
@@ -3434,6 +3433,7 @@ async function renderMusyawarah() {
       const seen = new Set();
       allPeserta = allPeserta.filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
     } catch(e) { console.error('Load peserta error:', e); }
+    console.log('allPeserta:', allPeserta.length, 'dapukan list:', allPeserta.map(p=>p.jabatan));
 
     // Filter berdasarkan konfigurasi dapukan wajib
     if (dapukanWajib.length > 0) {
