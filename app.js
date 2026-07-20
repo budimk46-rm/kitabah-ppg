@@ -3398,42 +3398,58 @@ async function renderMusyawarah() {
     // Load semua peserta yang relevan
     let allPeserta = [];
     try {
-      // Tentukan scope berdasar role + pilihan admin
       const effectiveKlpId = u.kelompok_id || window._musRekapKelompokId || null;
       const effectiveDesaId = u.desa_id || window._musRekapDesaId || null;
+      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
 
       if (level === 'ppg_daerah') {
-        // Load semua peserta daerah
         allPeserta = await SB.musPeserta.getByDaerah() || [];
-        // Juga load semua desa
-        const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2','D1','D2','D3','D4','D5','D6'];
+        const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
         for (const dn of DESA_NAMES) {
           const dp = await SB.musPeserta.getByDesa(dn) || [];
           allPeserta = [...allPeserta, ...dp];
         }
+
       } else if (level === 'pjp_desa') {
-        const desaId = effectiveDesaId || '';
-        const desaNama = DESA_NAMA_MAP[desaId] || desaId;
-        let p1 = await SB.musPeserta.getByDesa(desaId) || [];
-        let p2 = desaNama !== desaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
-        // Juga load peserta dari kelompok se-desa
-        if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-        const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
-        for (const klp of klpDesa) {
-          const klpPeserta = await SB.musPeserta.getByKelompok(klp.id) || [];
-          p2 = [...p2, ...klpPeserta];
+        if (effectiveDesaId) {
+          const desaNama = DESA_NAMA_MAP[effectiveDesaId] || effectiveDesaId;
+          let p1 = await SB.musPeserta.getByDesa(effectiveDesaId) || [];
+          let p2 = desaNama !== effectiveDesaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
+          const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === effectiveDesaId);
+          for (const klp of klpDesa) {
+            const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+            p2 = [...p2, ...kp];
+          }
+          allPeserta = [...p1, ...p2];
+        } else {
+          // Admin tanpa pilihan desa → load semua desa + semua kelompok
+          const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
+          for (const dn of DESA_NAMES) {
+            const dp = await SB.musPeserta.getByDesa(dn) || [];
+            allPeserta = [...allPeserta, ...dp];
+          }
+          for (const klp of (App.cache.kelompok||[])) {
+            const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+            allPeserta = [...allPeserta, ...kp];
+          }
         }
-        allPeserta = [...p1, ...p2];
+
       } else if (level === 'guru_generus' || level === 'unsur_5') {
         if (effectiveKlpId) {
           allPeserta = await SB.musPeserta.getByKelompok(effectiveKlpId) || [];
+        } else {
+          // Admin tanpa pilihan kelompok → load semua kelompok
+          for (const klp of (App.cache.kelompok||[])) {
+            const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+            allPeserta = [...allPeserta, ...kp];
+          }
         }
       }
       // Dedup
       const seen = new Set();
       allPeserta = allPeserta.filter(p => { if(seen.has(p.id)) return false; seen.add(p.id); return true; });
     } catch(e) { console.error('Load peserta error:', e); }
-    console.log('allPeserta:', allPeserta.length, 'dapukan list:', allPeserta.map(p=>p.jabatan));
+    console.log('allPeserta:', allPeserta.length, 'dapukan list:', [...new Set(allPeserta.map(p=>p.jabatan))]);
 
     // Filter berdasarkan konfigurasi dapukan wajib
     if (dapukanWajib.length > 0) {
