@@ -3123,7 +3123,7 @@ async function renderMusyawarah() {
               </div>
             </div>
             <div style="margin-bottom:10px;">
-              <select onchange="window._musRekapKelompokId=this.value;MUS_loadRekap('${level}')" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+              <select onchange="window._musRekapKelompokId=this.value;MUS_loadRekap('${level}');MUS_loadAbsensiInline('${level}')" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
                 <option value="">Pilih kelompok...</option>
                 ${allKlp.map(k => `<option value="${k.id}" ${k.id===selectedKlp?'selected':''}>${escHtml(k.nama)} (${escHtml(k.desa?.nama||'')})</option>`).join('')}
               </select>
@@ -3234,7 +3234,7 @@ async function renderMusyawarah() {
               </div>
             </div>
             <div style="margin-bottom:10px;">
-              <select onchange="window._musRekapDesaId=this.value;MUS_loadRekap('${level}')" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
+              <select onchange="window._musRekapDesaId=this.value;MUS_loadRekap('${level}');MUS_loadAbsensiInline('${level}')" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:6px; font-size:13px;">
                 <option value="">Pilih desa...</option>
                 ${DESA_LIST.map(d => `<option value="${d.id}" ${d.id===selectedDesa?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
               </select>
@@ -3482,37 +3482,59 @@ async function renderMusyawarah() {
 
     const totalH = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'H').length + musInlineTamu.length;
     const totalI = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'I').length;
+    const totalS = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'S').length;
     const totalA = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'A').length;
 
     statsEl.innerHTML = `
       <span class="badge badge-green">Hadir: ${totalH}</span>
       <span class="badge badge-gold">Izin: ${totalI}</span>
+      <span class="badge" style="background:#e3f0f7; color:#4da6c9;">Sakit: ${totalS}</span>
       <span class="badge badge-rose">Alpha: ${totalA}</span>
       <span class="badge badge-gray">Total: ${musInlinePeserta.length + musInlineTamu.length}</span>`;
 
-    let html = '';
+    // Kelompokkan peserta berdasarkan kelompok_id / desa_id / daerah
+    if (!App.cache.kelompok) App.cache.kelompok = [];
+    const groups = {};
     musInlinePeserta.forEach(p => {
-      const st = musInlineAbsensi[p.id] || 'H';
-      const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
-      html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
-        <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
-          <div style="flex:1; min-width:0;">
-            <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
-            <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}</div>
-          </div>
-          ${waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="flex-shrink:0; width:28px; height:28px; background:#25d366; border-radius:50%; display:flex; align-items:center; justify-content:center;" title="WhatsApp ${escHtml(p.nama)}">
-            <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
-          </a>` : ''}
-        </div>
-        <div style="display:flex; gap:4px; flex-shrink:0;">
-          ${['H','I','S','A'].map(s => `
-            <button onclick="MUS_setAbsInline('${p.id}','${s}')"
-              style="width:32px; height:30px; border:2px solid ${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'transparent'}; color:${st===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)')}; font-weight:800; font-size:11px; cursor:pointer;">
-              ${s}
-            </button>`).join('')}
-        </div>
-      </div>`;
+      let groupKey = 'Lainnya';
+      if (p.level_daerah) groupKey = '🏛️ Pengurus Daerah';
+      else if (p.desa_id && !p.kelompok_id) groupKey = '🏘️ ' + (p.desa_id || 'Desa');
+      else if (p.kelompok_id) {
+        const klp = (App.cache.kelompok||[]).find(k => k.id === p.kelompok_id);
+        groupKey = '👥 ' + (klp?.nama || p.kelompok_id);
+      }
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(p);
     });
+
+    let html = '';
+    for (const [group, members] of Object.entries(groups)) {
+      if (Object.keys(groups).length > 1) {
+        html += `<div style="font-size:12px; font-weight:700; color:var(--green); padding:8px 0 4px; border-bottom:2px solid var(--green); margin-top:8px;">${escHtml(group)} (${members.length})</div>`;
+      }
+      members.forEach(p => {
+        const st = musInlineAbsensi[p.id] || 'H';
+        const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
+        html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
+          <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
+              <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}</div>
+            </div>
+            ${waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="flex-shrink:0; width:28px; height:28px; background:#25d366; border-radius:50%; display:flex; align-items:center; justify-content:center;" title="WhatsApp ${escHtml(p.nama)}">
+              <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
+            </a>` : ''}
+          </div>
+          <div style="display:flex; gap:4px; flex-shrink:0;">
+            ${['H','I','S','A'].map(s => `
+              <button onclick="MUS_setAbsInline('${p.id}','${s}')"
+                style="width:32px; height:30px; border:2px solid ${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'transparent'}; color:${st===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)')}; font-weight:800; font-size:11px; cursor:pointer;">
+                ${s}
+              </button>`).join('')}
+          </div>
+        </div>`;
+      });
+    }
 
     // Tamu
     musInlineTamu.forEach((t, i) => {
