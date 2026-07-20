@@ -5218,6 +5218,7 @@ async function renderRekap() {
           <td style="text-align:center; color:#e6a817; font-weight:700;">${s.i}</td>
           <td style="text-align:center; color:#17a2b8; font-weight:700;">${s.s}</td>
           <td style="text-align:center; color:var(--rose); font-weight:700;">${s.a}</td>
+          <td style="text-align:center; font-size:11px; color:var(--ink-soft);">${s.totalPertemuan}</td>
           <td style="text-align:center;">
             ${s.pct !== null ? `<span style="font-weight:800; color:${pctColor};">${s.pct}%</span>` : '—'}
           </td>
@@ -5248,7 +5249,7 @@ async function renderRekap() {
           <div>
             <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Kehadiran Bulan Ini</div>
             ${progressBar(ks.pctHadir)}
-            ${ks.totalSlot > 0 ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">H:${ks.totalH} I:${ks.totalI} S:${ks.totalS} A:${ks.totalA} dari ${ks.totalSlot} sesi</div>` : ''}
+            ${ks.totalSlot > 0 ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">H:${ks.totalH} I:${ks.totalI} S:${ks.totalS} A:${ks.totalA} · ${ks.totalPertemuan} pertemuan × ${ks.totalSantri} santri</div>` : ''}
           </div>
           <div>
             <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Progress Materi</div>
@@ -5272,6 +5273,7 @@ async function renderRekap() {
                 <th style="text-align:center; color:#fbbf24;">I</th>
                 <th style="text-align:center; color:#67e8f9;">S</th>
                 <th style="text-align:center; color:#f87171;">A</th>
+                <th style="text-align:center;">Ptm</th>
                 <th style="text-align:center;">%</th>
               </tr></thead>
               <tbody>${santriRows}</tbody>
