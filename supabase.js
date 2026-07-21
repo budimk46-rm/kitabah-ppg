@@ -147,7 +147,7 @@ const sbSantri = {
   getByKelompok: (kelompokId) =>
     sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
   getAll: () =>
-    sbFetch(`santri?aktif=eq.true&select=*,kelas(kelompok_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`),
+    sbFetch(`santri?aktif=eq.true&select=*,kelas(id,kelompok_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`),
   insert: (data) => sbFetch('santri', {
     method: 'POST',
     headers: {'Prefer':'return=representation'},
