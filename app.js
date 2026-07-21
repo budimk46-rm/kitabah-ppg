@@ -2506,52 +2506,84 @@ async function renderAbsensi() {
         </button>
       </div>` : '';
 
+    // Hitung pertemuan ke berapa bulan ini
+    const pertemuanBulanIni = pertemuanList.filter(p => p.bulan === nowMonth);
+    const pertemuanKe = pertemuanBulanIni.length + 1;
+
+    // Riwayat pertemuan bulan ini
+    const riwayatHtml = pertemuanBulanIni.length ? pertemuanBulanIni.map((p, idx) => `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; background:${p.id===currentPertemuanId?'var(--green-soft)':'var(--white)'};" onclick="ABS_setPertemuan('${p.id}')">
+        <div>
+          <div style="font-weight:600; font-size:13px; color:${p.id===currentPertemuanId?'var(--green)':'var(--ink)'};">Pertemuan ke-${p.pertemuan_ke || (idx+1)}</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(p.tanggal)}</div>
+        </div>
+        <div style="font-size:11px; color:var(--ink-soft);">
+          ${p.id===currentPertemuanId ? '<span class="badge badge-green" style="font-size:10px;">Sedang diedit</span>' : 'Lihat \u2192'}
+        </div>
+      </div>`).join('') : '<div style="padding:10px; font-size:12px; color:var(--ink-soft);">Belum ada pertemuan di bulan ini.</div>';
+
     main.innerHTML = `
       <div class="page-header">
         <h1 class="page-title">Absensi & Jurnal KBM</h1>
       </div>
 
-      <!-- Pilih Kelas & Pertemuan -->
-      <div class="card">
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
-          <div style="flex:1; min-width:150px;">
-            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelas</label>
-            <select onchange="ABS_setKelas(this)"
-              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
-              ${kelasOptHtml}
-            </select>
+      <!-- Pilih Kelas -->
+      <div class="card" style="margin-bottom:14px;">
+        <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelas</label>
+        <select onchange="ABS_setKelas(this)"
+          style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+          ${kelasOptHtml}
+        </select>
+      </div>
+
+      <!-- Info Pertemuan -->
+      <div class="card" style="border:2px solid var(--green); margin-bottom:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+          <div>
+            <div style="font-size:18px; font-weight:800; color:var(--green);">
+              ${currentPertemuanId
+                ? 'Pertemuan ke-' + (pertemuanList.find(p=>p.id===currentPertemuanId)?.pertemuan_ke || '?')
+                : 'Pertemuan ke-' + pertemuanKe + ' (Baru)'}
+            </div>
+            <div style="font-size:13px; color:var(--ink-soft);">
+              ${selectedKelas?.nama_kelas||''} — ${nowMonth} ${new Date().getFullYear()} · TA ${getTahunAjaran()}
+            </div>
           </div>
-          <div style="flex:2; min-width:200px;">
-            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Pertemuan</label>
-            <select id="pertemuanSelect" onchange="ABS_setPertemuan(this.value)"
-              style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
-              ${pertemuanOptHtml}
-            </select>
+          <div style="display:flex; gap:6px;">
+            ${currentPertemuanId ? '<button class="btn btn-outline btn-sm" onclick="ABS_setPertemuan(\'\')" style="font-size:11px;">+ Pertemuan Baru</button>' : ''}
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('riwayatPtm').style.display=document.getElementById('riwayatPtm').style.display==='none'?'block':'none'" style="font-size:11px;">
+              \ud83d\udccb Riwayat (${pertemuanBulanIni.length})
+            </button>
           </div>
+        </div>
+        <div id="riwayatPtm" style="display:none; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; margin-bottom:10px;">
+          ${riwayatHtml}
         </div>
         ${!currentPertemuanId ? `
-          <div style="margin-top:14px; padding:14px; background:var(--gold-soft); border-radius:var(--radius-sm); font-size:13px; color:#8a6a24;">
-            <b>Pertemuan baru</b> — tanggal hari ini (${fmtDateShort(new Date().toISOString().slice(0,10))}) akan dibuat saat Anda simpan.
-            Atau pilih pertemuan sebelumnya dari dropdown untuk diedit.
-          </div>
-          <div style="margin-top:12px;">
-            ${absensiTable}
-          </div>
-          ${jurnalHtml}
-          ${materiSectionHtml}
-          <div style="margin-top:16px;">
-            <button class="btn btn-green" onclick="ABS_simpanBaru()"
-              style="width:100%; padding:14px; font-size:15px; font-weight:800; border-radius:var(--radius);">
-              💾 Buat Pertemuan & Simpan
-            </button>
-          </div>` :
-        `<div style="margin-top:14px;">
-          ${absensiTable}
-        </div>
-        ${jurnalHtml}
-        ${materiSectionHtml}
-        ${simpanHtml}`}
+          <div style="padding:10px 14px; background:var(--gold-soft); border-radius:var(--radius-sm); font-size:13px; color:#8a6a24;">
+            Tanggal: <b>${fmtDateShort(new Date().toISOString().slice(0,10))}</b> — pertemuan baru akan dibuat saat Anda simpan.
+          </div>` : `
+          <div style="padding:10px 14px; background:var(--green-soft); border-radius:var(--radius-sm); font-size:13px; color:var(--green);">
+            Mengedit pertemuan tanggal <b>${fmtDateShort(pertemuanList.find(p=>p.id===currentPertemuanId)?.tanggal||'')}</b>
+          </div>`}
       </div>
+
+      <!-- Absensi -->
+      <div class="card">
+        <div class="fw-bold color-green" style="font-size:15px; margin-bottom:12px;">\ud83d\udccb Absensi Kehadiran</div>
+        ${absensiTable}
+      </div>
+
+      ${jurnalHtml}
+      ${materiSectionHtml}
+
+      ${currentPertemuanId ? simpanHtml : `
+        <div style="margin-top:16px;">
+          <button class="btn btn-green" onclick="ABS_simpanBaru()"
+            style="width:100%; padding:14px; font-size:15px; font-weight:800; border-radius:var(--radius); box-shadow:var(--shadow-lg);">
+            \ud83d\udcbe Buat Pertemuan & Simpan
+          </button>
+        </div>`}
     `;
   }
 
