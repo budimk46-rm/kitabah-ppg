@@ -3144,9 +3144,9 @@ async function renderPengurus() {
     }
 
     if (isAdmin) {
-      for (const klp of (App.cache.kelompok||[])) {
+      await Promise.all((App.cache.kelompok||[]).map(async klp => {
         pengurusKlp[klp.id] = await SB.musPeserta.getByKelompok(klp.id) || [];
-      }
+      }));
     } else if (u.kelompok_id) {
       pengurusKlp[u.kelompok_id] = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
     } else if (u.role === 'desa') {
