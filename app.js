@@ -4880,11 +4880,16 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
       }
     } else {
-      // guru_generus / unsur_5 → ambil dari semua kelompok
-      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-      for (const klp of (App.cache.kelompok||[])) {
-        const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
-        allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+      // guru_generus / unsur_5 — hanya kelompok sendiri (cepat)
+      if (kelompokId) {
+        allPesertaForKonfig = await SB.musPeserta.getByKelompok(kelompokId) || [];
+      } else {
+        // Admin — load sampel 2 kelompok saja untuk daftar dapukan
+        if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+        for (const klp of (App.cache.kelompok||[]).slice(0, 2)) {
+          const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+          allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+        }
       }
     }
   } catch(e) { console.error(e); }
