@@ -712,9 +712,11 @@ const NAV_ITEMS = {
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   wali_kbm: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
@@ -727,16 +729,21 @@ const NAV_ITEMS = {
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum Kelas Saya' },
     { id: 'absensi', icon: calIcon(), label: 'Input Absensi & Jurnal' },
+    { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
-    { id: 'rekap', icon: chartIcon(), label: 'Rekap Progress' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
 };
 
@@ -1614,9 +1621,37 @@ async function renderSantri() {
       });
     });
   } else {
-    // Kelompok: total kelompok saja
+    // Kelompok/PJP: total kelompok + detail per kelas usia
     const klp = filteredKelompok[0];
     tabelBody += statRow(klp?.nama || 'Kelompok Saya', statsTotal, true);
+
+    // Detail per kelas usia
+    TINGKATAN_LIST.forEach(t => {
+      const santriTingkat = santriFiltered.filter(s => {
+        const tk = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+        return tk === t;
+      });
+      if (santriTingkat.length) {
+        const statsT = {};
+        TINGKATAN_LIST.forEach(tt => { statsT[tt] = {L:0,P:0}; });
+        santriTingkat.forEach(x => {
+          const jk = x.jenis_kel;
+          if (jk==='L'||jk==='P') statsT[t][jk]++;
+        });
+        tabelBody += `<tr style="background:var(--green-soft);">
+          <td style="padding:6px 10px 6px 20px; font-size:12px; font-weight:700; color:var(--green);">${TINGKATAN_LABELS[t]||t}</td>
+          ${TINGKATAN_LIST.map(tt => `<td style="text-align:center; font-size:12px;">${tt===t?`<span style="color:#1a6b3a;">${statsT[t].L}L</span> <span style="color:#a6483b;">${statsT[t].P}P</span>`:''}</td>`).join('')}
+          <td style="text-align:center; font-weight:700; font-size:12px;">${santriTingkat.length}</td>
+        </tr>`;
+        // Daftar nama santri
+        santriTingkat.sort((a,b) => (a.nama||'').localeCompare(b.nama||'')).forEach((s, idx) => {
+          tabelBody += `<tr>
+            <td colspan="5" style="padding:3px 10px 3px 36px; font-size:12px; color:var(--ink);">${idx+1}. ${escHtml(s.nama)} <span style="color:var(--ink-soft);">(${s.jenis_kel})</span></td>
+            <td></td>
+          </tr>`;
+        });
+      }
+    });
   }
 
   const tabelFull = tabelHeader + tabelBody + `</tbody></table></div>`;
