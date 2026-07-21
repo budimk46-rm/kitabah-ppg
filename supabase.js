@@ -128,7 +128,9 @@ const sbMateri = {
 // ============ KELAS ============
 const sbKelas = {
   getByKelompok: (kelompokId) =>
-    sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,kelompok_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
+    sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,kelompok_id,desa_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
+  getByDesa: (desaId) =>
+    sbFetch(`kelas?desa_id=eq.${desaId}&select=id,kelompok_id,desa_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
   insert: async (data) => {
     try {
       return await sbFetch('kelas', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) });
@@ -147,7 +149,7 @@ const sbSantri = {
   getByKelompok: (kelompokId) =>
     sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
   getAll: () =>
-    sbFetch(`santri?aktif=eq.true&select=*,kelas(id,kelompok_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`),
+    sbFetch(`santri?aktif=eq.true&select=*,kelas(id,kelompok_id,desa_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`),
   insert: (data) => sbFetch('santri', {
     method: 'POST',
     headers: {'Prefer':'return=representation'},

@@ -1967,7 +1967,15 @@ async function renderKelolaKelas() {
     selectedKelasId = null;
     santriList = [];
     if (kelompokId) {
-      kelasOptions = sortKelas(await SB.kelas.getByKelompok(kelompokId));
+      let kelas = sortKelas(await SB.kelas.getByKelompok(kelompokId));
+      // Juga load kelas gabungan desa jika user punya desa
+      const klp = (App.cache.kelompok||[]).find(k => k.id === kelompokId);
+      if (klp?.desa_id) {
+        const gabungan = await SB.kelas.getByDesa(klp.desa_id) || [];
+        gabungan.forEach(g => { g._isGabungan = true; });
+        kelas = [...kelas, ...sortKelas(gabungan)];
+      }
+      kelasOptions = kelas;
       if (kelasOptions.length) await loadSantri(kelasOptions[0].id);
       else render();
     } else {
@@ -1984,7 +1992,8 @@ async function renderKelolaKelas() {
 
   function kelasLabel(k) {
     const nama = k.nama_kelas ? k.nama_kelas + ' — ' : '';
-    return `${nama}${escHtml(k.jenjang)} Sem ${k.semester}`;
+    const gabungan = k.desa_id ? ' 🏘️ Gabungan' : '';
+    return `${nama}${escHtml(k.jenjang)} Sem ${k.semester}${gabungan}`;
   }
 
   function render() {
@@ -2068,6 +2077,7 @@ async function renderKelolaKelas() {
         ${(selectedKelompokId || !isAdminForm) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
           <button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>
+          ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green);" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
           ${selectedKelasId ? `
           <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
           <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()">
@@ -2099,12 +2109,30 @@ async function renderKelolaKelas() {
   window.STR_loadKelompok = async (id) => { await loadKelas(id); };
   window.STR_loadKelas = async (id) => { if (id) await loadSantri(id); };
   window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
-    kelasOptions = sortKelas(await SB.kelas.getByKelompok(selectedKelompokId));
-    render();
+    await loadKelas(selectedKelompokId);
   });
-  window.STR_addSantri = () => openAddSantriModal(selectedKelasId, null, async () => {
-    await loadSantri(selectedKelasId);
-  });
+  window.STR_addKelasGabungan = () => {
+    // Tentukan desa_id
+    let desaId = u.desa_id;
+    if (isAdmin && selectedKelompokId) {
+      const klp = (App.cache.kelompok||[]).find(k => k.id === selectedKelompokId);
+      desaId = klp?.desa_id;
+    }
+    if (!desaId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
+    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    const desaNama = DESA_NAMA_MAP[desaId] || desaId;
+    openAddKelasGabunganModal(desaId, desaNama, async () => {
+      await loadKelas(selectedKelompokId);
+    });
+  };
+  window.STR_addSantri = () => {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    // Jika kelas gabungan, set kelompok_asal_id
+    const kelompokAsalId = kls?.desa_id ? (u.kelompok_id || selectedKelompokId) : null;
+    openAddSantriModal(selectedKelasId, null, async () => {
+      await loadSantri(selectedKelasId);
+    }, kelompokAsalId);
+  };
 
   // ── Download template Excel ────────────────────────────────
   window.STR_downloadTemplate = () => {
@@ -7450,7 +7478,63 @@ function openAddKelasModal(kelompokId, onSaved) {
   openModal('kelasModal');
 }
 
-function openAddSantriModal(kelasId, existingSantri, onSaved) {
+function openAddKelasGabunganModal(desaId, desaNama, onSaved) {
+  let el = document.getElementById('kelasGabModal');
+  if (!el) { el = document.createElement('div'); el.id = 'kelasGabModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">Buat Kelas Gabungan — ${escHtml(desaNama)}</h3>
+      <button class="modal-close" onclick="closeModal('kelasGabModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="padding:10px 14px; background:var(--green-soft); border-radius:var(--radius-sm); font-size:13px; color:var(--green); margin-bottom:14px;">
+        🏘️ Kelas gabungan desa — semua kelompok di ${escHtml(desaNama)} bisa mendaftarkan santrinya ke kelas ini.
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Nama Kelas *</label>
+        <input id="kelasGabNama" placeholder="contoh: CABERAWIT, PRA REMAJA A">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Jenjang Kurikulum</label>
+          <select id="kelasGabJenjang">${JENJANG_ORDER.map(j => `<option>${j}</option>`).join('')}</select>
+        </div>
+        <div class="form-group">
+          <label>Semester</label>
+          <select id="kelasGabSem">
+            <option value="1">Semester 1 (Jul – Des)</option>
+            <option value="2">Semester 2 (Jan – Jun)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('kelasGabModal')">Batal</button>
+      <button class="btn btn-green" id="kelasGabSaveBtn">Simpan Kelas Gabungan</button>
+    </div>
+  </div>`;
+
+  document.getElementById('kelasGabSaveBtn').onclick = async () => {
+    const nama_kelas = document.getElementById('kelasGabNama').value.trim().toUpperCase();
+    const jenjang = document.getElementById('kelasGabJenjang').value;
+    const semester = parseInt(document.getElementById('kelasGabSem').value);
+    if (!nama_kelas) { showToast('Nama kelas wajib diisi', true); return; }
+    const btn = document.getElementById('kelasGabSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      await SB.kelas.insert({ kelompok_id: desaId, desa_id: desaId, nama_kelas, jenjang, semester });
+      showToast('Kelas gabungan berhasil dibuat');
+      closeModal('kelasGabModal');
+      onSaved();
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
+    btn.disabled = false; btn.textContent = 'Simpan Kelas Gabungan';
+  };
+  openModal('kelasGabModal');
+}
+
+function openAddSantriModal(kelasId, existingSantri, onSaved, kelompokAsalId) {
   let el = document.getElementById('santriModal');
   if (!el) {
     el = document.createElement('div');
@@ -7584,7 +7668,9 @@ function openAddSantriModal(kelasId, existingSantri, onSaved) {
         await SB.santri.update(s.id, data);
         showToast('Data generus diperbarui');
       } else {
-        await SB.santri.insert({ ...data, kelas_id: kelasId, aktif: true });
+        const insertData = { ...data, kelas_id: kelasId, aktif: true };
+        if (kelompokAsalId) insertData.kelompok_asal_id = kelompokAsalId;
+        await SB.santri.insert(insertData);
         showToast('Generus berhasil ditambahkan');
       }
       closeModal('santriModal');
