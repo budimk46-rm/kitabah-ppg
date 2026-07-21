@@ -896,6 +896,7 @@ function getQuickMenuItems() {
     { page: 'rekap', emoji: '📊', label: 'Rekap KBM', roles: ['admin','kelompok','pjp_kelompok','wali_kbm'] },
     { page: 'rekap_desa', emoji: '🏡', label: 'Rekap Desa', roles: ['admin','desa'] },
     { page: 'rekap_daerah', emoji: '🗺️', label: 'Rekap Daerah', roles: ['admin','daerah'] },
+    { page: 'proker', emoji: '💼', label: 'Program Kerja PPG', roles: ['admin','daerah'] },
   ];
   return all.filter(x => x.roles.includes(u.role));
 }
@@ -2803,7 +2804,10 @@ async function renderProker() {
                     </div>
                     ${l.deskripsi ? `<div style="font-size:12px; color:var(--ink); margin-top:4px; white-space:pre-wrap;">${escHtml(l.deskripsi)}</div>` : ''}
                     ${l.foto_url ? `<img src="${escHtml(l.foto_url)}" style="max-width:100%; max-height:200px; border-radius:6px; margin-top:6px;">` : ''}
-                    ${isAdmin ? `<div style="margin-top:4px;"><button class="btn-icon danger" onclick="PK_hapusLaporan('${l.id}','${p.id}')" title="Hapus laporan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>` : ''}
+                    ${isAdmin ? `<div style="margin-top:4px; display:flex; gap:4px;">
+                      <button class="btn-icon" onclick="PK_editLaporan('${l.id}','${p.id}')" title="Edit laporan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                      <button class="btn-icon danger" onclick="PK_hapusLaporan('${l.id}','${p.id}')" title="Hapus laporan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+                    </div>` : ''}
                   </div>`).join('')}
               </div>
             </details>` : ''}
@@ -2857,6 +2861,11 @@ async function renderProker() {
   };
 
   window.PK_tambahLaporan = (prokerId) => openLaporanModal(null, prokerId);
+  window.PK_editLaporan = (lapId, prokerId) => {
+    const pk = allProker.find(p=>p.id===prokerId);
+    const lap = pk?._laporan.find(l=>l.id===lapId);
+    if (lap) openLaporanModal(lap, prokerId);
+  };
   window.PK_hapusLaporan = async (lapId, prokerId) => {
     if (!confirm('Hapus laporan ini?')) return;
     await SB.laporan.delete(lapId);
@@ -3023,10 +3032,18 @@ async function renderProker() {
         foto_url: fotoUrl, dibuat_oleh: u.id,
       };
       if (!data.nama_kegiatan) { showToast('Nama kegiatan wajib diisi',true); return; }
-      const r = await SB.laporan.insert(data);
-      const pk = allProker.find(p=>p.id===prokerId);
-      if (pk && r?.[0]) pk._laporan.push(r[0]);
-      showToast('Laporan tersimpan'); closeModal('laporanModal'); render();
+      if (p) {
+        await SB.laporan.update(p.id, data);
+        const pk = allProker.find(x=>x.id===prokerId);
+        if (pk) { const idx = pk._laporan.findIndex(l=>l.id===p.id); if(idx>=0) Object.assign(pk._laporan[idx], data); }
+        showToast('Laporan diperbarui');
+      } else {
+        const r = await SB.laporan.insert(data);
+        const pk = allProker.find(x=>x.id===prokerId);
+        if (pk && r?.[0]) pk._laporan.push(r[0]);
+        showToast('Laporan tersimpan');
+      }
+      closeModal('laporanModal'); render();
     });
   }
 
