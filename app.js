@@ -1621,37 +1621,45 @@ async function renderSantri() {
       });
     });
   } else {
-    // Kelompok/PJP: total kelompok + detail per kelas usia
+    // Kelompok/PJP: total kelompok + detail per kelas
     const klp = filteredKelompok[0];
     tabelBody += statRow(klp?.nama || 'Kelompok Saya', statsTotal, true);
 
-    // Detail per kelas usia
-    TINGKATAN_LIST.forEach(t => {
-      const santriTingkat = santriFiltered.filter(s => {
-        const tk = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
-        return tk === t;
-      });
-      if (santriTingkat.length) {
-        const statsT = {};
-        TINGKATAN_LIST.forEach(tt => { statsT[tt] = {L:0,P:0}; });
-        santriTingkat.forEach(x => {
-          const jk = x.jenis_kel;
-          if (jk==='L'||jk==='P') statsT[t][jk]++;
-        });
-        tabelBody += `<tr style="background:var(--green-soft);">
-          <td style="padding:6px 10px 6px 20px; font-size:12px; font-weight:700; color:var(--green);">${TINGKATAN_LABELS[t]||t}</td>
-          ${TINGKATAN_LIST.map(tt => `<td style="text-align:center; font-size:12px;">${tt===t?`<span style="color:#1a6b3a;">${statsT[t].L}L</span> <span style="color:#a6483b;">${statsT[t].P}P</span>`:''}</td>`).join('')}
-          <td style="text-align:center; font-weight:700; font-size:12px;">${santriTingkat.length}</td>
-        </tr>`;
-        // Daftar nama santri
-        santriTingkat.sort((a,b) => (a.nama||'').localeCompare(b.nama||'')).forEach((s, idx) => {
-          tabelBody += `<tr>
-            <td colspan="5" style="padding:3px 10px 3px 36px; font-size:12px; color:var(--ink);">${idx+1}. ${escHtml(s.nama)} <span style="color:var(--ink-soft);">(${s.jenis_kel})</span></td>
+    // Load kelas untuk kelompok ini
+    const myKelasList = sortKelas(await SB.kelas.getByKelompok(klp?.id || u.kelompok_id));
+
+    for (const kls of myKelasList) {
+      const santriKelas = santriFiltered.filter(s => s.kelas?.id === kls.id);
+      const lCount = santriKelas.filter(s => s.jenis_kel === 'L').length;
+      const pCount = santriKelas.filter(s => s.jenis_kel === 'P').length;
+
+      tabelBody += `<tr style="background:var(--green-soft); border-top:2px solid var(--green);">
+        <td style="padding:8px 10px; font-size:13px; font-weight:700; color:var(--green);">${escHtml(kls.nama_kelas || kls.jenjang)}</td>
+        <td colspan="4" style="padding:8px 10px; font-size:12px; color:var(--ink-soft);">
+          <span style="color:#1a6b3a; font-weight:700;">${lCount} L</span> · <span style="color:#a6483b; font-weight:700;">${pCount} P</span>
+        </td>
+        <td style="text-align:center; font-weight:800; font-size:13px;">${santriKelas.length}</td>
+      </tr>`;
+
+      if (santriKelas.length) {
+        santriKelas.sort((a,b) => (a.nama||'').localeCompare(b.nama||'')).forEach((s, idx) => {
+          tabelBody += `<tr style="border-bottom:1px solid var(--line);">
+            <td colspan="5" style="padding:4px 10px 4px 24px; font-size:12.5px;">
+              ${idx+1}. ${escHtml(s.nama)}
+              <span style="color:${s.jenis_kel==='L'?'#1a6b3a':'#a6483b'}; font-weight:600; margin-left:4px;">(${s.jenis_kel})</span>
+              ${s.tgl_lahir ? `<span style="color:var(--ink-soft); font-size:11px; margin-left:4px;">${hitungUsia(s.tgl_lahir)} thn</span>` : ''}
+            </td>
             <td></td>
           </tr>`;
         });
+      } else {
+        tabelBody += `<tr><td colspan="6" style="padding:6px 10px 6px 24px; font-size:12px; color:var(--ink-soft); font-style:italic;">Belum ada santri di kelas ini</td></tr>`;
       }
-    });
+    }
+
+    if (!myKelasList.length) {
+      tabelBody += `<tr><td colspan="6" style="padding:12px 10px; font-size:12px; color:var(--ink-soft); text-align:center;">Belum ada kelas. Tambahkan di menu Kelola Kelas Generus.</td></tr>`;
+    }
   }
 
   const tabelFull = tabelHeader + tabelBody + `</tbody></table></div>`;
