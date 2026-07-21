@@ -669,6 +669,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function idCardIcon() { return SVG('<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="8" cy="14" r="1.5"/><path d="M14 14h4"/>'); }
 function briefcaseIcon() { return SVG('<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>'); }
 function listIcon() { return SVG('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'); }
 function userIcon() { return SVG('<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'); }
@@ -685,6 +686,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -695,6 +697,7 @@ const NAV_ITEMS = {
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -704,6 +707,7 @@ const NAV_ITEMS = {
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
   ],
@@ -714,6 +718,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -796,6 +801,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'mtms':        await renderMtMs(); break;
       case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
@@ -2747,6 +2753,280 @@ async function renderAbsensi() {
 
   await loadPertemuan();
   } // end lanjutAbsensi
+}
+
+/* ===== PAGE: DATA MT/MS ===== */
+async function renderMtMs() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isPjp = u.role === 'pjp_kelompok';
+  const canEdit = isAdmin || isPjp;
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Load data sesuai role
+  let allData = [];
+  if (isAdmin || isDaerah) {
+    allData = await SB.mtMs.getAll() || [];
+  } else if (isDesa) {
+    const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+    const results = await Promise.all(klpDesa.map(k => SB.mtMs.getByKelompok(k.id)));
+    allData = results.flat();
+  } else if (u.kelompok_id) {
+    allData = await SB.mtMs.getByKelompok(u.kelompok_id) || [];
+  }
+
+  function fmtWa(no) {
+    if (!no) return '';
+    let n = no.replace(/\D/g,'');
+    if (n.startsWith('0')) n = '62' + n.slice(1);
+    return `<a href="https://wa.me/${n}" target="_blank" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:var(--green); color:#fff; text-decoration:none;" title="${escHtml(no)}">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+    </a>`;
+  }
+
+  function hitungStatusMT(selesai) {
+    if (!selesai) return { label: '—', cls: '', color: 'var(--ink-soft)' };
+    const now = new Date();
+    const end = new Date(selesai);
+    const diffMs = end - now;
+    const diffBln = diffMs / (1000*60*60*24*30);
+    if (diffBln < 0) return { label: 'Habis', cls: 'rose', color: 'var(--rose)', icon: '🔴' };
+    if (diffBln <= 3) return { label: Math.ceil(diffBln) + ' bln lagi', cls: 'gold', color: '#e6a817', icon: '⚠️' };
+    return { label: Math.ceil(diffBln) + ' bln lagi', cls: 'green', color: 'var(--green)', icon: '🟢' };
+  }
+
+  function render() {
+    // Summary
+    const mtList = allData.filter(d => d.dapukan === 'MT');
+    const msList = allData.filter(d => d.dapukan === 'MS');
+    const mengajar = allData.filter(d => d.status_mengajar === 'Kelas Generus');
+    const tidakAktif = allData.filter(d => d.status_mengajar === 'Tidak Aktif');
+    const cL = (list) => list.filter(d => d.gender === 'L').length;
+    const cP = (list) => list.filter(d => d.gender === 'P').length;
+
+    // Alert MT segera habis / habis
+    const mtSegeraHabis = mtList.filter(d => { const s = hitungStatusMT(d.tanggal_selesai_tugas); return s.cls === 'gold'; });
+    const mtHabis = mtList.filter(d => { const s = hitungStatusMT(d.tanggal_selesai_tugas); return s.cls === 'rose'; });
+
+    const alertHtml = (mtSegeraHabis.length || mtHabis.length) ? `
+      ${mtHabis.length ? `<div class="card" style="border:2px solid var(--rose); background:var(--rose-soft); margin-bottom:12px;">
+        <div class="fw-bold" style="color:var(--rose); font-size:14px; margin-bottom:8px;">🔴 MT Masa Tugas Habis (${mtHabis.length})</div>
+        ${mtHabis.map(d => `<div style="font-size:13px; padding:3px 0; color:#111;">${escHtml(d.nama_lengkap)} — ${escHtml(kelompokMap[d.kelompok_id]?.nama||d.kelompok_id)} — selesai ${fmtDateShort(d.tanggal_selesai_tugas)}</div>`).join('')}
+      </div>` : ''}
+      ${mtSegeraHabis.length ? `<div class="card" style="border:2px solid var(--gold); background:#fffbf0; margin-bottom:12px;">
+        <div class="fw-bold" style="color:#e6a817; font-size:14px; margin-bottom:8px;">⚠️ MT Segera Habis Masa Tugas (${mtSegeraHabis.length})</div>
+        ${mtSegeraHabis.map(d => `<div style="font-size:13px; padding:3px 0; color:#111;">${escHtml(d.nama_lengkap)} — ${escHtml(kelompokMap[d.kelompok_id]?.nama||d.kelompok_id)} — selesai ${fmtDateShort(d.tanggal_selesai_tugas)}</div>`).join('')}
+      </div>` : ''}` : '';
+
+    // Group by kelompok for desa/daerah/admin
+    const showGrouped = isAdmin || isDaerah || isDesa;
+    let tabelHtml = '';
+
+    function renderTable(list, showKlpCol) {
+      if (!list.length) return '<div style="font-size:12px; color:var(--ink-soft); padding:8px;">Belum ada data.</div>';
+      return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:600px;">
+        <thead><tr style="background:var(--green);">
+          <th style="color:#fff; padding:7px 6px; font-size:11px;">No</th>
+          <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Nama</th>
+          <th style="color:#fff; padding:7px 6px; font-size:11px;">Lahir</th>
+          <th style="color:#fff; padding:7px 4px; font-size:11px;">L/P</th>
+          <th style="color:#fff; padding:7px 6px; font-size:11px;">MT/MS</th>
+          <th style="color:#fff; padding:7px 8px; font-size:11px;">Status Mengajar</th>
+          ${list[0]?.dapukan==='MT'||list.some(d=>d.dapukan==='MT') ? '<th style="color:#fff; padding:7px 6px; font-size:11px;">Masa Tugas</th>' : ''}
+          <th style="color:#fff; padding:7px 4px; font-size:11px;">WA</th>
+          ${canEdit ? '<th style="color:#fff; padding:7px 4px; font-size:11px; width:60px;">Aksi</th>' : ''}
+        </tr></thead>
+        <tbody>${list.map((d, i) => {
+          const st = hitungStatusMT(d.tanggal_selesai_tugas);
+          return `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:5px 6px; font-size:12px; text-align:center;">${i+1}</td>
+            <td style="padding:5px 8px; font-size:13px; font-weight:600; color:#111;">${escHtml(d.nama_lengkap)}</td>
+            <td style="padding:5px 6px; font-size:11px; text-align:center; color:#111;">${d.tgl_lahir ? fmtDateShort(d.tgl_lahir) : '—'}</td>
+            <td style="padding:5px 4px; font-size:12px; text-align:center; font-weight:700; color:${d.gender==='L'?'#1a6b3a':'#a6483b'};">${d.gender||'—'}</td>
+            <td style="padding:5px 6px; font-size:12px; text-align:center; font-weight:700; color:#111;">${d.dapukan||'—'}</td>
+            <td style="padding:5px 8px; font-size:12px; color:#111;">${escHtml(d.status_mengajar||'—')}</td>
+            ${list.some(x=>x.dapukan==='MT') ? `<td style="padding:5px 6px; font-size:11px; text-align:center;">
+              ${d.dapukan==='MT' ? `<span style="color:${st.color}; font-weight:700;">${st.icon||''} ${st.label}</span>
+                ${d.tanggal_selesai_tugas ? '<br><span style="font-size:10px; color:var(--ink-soft);">s/d '+fmtDateShort(d.tanggal_selesai_tugas)+'</span>' : ''}` : '—'}
+            </td>` : ''}
+            <td style="padding:5px 4px; text-align:center;">${fmtWa(d.no_hp)}</td>
+            ${canEdit ? `<td style="padding:5px 4px; text-align:center;">
+              <div style="display:flex; gap:3px; justify-content:center;">
+                <button class="btn-icon" onclick="MTMS_edit('${d.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                <button class="btn-icon danger" onclick="MTMS_hapus('${d.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+              </div>
+            </td>` : ''}
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+    }
+
+    if (showGrouped) {
+      // Group by kelompok, then by desa
+      const byDesa = {};
+      allData.forEach(d => {
+        const klp = kelompokMap[d.kelompok_id];
+        const desaNama = klp?.desa?.nama || klp?.desa_id || '—';
+        if (!byDesa[desaNama]) byDesa[desaNama] = {};
+        const klpNama = klp?.nama || d.kelompok_id;
+        if (!byDesa[desaNama][klpNama]) byDesa[desaNama][klpNama] = [];
+        byDesa[desaNama][klpNama].push(d);
+      });
+
+      tabelHtml = Object.entries(byDesa).map(([desaNama, klpMap]) => {
+        const klpCards = Object.entries(klpMap).map(([klpNama, list]) => `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:700; font-size:13px; color:var(--green); margin-bottom:6px;">👥 ${escHtml(klpNama)} <span style="font-weight:400; color:var(--ink-soft);">(${list.length} orang)</span></div>
+            ${renderTable(list, false)}
+          </div>`).join('');
+
+        return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:var(--green); padding:10px 16px;">
+            <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ ${escHtml(desaNama)}</div>
+          </div>
+          <div style="padding:14px;">${klpCards}</div>
+        </div>`;
+      }).join('');
+    } else {
+      tabelHtml = `<div class="card">${renderTable(allData, false)}</div>`;
+    }
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Data MT / MS</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Total ${allData.length} orang</p>
+        </div>
+        ${canEdit ? '<button class="btn btn-green" onclick="MTMS_tambah()">+ Tambah MT/MS</button>' : ''}
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num">${mtList.length}</div><div class="stat-label">MT</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL(mtList)}L</span> · <span style="color:#a6483b;">${cP(mtList)}P</span></div></div>
+        <div class="stat-card"><div class="stat-num">${msList.length}</div><div class="stat-label">MS</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL(msList)}L</span> · <span style="color:#a6483b;">${cP(msList)}P</span></div></div>
+        <div class="stat-card"><div class="stat-num">${mengajar.length}</div><div class="stat-label">Mengajar Generus</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL(mengajar)}L</span> · <span style="color:#a6483b;">${cP(mengajar)}P</span></div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${tidakAktif.length}</div><div class="stat-label">Tidak Aktif</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL(tidakAktif)}L</span> · <span style="color:#a6483b;">${cP(tidakAktif)}P</span></div></div>
+      </div>
+
+      ${alertHtml}
+      ${tabelHtml}
+    `;
+  }
+
+  // === HANDLERS ===
+  window.MTMS_tambah = () => openMtMsModal(null);
+  window.MTMS_edit = (id) => openMtMsModal(allData.find(d=>d.id===id));
+  window.MTMS_hapus = async (id) => {
+    if (!confirm('Hapus data MT/MS ini?')) return;
+    await SB.mtMs.delete(id);
+    allData = allData.filter(d=>d.id!==id);
+    showToast('Dihapus'); render();
+  };
+
+  function openMtMsModal(existing) {
+    const p = existing;
+    const isMT = p?.dapukan === 'MT';
+    const klpId = p?.kelompok_id || u.kelompok_id || '';
+
+    // Auto hitung selesai +18 bulan
+    const defaultMulai = p?.tanggal_mulai_tugas || new Date().toISOString().slice(0,10);
+    const defaultSelesai = p?.tanggal_selesai_tugas || (() => {
+      const d = new Date(defaultMulai);
+      d.setMonth(d.getMonth() + 18);
+      return d.toISOString().slice(0,10);
+    })();
+
+    const STATUS_OPTIONS = ['Kelas Generus','Pengajian Kelompok','Pengajian Ibu-Ibu','Tidak Aktif'];
+
+    const formHtml = `
+      <div class="form-group"><label>Nama Lengkap *</label><input id="mmNama" value="${escHtml(p?.nama_lengkap||'')}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="mmLahir" value="${p?.tgl_lahir||''}"></div>
+        <div class="form-group"><label>Gender *</label>
+          <select id="mmGender"><option value="">Pilih...</option><option value="L" ${p?.gender==='L'?'selected':''}>Laki-laki</option><option value="P" ${p?.gender==='P'?'selected':''}>Perempuan</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Dapukan *</label>
+          <select id="mmDapukan" onchange="document.getElementById('mmMTFields').style.display=this.value==='MT'?'block':'none'">
+            <option value="">Pilih...</option><option value="MT" ${p?.dapukan==='MT'?'selected':''}>MT</option><option value="MS" ${p?.dapukan==='MS'?'selected':''}>MS</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Status Mengajar *</label>
+          <select id="mmStatus">${STATUS_OPTIONS.map(s=>`<option value="${s}" ${p?.status_mengajar===s?'selected':''}>${s}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div id="mmMTFields" style="display:${isMT||!p?'block':'none'};">
+        <div class="form-row">
+          <div class="form-group"><label>Mulai Tugas</label><input type="date" id="mmMulai" value="${defaultMulai}" onchange="MTMS_autoSelesai()"></div>
+          <div class="form-group"><label>Selesai Tugas</label><input type="date" id="mmSelesai" value="${defaultSelesai}">
+            <div style="font-size:10px; color:var(--ink-soft); margin-top:2px;">Otomatis +18 bulan, bisa diubah jika diperpanjang</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group"><label>No HP / WhatsApp</label><input id="mmHp" value="${escHtml(p?.no_hp||'')}" placeholder="contoh: 08123456789"></div>
+    `;
+
+    let el = document.getElementById('mtmsModal');
+    if (!el) { el = document.createElement('div'); el.id = 'mtmsModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">${p?'Edit':'Tambah'} Data MT/MS</h3><button class="modal-close" onclick="closeModal('mtmsModal')">✕</button></div>
+      <div class="modal-body">${formHtml}</div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('mtmsModal')">Batal</button>
+        <button class="btn btn-green" id="mtmsSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    window.MTMS_autoSelesai = () => {
+      const mulai = document.getElementById('mmMulai').value;
+      if (mulai) {
+        const d = new Date(mulai);
+        d.setMonth(d.getMonth() + 18);
+        document.getElementById('mmSelesai').value = d.toISOString().slice(0,10);
+      }
+    };
+
+    document.getElementById('mtmsSaveBtn').onclick = async () => {
+      const nama = document.getElementById('mmNama').value.trim().toUpperCase();
+      const gender = document.getElementById('mmGender').value;
+      const dapukan = document.getElementById('mmDapukan').value;
+      const status = document.getElementById('mmStatus').value;
+      if (!nama || !gender || !dapukan) { showToast('Nama, Gender, dan Dapukan wajib diisi', true); return; }
+
+      const data = {
+        kelompok_id: klpId,
+        nama_lengkap: nama,
+        tgl_lahir: document.getElementById('mmLahir').value || null,
+        gender, dapukan, status_mengajar: status,
+        no_hp: document.getElementById('mmHp').value.trim() || null,
+        tanggal_mulai_tugas: dapukan === 'MT' ? (document.getElementById('mmMulai').value || null) : null,
+        tanggal_selesai_tugas: dapukan === 'MT' ? (document.getElementById('mmSelesai').value || null) : null,
+        dibuat_oleh: u.id,
+      };
+
+      try {
+        if (p) {
+          await SB.mtMs.update(p.id, data);
+          Object.assign(p, data);
+        } else {
+          const r = await SB.mtMs.insert(data);
+          if (r?.[0]) allData.push(r[0]); else allData.push({...data, id: 'tmp_'+Date.now()});
+        }
+        showToast('Tersimpan'); closeModal('mtmsModal'); render();
+      } catch(e) { showToast('Gagal: ' + e.message, true); }
+    };
+
+    openModal('mtmsModal');
+  }
+
+  render();
 }
 
 /* ===== PAGE: PROGRAM KERJA PPG ===== */
