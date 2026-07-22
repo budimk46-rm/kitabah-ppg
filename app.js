@@ -2963,8 +2963,10 @@ async function renderMtMs() {
     allData = await SB.mtMs.getAll() || [];
   } else if (isDesa) {
     const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+    console.log('MT/MS desa load:', u.desa_id, 'kelompok:', klpDesa.map(k=>k.id+' '+k.nama));
     const results = await Promise.all(klpDesa.map(k => SB.mtMs.getByKelompok(k.id)));
-    allData = results.flat();
+    allData = results.filter(Boolean).flat();
+    console.log('MT/MS loaded:', allData.length, 'records');
   } else if (u.kelompok_id) {
     allData = await SB.mtMs.getByKelompok(u.kelompok_id) || [];
   }
