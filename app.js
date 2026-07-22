@@ -2015,6 +2015,73 @@ async function renderKelolaKelas() {
     }
   }
 
+  // ── Unassigned checklist untuk kelas biasa ──
+  let unassignedChecklistHtml = '';
+
+  async function loadUnassignedChecklist() {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls || kls.desa_id || !selectedKelompokId) { unassignedChecklistHtml = ''; return; }
+
+    // Map nama kelas ke tingkatan
+    const nmUpper = (kls.nama_kelas||'').toUpperCase();
+    let targetTingkatan = null;
+    if (nmUpper.startsWith('CABERAWIT')) targetTingkatan = 'caberawit';
+    else if (nmUpper.startsWith('PRA REMAJA')) targetTingkatan = 'pra_remaja';
+    else if (nmUpper.startsWith('REMAJA')) targetTingkatan = 'remaja';
+    else if (nmUpper.startsWith('PRA NIKAH')) targetTingkatan = 'pra_nikah';
+
+    // Load semua santri di kelompok ini
+    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
+    let allSantriKlp = [];
+    for (const k of allKelasKlp) {
+      const s = await SB.santri.getByKelas(k.id);
+      allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang, _fromKelasId: k.id}))];
+    }
+
+    // Filter by tingkatan dan belum di kelas ini
+    const currentSantriIds = new Set(santriList.map(s => s.id));
+    const unassignedAll = allSantriKlp.filter(s => !currentSantriIds.has(s.id));
+    let unassigned = unassignedAll;
+    if (targetTingkatan) {
+      unassigned = unassignedAll.filter(s => {
+        const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+        return t === targetTingkatan;
+      });
+    }
+
+    if (!unassigned.length && !unassignedAll.length) { unassignedChecklistHtml = ''; return; }
+    if (!unassigned.length && unassignedAll.length) {
+      unassignedChecklistHtml = `
+        <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
+          <div style="font-size:13px; color:var(--ink-soft); padding:8px 0;">Semua generus usia ${TINGKATAN_LABELS[targetTingkatan]||''} sudah masuk kelas.</div>
+          <button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="STR_showAllUsia()">Tampilkan Semua Usia (${unassignedAll.length})</button>
+        </div>`;
+      return;
+    }
+
+    unassigned.sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    unassignedChecklistHtml = `
+      <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
+          <div class="fw-bold" style="color:var(--gold); font-size:14px;">\ud83d\udccb Generus ${targetTingkatan ? 'Usia ' + (TINGKATAN_LABELS[targetTingkatan]||'') + ' ' : ''}Belum di Kelas Ini</div>
+          ${unassignedAll.length > unassigned.length ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="STR_showAllUsia()">Semua Usia (${unassignedAll.length})</button>` : ''}
+        </div>
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Centang untuk memindahkan ke kelas <b>${escHtml(kls.nama_kelas||'')}</b></div>
+        ${unassigned.map(s => `
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line); cursor:pointer;"
+            onclick="STR_assignToKelas('${s.id}')">
+            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; border:2px solid var(--line); background:transparent; display:flex; align-items:center; justify-content:center;"></div>
+            <div style="flex:1;">
+              <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
+              <div style="font-size:11px; color:var(--ink-soft);">
+                ${s.jenis_kel||'\u2014'} \u00b7 ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '\u2014'} \u00b7 dari ${escHtml(s._fromKelas||'\u2014')}
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+
   async function loadSantri(kelasId) {
     selectedKelasId = kelasId;
     santriList = await SB.santri.getByKelas(kelasId);
@@ -2230,74 +2297,6 @@ async function renderKelolaKelas() {
       </div>`;
   }
 
-  // Handler toggle gabungan
-  window.STR_toggleGabungan = async (santriId, add) => {
-
-  // ── Unassigned checklist untuk kelas biasa ──
-  let unassignedChecklistHtml = '';
-
-  async function loadUnassignedChecklist() {
-    const kls = kelasOptions.find(k => k.id === selectedKelasId);
-    if (!kls || kls.desa_id || !selectedKelompokId) { unassignedChecklistHtml = ''; return; }
-
-    // Map nama kelas ke tingkatan
-    const nmUpper = (kls.nama_kelas||'').toUpperCase();
-    let targetTingkatan = null;
-    if (nmUpper.startsWith('CABERAWIT')) targetTingkatan = 'caberawit';
-    else if (nmUpper.startsWith('PRA REMAJA')) targetTingkatan = 'pra_remaja';
-    else if (nmUpper.startsWith('REMAJA')) targetTingkatan = 'remaja';
-    else if (nmUpper.startsWith('PRA NIKAH')) targetTingkatan = 'pra_nikah';
-
-    // Load semua santri di kelompok ini
-    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
-    let allSantriKlp = [];
-    for (const k of allKelasKlp) {
-      const s = await SB.santri.getByKelas(k.id);
-      allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang, _fromKelasId: k.id}))];
-    }
-
-    // Filter by tingkatan dan belum di kelas ini
-    const currentSantriIds = new Set(santriList.map(s => s.id));
-    const unassignedAll = allSantriKlp.filter(s => !currentSantriIds.has(s.id));
-    let unassigned = unassignedAll;
-    if (targetTingkatan) {
-      unassigned = unassignedAll.filter(s => {
-        const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
-        return t === targetTingkatan;
-      });
-    }
-
-    if (!unassigned.length && !unassignedAll.length) { unassignedChecklistHtml = ''; return; }
-    if (!unassigned.length && unassignedAll.length) {
-      unassignedChecklistHtml = `
-        <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
-          <div style="font-size:13px; color:var(--ink-soft); padding:8px 0;">Semua generus usia ${TINGKATAN_LABELS[targetTingkatan]||''} sudah masuk kelas.</div>
-          <button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="STR_showAllUsia()">Tampilkan Semua Usia (${unassignedAll.length})</button>
-        </div>`;
-      return;
-    }
-
-    unassigned.sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
-    unassignedChecklistHtml = `
-      <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
-          <div class="fw-bold" style="color:var(--gold); font-size:14px;">📋 Generus ${targetTingkatan ? 'Usia ' + (TINGKATAN_LABELS[targetTingkatan]||'') + ' ' : ''}Belum di Kelas Ini</div>
-          ${unassignedAll.length > unassigned.length ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="STR_showAllUsia()">Semua Usia (${unassignedAll.length})</button>` : ''}
-        </div>
-        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Centang untuk memindahkan ke kelas <b>${escHtml(kls.nama_kelas||'')}</b></div>
-        ${unassigned.map(s => `
-          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line); cursor:pointer;"
-            onclick="STR_assignToKelas('${s.id}')">
-            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; border:2px solid var(--line); background:transparent; display:flex; align-items:center; justify-content:center;"></div>
-            <div style="flex:1;">
-              <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
-              <div style="font-size:11px; color:var(--ink-soft);">
-                ${s.jenis_kel||'—'} · ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '—'} · dari ${escHtml(s._fromKelas||'—')}
-              </div>
-            </div>
-          </div>`).join('')}
-      </div>`;
-  }
 
   window.STR_assignToKelas = async (santriId) => {
     try {
@@ -2308,7 +2307,6 @@ async function renderKelolaKelas() {
   };
 
   window.STR_showAllUsia = async () => {
-    // Reload unassigned tanpa filter tingkatan
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (!kls || !selectedKelompokId) return;
     const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
@@ -2319,12 +2317,10 @@ async function renderKelolaKelas() {
     }
     const currentIds = new Set(santriList.map(s => s.id));
     const all = allSantriKlp.filter(s => !currentIds.has(s.id)).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
-
     if (!all.length) { showToast('Tidak ada generus lain yang tersedia'); return; }
-
     unassignedChecklistHtml = `
       <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
-        <div class="fw-bold" style="color:var(--gold); font-size:14px; margin-bottom:6px;">📋 Semua Generus Belum di Kelas Ini</div>
+        <div class="fw-bold" style="color:var(--gold); font-size:14px; margin-bottom:6px;">\ud83d\udccb Semua Generus Belum di Kelas Ini</div>
         <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Centang untuk memindahkan ke kelas <b>${escHtml(kls.nama_kelas||'')}</b></div>
         ${all.map(s => {
           const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
@@ -2334,7 +2330,7 @@ async function renderKelolaKelas() {
             <div style="flex:1;">
               <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
               <div style="font-size:11px; color:var(--ink-soft);">
-                ${s.jenis_kel||'—'} · ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '—'} · ${TINGKATAN_LABELS[t]||t||'—'} · dari ${escHtml(s._fromKelas||'—')}
+                ${s.jenis_kel||'\u2014'} \u00b7 ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '\u2014'} \u00b7 ${TINGKATAN_LABELS[t]||t||'\u2014'} \u00b7 dari ${escHtml(s._fromKelas||'\u2014')}
               </div>
             </div>
           </div>`;
@@ -2342,18 +2338,19 @@ async function renderKelolaKelas() {
       </div>`;
     render();
   };
+
+  // Handler toggle gabungan
+  window.STR_toggleGabungan = async (santriId, add) => {
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (!kls) return;
     try {
       if (add) {
-        // Pindahkan santri ke kelas gabungan, set kelompok_asal_id
         await SB.santri.update(santriId, {
           kelas_id: selectedKelasId,
           kelompok_asal_id: selectedKelompokId,
         });
         showToast('Santri didaftarkan ke kelas gabungan');
       } else {
-        // Kembalikan ke kelas kelompok pertama yang ada
         const kelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
         if (kelasKlp.length) {
           await SB.santri.update(santriId, {
@@ -2363,7 +2360,6 @@ async function renderKelolaKelas() {
           showToast('Santri dikeluarkan dari kelas gabungan');
         }
       }
-      // Reload
       await loadSantri(selectedKelasId);
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
