@@ -2006,6 +2006,11 @@ async function renderKelolaKelas() {
   async function loadSantri(kelasId) {
     selectedKelasId = kelasId;
     santriList = await SB.santri.getByKelas(kelasId);
+    // Jika kelas gabungan dan user punya kelompok, load checklist
+    const selectedKelasObj = kelasOptions.find(k => k.id === kelasId);
+    if (selectedKelasObj?.desa_id && selectedKelompokId) {
+      await loadSantriChecklist();
+    }
     render();
   }
 
@@ -2023,6 +2028,7 @@ async function renderKelolaKelas() {
     ).join('');
 
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
+    const selectedKelasObj = selectedKelas;
 
     const tableHtml = santriList.length ? `
       <div class="table-wrap"><table>
@@ -2100,7 +2106,7 @@ async function renderKelolaKelas() {
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
           ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>` : ''}
           ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green);" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
-          ${selectedKelasId ? `
+          ${selectedKelasId && !selectedKelasObj?.desa_id ? `
           <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
           <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -2113,9 +2119,129 @@ async function renderKelolaKelas() {
         </div>` : ''}
       </div>
 
-      ${selectedKelasId ? tableHtml : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
+      ${selectedKelasId ? (selectedKelasObj?.desa_id ? gabunganChecklistHtml : tableHtml) : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
     `;
   }
+
+  // ── Render checklist gabungan ──
+  let gabunganChecklistHtml = '';
+  let allSantriKelompok = [];
+
+  async function loadSantriChecklist() {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls?.desa_id || !selectedKelompokId) {
+      gabunganChecklistHtml = '<div style="padding:12px; color:var(--ink-soft); font-size:13px;">Pilih kelompok terlebih dahulu untuk mendaftarkan santri ke kelas gabungan ini.</div>';
+      return;
+    }
+
+    // Map jenjang ke tingkatan
+    const jenjangToTingkatan = {
+      'SD 1':'caberawit','SD 2':'caberawit','SD 3':'caberawit','SD 4':'caberawit','SD 5':'caberawit','SD 6':'caberawit',
+      'SMP 1':'pra_remaja','SMP 2':'pra_remaja','SMP 3':'pra_remaja',
+      'SMA 1':'remaja','SMA 2':'remaja','SMA 3':'remaja',
+      'PRA 1':'pra_nikah','PRA 2':'pra_nikah',
+      'PAUD TK':'caberawit',
+    };
+    const targetTingkatan = jenjangToTingkatan[kls.jenjang] || null;
+
+    // Load semua santri dari kelompok ini (dari semua kelas)
+    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
+    let santriPool = [];
+    for (const k of allKelasKlp) {
+      const s = await SB.santri.getByKelas(k.id);
+      santriPool = [...santriPool, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang}))];
+    }
+
+    // Juga cek santri yang sudah di kelas gabungan lain tapi dari kelompok ini
+    const santriGabungan = santriList.filter(s => s.kelompok_asal_id === selectedKelompokId);
+    // Merge — tambah santri gabungan yang belum ada di pool
+    santriGabungan.forEach(sg => {
+      if (!santriPool.find(sp => sp.id === sg.id)) {
+        santriPool.push({...sg, _fromKelas: 'Gabungan'});
+      }
+    });
+
+    // Filter by tingkatan jika bisa
+    if (targetTingkatan) {
+      santriPool = santriPool.filter(s => {
+        const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+        return t === targetTingkatan;
+      });
+    }
+
+    allSantriKelompok = santriPool.sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+
+    // Cek mana yang sudah terdaftar di kelas gabungan ini
+    const sudahDaftar = new Set(santriList.filter(s => s.kelompok_asal_id === selectedKelompokId).map(s => s.id));
+
+    const klpNama = (App.cache.kelompok||[]).find(k => k.id === selectedKelompokId)?.nama || selectedKelompokId;
+
+    if (!allSantriKelompok.length) {
+      gabunganChecklistHtml = `<div style="padding:14px; text-align:center; color:var(--ink-soft); font-size:13px;">
+        Belum ada santri dari ${escHtml(klpNama)} dengan usia ${TINGKATAN_LABELS[targetTingkatan]||'sesuai'}.<br>
+        Tambahkan santri dulu di kelas kelompok Anda.
+      </div>`;
+      return;
+    }
+
+    gabunganChecklistHtml = `
+      <div style="margin-bottom:10px;">
+        <div class="fw-bold color-green" style="font-size:14px; margin-bottom:4px;">✅ Daftarkan Santri dari ${escHtml(klpNama)}</div>
+        <div style="font-size:12px; color:var(--ink-soft);">Centang santri yang mengikuti kelas gabungan ini. ${targetTingkatan ? 'Menampilkan santri usia '+TINGKATAN_LABELS[targetTingkatan]+'.' : ''}</div>
+      </div>
+      ${allSantriKelompok.map(s => {
+        const checked = sudahDaftar.has(s.id);
+        return `<div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; background:${checked?'var(--green-soft)':''};"
+          onclick="STR_toggleGabungan('${s.id}', ${checked?'false':'true'})">
+          <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0;
+            border:2px solid ${checked?'var(--green)':'var(--line)'};
+            background:${checked?'var(--green)':'transparent'};
+            display:flex; align-items:center; justify-content:center;">
+            ${checked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
+            <div style="font-size:11px; color:var(--ink-soft);">
+              ${s.jenis_kel||'—'} · ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '—'}
+              ${s._fromKelas ? ' · dari kelas '+escHtml(s._fromKelas) : ''}
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="margin-top:8px; font-size:12px; color:var(--ink-soft);">
+        ${sudahDaftar.size} dari ${allSantriKelompok.length} santri terdaftar di kelas ini.
+      </div>`;
+  }
+
+  // Handler toggle gabungan
+  window.STR_toggleGabungan = async (santriId, add) => {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls) return;
+    try {
+      if (add) {
+        // Pindahkan santri ke kelas gabungan, set kelompok_asal_id
+        await SB.santri.update(santriId, {
+          kelas_id: selectedKelasId,
+          kelompok_asal_id: selectedKelompokId,
+        });
+        showToast('Santri didaftarkan ke kelas gabungan');
+      } else {
+        // Kembalikan ke kelas kelompok pertama yang ada
+        const kelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
+        if (kelasKlp.length) {
+          await SB.santri.update(santriId, {
+            kelas_id: kelasKlp[0].id,
+            kelompok_asal_id: null,
+          });
+          showToast('Santri dikeluarkan dari kelas gabungan');
+        }
+      }
+      // Reload
+      await loadSantri(selectedKelasId);
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
+  };
 
   window.STR_filterDesa = (desaNama) => {
     const sel = document.getElementById('strKelompokSel');
