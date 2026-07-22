@@ -3091,7 +3091,13 @@ async function renderMtMs() {
           <h1 class="page-title">Data MT / MS</h1>
           <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Total ${allData.length} orang</p>
         </div>
-        ${canEdit ? '<button class="btn btn-green" onclick="MTMS_tambah()">+ Tambah MT/MS</button>' : ''}
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="MTMS_downloadPdf()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            PDF
+          </button>
+          ${canEdit ? '<button class="btn btn-green" onclick="MTMS_tambah()">+ Tambah MT/MS</button>' : ''}
+        </div>
       </div>
 
       <div class="stat-grid" style="margin-bottom:16px;">
@@ -3105,6 +3111,94 @@ async function renderMtMs() {
       ${tabelHtml}
     `;
   }
+
+  // === PDF MT/MS ===
+  window.MTMS_downloadPdf = async () => {
+    try {
+      showToast('Membuat PDF...');
+      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const ML = 40, MR = 40, W = 842 - ML - MR; // landscape A4
+      const GREEN = rgb(0.1, 0.42, 0.18);
+      const GRAY = rgb(0.4, 0.4, 0.4);
+      const BLACK = rgb(0, 0, 0);
+
+      let page = doc.addPage([842, 595]); // landscape
+      let y = 555;
+      function checkY(need) {
+        if (y < need + 40) {
+          page = doc.addPage([842, 595]);
+          y = 555;
+        }
+      }
+
+      // Title
+      const scopeLabel = isDesa ? (DESA_NAMA_MAP_PDF[u.desa_id]||'Desa') : (isDaerah||isAdmin ? 'Daerah Sidoarjo Utara' : ((App.cache.kelompok||[]).find(k=>k.id===u.kelompok_id)?.nama||''));
+      page.drawText('DATA MT / MS — ' + scopeLabel, { x: ML, y, font: fBold, size: 14, color: GREEN });
+      y -= 16;
+      page.drawText('Total: ' + allData.length + ' orang | MT: ' + mtList.length + ' | MS: ' + msList.length + ' | Mengajar Generus: ' + mengajar.length + ' | Tidak Aktif: ' + tidakAktif.length, { x: ML, y, font: fReg, size: 8, color: GRAY });
+      y -= 20;
+
+      // Group by kelompok
+      const byKlp = {};
+      allData.forEach(d => {
+        const klp = kelompokMap[d.kelompok_id];
+        const klpNama = klp?.nama || d.kelompok_id;
+        if (!byKlp[klpNama]) byKlp[klpNama] = [];
+        byKlp[klpNama].push(d);
+      });
+
+      const colX = [ML, ML+25, ML+190, ML+255, ML+285, ML+325, ML+445, ML+550, ML+640];
+      const colH = ['No','Nama Lengkap','Tgl Lahir','L/P','MT/MS','Status Mengajar','Mulai Tugas','Selesai','Status'];
+
+      for (const [klpNama, list] of Object.entries(byKlp)) {
+        checkY(40);
+        page.drawText('👥 ' + klpNama + ' (' + list.length + ' orang)', { x: ML, y, font: fBold, size: 10, color: GREEN });
+        y -= 14;
+
+        // Header
+        checkY(16);
+        colH.forEach((h, i) => page.drawText(h, { x: colX[i], y, font: fBold, size: 7, color: GREEN }));
+        y -= 2;
+        page.drawLine({ start:{x:ML,y}, end:{x:842-MR,y}, thickness:0.5, color:GREEN });
+        y -= 10;
+
+        list.forEach((d, idx) => {
+          checkY(14);
+          const st = hitungStatusMT(d.tanggal_selesai_tugas);
+          const vals = [
+            String(idx+1),
+            (d.nama_lengkap||'').slice(0,28),
+            d.tgl_lahir ? fmtDateShort(d.tgl_lahir) : '—',
+            d.gender || '—',
+            d.dapukan || '—',
+            (d.status_mengajar||'—').slice(0,20),
+            d.tanggal_mulai_tugas ? fmtDateShort(d.tanggal_mulai_tugas) : '—',
+            d.tanggal_selesai_tugas ? fmtDateShort(d.tanggal_selesai_tugas) : '—',
+            d.dapukan==='MT' ? st.label : '—',
+          ];
+          vals.forEach((v, i) => page.drawText(v, { x: colX[i], y, font: fReg, size: 7, color: BLACK }));
+          y -= 12;
+        });
+        y -= 8;
+      }
+
+      // Footer
+      doc.getPages().forEach((p, i) => {
+        p.drawText('Halaman ' + (i+1) + '/' + doc.getPageCount() + ' — Data MT/MS — Dicetak: ' + new Date().toLocaleDateString('id-ID'), { x: ML, y: 20, font: fReg, size: 7, color: GRAY });
+      });
+
+      const bytes = await doc.save();
+      downloadPdf(bytes, 'Data_MT_MS_' + scopeLabel.replace(/ /g,'_') + '.pdf');
+      showToast('PDF berhasil diunduh');
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error(e);
+    }
+  };
+  const DESA_NAMA_MAP_PDF = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
 
   // === HANDLERS ===
   window.MTMS_tambah = () => openMtMsModal(null);
