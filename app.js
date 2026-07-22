@@ -2197,6 +2197,7 @@ async function renderKelolaKelas() {
           ${selectedKelasId && !selectedKelasObj?.desa_id ? `
           <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
           <button class="btn btn-outline btn-sm" onclick="STR_editKelas()">✏️ Edit Kelas</button>
+          <button class="btn btn-outline btn-sm" style="border-color:var(--rose); color:var(--rose);" onclick="STR_deleteKelas()">🗑️ Hapus Kelas</button>
           <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import Excel
@@ -2390,6 +2391,26 @@ async function renderKelolaKelas() {
   window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
     await loadKelas(selectedKelompokId);
   });
+  window.STR_deleteKelas = async () => {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls) return;
+    const santriCount = santriList.length;
+    const msg = santriCount > 0
+      ? `Hapus kelas "${kls.nama_kelas}"?\n\n⚠️ Ada ${santriCount} santri di kelas ini.\nSantri akan dipindah ke daftar "belum masuk kelas" dan bisa dipindahkan ke kelas lain.`
+      : `Hapus kelas "${kls.nama_kelas}"?\nKelas ini kosong (tidak ada santri).`;
+    if (!confirm(msg)) return;
+    try {
+      // Pindahkan semua santri ke null dulu
+      if (santriCount > 0) {
+        for (const s of santriList) {
+          await SB.santri.update(s.id, { kelas_id: null });
+        }
+      }
+      await SB.kelas.delete(kls.id);
+      showToast('Kelas ' + kls.nama_kelas + ' dihapus');
+      await loadKelas(selectedKelompokId || u.kelompok_id);
+    } catch(e) { showToast('Gagal: ' + e.message, true); }
+  };
   window.STR_editKelas = () => {
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (!kls) return;
