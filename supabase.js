@@ -140,6 +140,7 @@ const sbKelas = {
     }
   },
   delete: (id) => sbFetch(`kelas?id=eq.${id}`, { method: 'DELETE' }),
+  update: (id, data) => sbFetch(`kelas?id=eq.${id}`, { method: 'PATCH', headers:{'Prefer':'return=representation'}, body: JSON.stringify(data) }),
 };
 
 // ============ SANTRI ============

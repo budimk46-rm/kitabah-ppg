@@ -2189,6 +2189,7 @@ async function renderKelolaKelas() {
           ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green);" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
           ${selectedKelasId && !selectedKelasObj?.desa_id ? `
           <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
+          <button class="btn btn-outline btn-sm" onclick="STR_editKelas()">✏️ Edit Kelas</button>
           <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import Excel
@@ -2382,6 +2383,47 @@ async function renderKelolaKelas() {
   window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
     await loadKelas(selectedKelompokId);
   });
+  window.STR_editKelas = () => {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls) return;
+    let el = document.getElementById('editKelasModal');
+    if (!el) { el = document.createElement('div'); el.id = 'editKelasModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Edit Kelas — ${escHtml(kls.nama_kelas||'')}</h3><button class="modal-close" onclick="closeModal('editKelasModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Nama Kelas</label>
+          <div style="font-size:16px; font-weight:800; color:var(--green); padding:6px 0;">${escHtml(kls.nama_kelas||'')}</div>
+          <div style="font-size:11px; color:var(--ink-soft);">Nama kelas tidak bisa diubah.</div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Jenjang Kurikulum</label>
+            <select id="editKlsJenjang">${JENJANG_ORDER.map(j => `<option ${j===kls.jenjang?'selected':''}>${j}</option>`).join('')}</select>
+          </div>
+          <div class="form-group"><label>Semester</label>
+            <select id="editKlsSem">
+              <option value="1" ${String(kls.semester)==='1'?'selected':''}>Semester 1 (Jul – Des)</option>
+              <option value="2" ${String(kls.semester)==='2'?'selected':''}>Semester 2 (Jan – Jun)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('editKelasModal')">Batal</button>
+        <button class="btn btn-green" id="editKlsSaveBtn">Simpan Perubahan</button>
+      </div>
+    </div>`;
+    document.getElementById('editKlsSaveBtn').onclick = async () => {
+      const jenjang = document.getElementById('editKlsJenjang').value;
+      const semester = parseInt(document.getElementById('editKlsSem').value);
+      try {
+        await SB.kelas.update(kls.id, { jenjang, semester });
+        showToast('Jenjang kurikulum berhasil diubah');
+        closeModal('editKelasModal');
+        await loadKelas(selectedKelompokId || u.kelompok_id);
+      } catch(e) { showToast('Gagal: ' + e.message, true); }
+    };
+    openModal('editKelasModal');
+  };
   window.STR_addKelasGabungan = () => {
     // Tentukan desa_id
     let desaId = u.desa_id;
