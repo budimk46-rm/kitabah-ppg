@@ -1956,11 +1956,23 @@ async function renderKelolaKelas() {
 
   // ── Form Kelola Kelas Generus ──
   const isAdminForm = u.role === 'admin';
+  const isDesaForm = u.role === 'desa';
+  const showPicker = isAdminForm || isDesaForm;
 
   let selectedKelompokId = u.kelompok_id || null;
+  let kelasGabunganDesa = [];
   let kelasOptions = [];
   let selectedKelasId = null;
   let santriList = [];
+
+  // Load kelas gabungan desa
+  async function loadKelasGabungan() {
+    const desaId = isDesaForm ? u.desa_id : null;
+    if (desaId) {
+      kelasGabunganDesa = sortKelas(await SB.kelas.getByDesa(desaId) || []);
+      kelasGabunganDesa.forEach(g => { g._isGabungan = true; });
+    }
+  }
 
   async function loadKelas(kelompokId) {
     selectedKelompokId = kelompokId;
@@ -1968,14 +1980,21 @@ async function renderKelolaKelas() {
     santriList = [];
     if (kelompokId) {
       let kelas = sortKelas(await SB.kelas.getByKelompok(kelompokId));
-      // Juga load kelas gabungan desa jika user punya desa
+      // Load kelas gabungan desa
       const klp = (App.cache.kelompok||[]).find(k => k.id === kelompokId);
-      if (klp?.desa_id) {
-        const gabungan = await SB.kelas.getByDesa(klp.desa_id) || [];
+      const desaId = klp?.desa_id || u.desa_id;
+      if (desaId) {
+        const gabungan = await SB.kelas.getByDesa(desaId) || [];
         gabungan.forEach(g => { g._isGabungan = true; });
         kelas = [...kelas, ...sortKelas(gabungan)];
       }
       kelasOptions = kelas;
+      if (kelasOptions.length) await loadSantri(kelasOptions[0].id);
+      else render();
+    } else if (isDesaForm && u.desa_id) {
+      // Desa user tanpa kelompok dipilih — tampilkan kelas gabungan desa saja
+      await loadKelasGabungan();
+      kelasOptions = [...kelasGabunganDesa];
       if (kelasOptions.length) await loadSantri(kelasOptions[0].id);
       else render();
     } else {
@@ -2043,6 +2062,7 @@ async function renderKelolaKelas() {
       <!-- Pilihan Kelompok (admin) dan Kelas -->
       <div style="margin-bottom:14px;">
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          ${showPicker ? `
           ${isAdminForm ? `
           <div style="flex:1; min-width:140px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Filter Desa</label>
@@ -2053,15 +2073,17 @@ async function renderKelolaKelas() {
                 `<option value="Desa ${d}">Desa ${d}</option>`).join('')}
             </select>
           </div>` : ''}
-          ${isAdminForm ? `
           <div style="flex:2; min-width:180px;">
             <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
             <select id="strKelompokSel" onchange="STR_loadKelompok(this.value)"
               style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
               <option value="">Pilih kelompok...</option>
-              ${(App.cache.kelompok||[]).map(k =>
+              ${(isDesaForm
+                ? (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id)
+                : (App.cache.kelompok||[])
+              ).map(k =>
                 `<option value="${k.id}" data-desa="${escHtml(k.desa?.nama||k.desa_id)}" ${k.id===selectedKelompokId?'selected':''}>
-                  ${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}
+                  ${escHtml(k.nama)}${isAdminForm ? ' · '+escHtml(k.desa?.nama||k.desa_id) : ''}
                 </option>`).join('')}
             </select>
           </div>` : ''}
@@ -2074,9 +2096,9 @@ async function renderKelolaKelas() {
             </select>
           </div>
         </div>
-        ${(selectedKelompokId || !isAdminForm) ? `
+        ${(selectedKelompokId || !showPicker || isDesaForm) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
-          <button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>
+          ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>` : ''}
           ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green);" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
           ${selectedKelasId ? `
           <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
@@ -2158,9 +2180,12 @@ async function renderKelolaKelas() {
     await loadSantri(selectedKelasId);
   };
 
-  // Inisialisasi: kalau bukan admin, langsung load kelas kelompok sendiri
+  // Inisialisasi
   if (!isAdmin && u.kelompok_id) {
     await loadKelas(u.kelompok_id);
+  } else if (isDesaForm && u.desa_id) {
+    // Desa user — load kelas gabungan desa
+    await loadKelas(null);
   } else {
     render();
   }
@@ -6458,9 +6483,12 @@ async function renderRekapDesa() {
     return;
   }
 
-  const myDesaNama = App.cache.rekapDesaId || u.desa_nama || u.desa_id || null;
+  const myDesaNama = App.cache.rekapDesaId || null;
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const myDesaId = u.desa_id || null;
+  const desaFilterNama = myDesaNama || DESA_NAMA_MAP[myDesaId] || myDesaId;
   const kelompokDesa = (App.cache.kelompok||[]).filter(k =>
-    (k.desa?.nama || k.desa_id) === myDesaNama
+    (k.desa?.nama || k.desa_id) === desaFilterNama || k.desa_id === myDesaId
   );
 
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data rekap desa...</div></div>';
@@ -6648,7 +6676,7 @@ async function renderRekapDesa() {
       <div class="card" style="padding:0; overflow:hidden;">
         <div style="background:var(--green); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div>
-            <div style="font-weight:800; font-size:15px; color:#fff;">📍 ${escHtml(myDesaNama)}</div>
+            <div style="font-weight:800; font-size:15px; color:#fff;">📍 ${escHtml(desaFilterNama)}</div>
             <div style="font-size:12px; color:rgba(255,255,255,.75);">${kelompokDesa.length} kelompok · ${totalDesa.generus} generus</div>
           </div>
           <div style="display:flex; gap:10px;">
@@ -6680,7 +6708,7 @@ async function renderRekapDesa() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Rekap Desa</h1>
-          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(myDesaNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(desaFilterNama)} · ${kelompokDesa.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-outline btn-sm" onclick="RD_downloadPdf()">
@@ -6754,7 +6782,7 @@ async function renderRekapDesa() {
       // ── Cover / Header ──
       page.drawText('REKAP KBM DESA', { x:ML, y, font:fBold, size:14, color:GREEN });
       y -= 16;
-      page.drawText(myDesaNama + '   |   Bulan: ' + selectedBulan + '   |   Dicetak: ' + new Date().toLocaleDateString('id-ID'),
+      page.drawText((desaFilterNama||'') + '   |   Bulan: ' + selectedBulan + '   |   Dicetak: ' + new Date().toLocaleDateString('id-ID'),
         { x:ML, y, font:fReg, size:9, color:GRAY });
       y -= 8;
       page.drawLine({ start:{x:ML,y}, end:{x:W-MR,y}, thickness:1.5, color:GREEN });
