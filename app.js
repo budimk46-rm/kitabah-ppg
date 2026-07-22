@@ -1418,10 +1418,25 @@ async function renderUsers() {
   ]);
   const kelompokMap = Object.fromEntries(kelompokList.map(k => [k.id, k.nama]));
   const desaMap = Object.fromEntries(desaList.map(d => [d.id, d.nama]));
+  // Map kelompok ke desa untuk sorting
+  const klpDesaMap = Object.fromEntries(kelompokList.map(k => [k.id, k.desa_id || '']));
 
-  const pending = allUsers.filter(u => u.status === 'pending');
-  const approved = allUsers.filter(u => u.status === 'approved');
-  const rejected = allUsers.filter(u => u.status === 'rejected');
+  // Sort: desa_id → kelompok_id → nama
+  function sortUsers(list) {
+    return [...list].sort((a, b) => {
+      const desaA = a.desa_id || klpDesaMap[a.kelompok_id] || 'Z';
+      const desaB = b.desa_id || klpDesaMap[b.kelompok_id] || 'Z';
+      if (desaA !== desaB) return desaA.localeCompare(desaB);
+      const klpA = a.kelompok_id || '';
+      const klpB = b.kelompok_id || '';
+      if (klpA !== klpB) return klpA.localeCompare(klpB);
+      return (a.nama_lengkap||'').localeCompare(b.nama_lengkap||'');
+    });
+  }
+
+  const pending = sortUsers(allUsers.filter(u => u.status === 'pending'));
+  const approved = sortUsers(allUsers.filter(u => u.status === 'approved'));
+  const rejected = sortUsers(allUsers.filter(u => u.status === 'rejected'));
 
   function badge(status) {
     const map = { pending: 'badge-gold', approved: 'badge-green', rejected: 'badge-rose' };
@@ -1430,15 +1445,24 @@ async function renderUsers() {
   }
 
   function userRows(list) {
-    if (!list.length) return '<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:24px;">Tidak ada data</td></tr>';
-    return list.map(u => `
+    if (!list.length) return '<tr><td colspan="8" style="text-align:center; color:var(--ink-soft); padding:24px;">Tidak ada data</td></tr>';
+    let lastDesa = '';
+    return list.map(u => {
+      const desaId = u.desa_id || klpDesaMap[u.kelompok_id] || '';
+      const desaNama = desaMap[desaId] || desaId || '—';
+      let separator = '';
+      if (desaId && desaId !== lastDesa) {
+        lastDesa = desaId;
+        separator = `<tr><td colspan="8" style="padding:8px 10px; background:var(--green); color:#fff; font-weight:700; font-size:12px;">🏘️ ${escHtml(desaNama)}</td></tr>`;
+      }
+      return separator + `
       <tr>
         <td>
           <b>${escHtml(u.nama_lengkap)}</b>
           ${u.jabatan ? `<br><span style="font-size:11px; color:var(--green);">${escHtml(u.jabatan)}</span>` : ''}
         </td>
         <td><span style="font-size:12px;">${escHtml(ROLE_LABELS[u.role] || u.role)}</span></td>
-        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : (u.desa_id ? escHtml(desaMap[u.desa_id] || u.desa_id) : '—')}</td>
+        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : '—'}</td>
         <td style="font-size:11px; font-family:monospace;">
           <div>👤 ${escHtml(u.username)}</div>
           <div>🔑 ${escHtml(u.password_hash || '-')}</div>
@@ -1456,7 +1480,8 @@ async function renderUsers() {
               </button>` : ''}
           </div>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   main.innerHTML = `
