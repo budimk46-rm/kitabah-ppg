@@ -2017,10 +2017,12 @@ async function renderKelolaKelas() {
   async function loadSantri(kelasId) {
     selectedKelasId = kelasId;
     santriList = await SB.santri.getByKelas(kelasId);
-    // Jika kelas gabungan dan user punya kelompok, load checklist
     const selectedKelasObj = kelasOptions.find(k => k.id === kelasId);
     if (selectedKelasObj?.desa_id && selectedKelompokId) {
       await loadSantriChecklist();
+    }
+    if (!selectedKelasObj?.desa_id && selectedKelompokId && canEdit) {
+      await loadUnassignedChecklist();
     }
     render();
   }
@@ -2130,7 +2132,10 @@ async function renderKelolaKelas() {
         </div>` : ''}
       </div>
 
-      ${selectedKelasId ? (selectedKelasObj?.desa_id ? gabunganChecklistHtml : tableHtml) : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
+      ${selectedKelasId ? (selectedKelasObj?.desa_id ? gabunganChecklistHtml : `
+        ${tableHtml}
+        ${canEdit && selectedKelompokId ? unassignedChecklistHtml : ''}
+      `) : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
     `;
   }
 
@@ -2226,6 +2231,117 @@ async function renderKelolaKelas() {
 
   // Handler toggle gabungan
   window.STR_toggleGabungan = async (santriId, add) => {
+
+  // ── Unassigned checklist untuk kelas biasa ──
+  let unassignedChecklistHtml = '';
+  const canEdit = isAdminForm || u.role === 'pjp_kelompok' || u.role === 'guru';
+
+  async function loadUnassignedChecklist() {
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls || kls.desa_id || !selectedKelompokId) { unassignedChecklistHtml = ''; return; }
+
+    // Map nama kelas ke tingkatan
+    const nmUpper = (kls.nama_kelas||'').toUpperCase();
+    let targetTingkatan = null;
+    if (nmUpper.startsWith('CABERAWIT')) targetTingkatan = 'caberawit';
+    else if (nmUpper.startsWith('PRA REMAJA')) targetTingkatan = 'pra_remaja';
+    else if (nmUpper.startsWith('REMAJA')) targetTingkatan = 'remaja';
+    else if (nmUpper.startsWith('PRA NIKAH')) targetTingkatan = 'pra_nikah';
+
+    // Load semua santri di kelompok ini
+    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
+    let allSantriKlp = [];
+    for (const k of allKelasKlp) {
+      const s = await SB.santri.getByKelas(k.id);
+      allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang, _fromKelasId: k.id}))];
+    }
+
+    // Filter by tingkatan dan belum di kelas ini
+    const currentSantriIds = new Set(santriList.map(s => s.id));
+    const unassignedAll = allSantriKlp.filter(s => !currentSantriIds.has(s.id));
+    let unassigned = unassignedAll;
+    if (targetTingkatan) {
+      unassigned = unassignedAll.filter(s => {
+        const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+        return t === targetTingkatan;
+      });
+    }
+
+    if (!unassigned.length && !unassignedAll.length) { unassignedChecklistHtml = ''; return; }
+    if (!unassigned.length && unassignedAll.length) {
+      unassignedChecklistHtml = `
+        <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
+          <div style="font-size:13px; color:var(--ink-soft); padding:8px 0;">Semua generus usia ${TINGKATAN_LABELS[targetTingkatan]||''} sudah masuk kelas.</div>
+          <button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="STR_showAllUsia()">Tampilkan Semua Usia (${unassignedAll.length})</button>
+        </div>`;
+      return;
+    }
+
+    unassigned.sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    unassignedChecklistHtml = `
+      <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
+          <div class="fw-bold" style="color:var(--gold); font-size:14px;">📋 Generus ${targetTingkatan ? 'Usia ' + (TINGKATAN_LABELS[targetTingkatan]||'') + ' ' : ''}Belum di Kelas Ini</div>
+          ${unassignedAll.length > unassigned.length ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="STR_showAllUsia()">Semua Usia (${unassignedAll.length})</button>` : ''}
+        </div>
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Centang untuk memindahkan ke kelas <b>${escHtml(kls.nama_kelas||'')}</b></div>
+        ${unassigned.map(s => `
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line); cursor:pointer;"
+            onclick="STR_assignToKelas('${s.id}')">
+            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; border:2px solid var(--line); background:transparent; display:flex; align-items:center; justify-content:center;"></div>
+            <div style="flex:1;">
+              <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
+              <div style="font-size:11px; color:var(--ink-soft);">
+                ${s.jenis_kel||'—'} · ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '—'} · dari ${escHtml(s._fromKelas||'—')}
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  window.STR_assignToKelas = async (santriId) => {
+    try {
+      await SB.santri.update(santriId, { kelas_id: selectedKelasId });
+      showToast('Santri dipindahkan ke kelas ini');
+      await loadSantri(selectedKelasId);
+    } catch(e) { showToast('Gagal: '+e.message, true); }
+  };
+
+  window.STR_showAllUsia = async () => {
+    // Reload unassigned tanpa filter tingkatan
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (!kls || !selectedKelompokId) return;
+    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
+    let allSantriKlp = [];
+    for (const k of allKelasKlp) {
+      const s = await SB.santri.getByKelas(k.id);
+      allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang}))];
+    }
+    const currentIds = new Set(santriList.map(s => s.id));
+    const all = allSantriKlp.filter(s => !currentIds.has(s.id)).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+
+    if (!all.length) { showToast('Tidak ada generus lain yang tersedia'); return; }
+
+    unassignedChecklistHtml = `
+      <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
+        <div class="fw-bold" style="color:var(--gold); font-size:14px; margin-bottom:6px;">📋 Semua Generus Belum di Kelas Ini</div>
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Centang untuk memindahkan ke kelas <b>${escHtml(kls.nama_kelas||'')}</b></div>
+        ${all.map(s => {
+          const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+          return `<div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-bottom:1px solid var(--line); cursor:pointer;"
+            onclick="STR_assignToKelas('${s.id}')">
+            <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; border:2px solid var(--line); background:transparent;"></div>
+            <div style="flex:1;">
+              <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
+              <div style="font-size:11px; color:var(--ink-soft);">
+                ${s.jenis_kel||'—'} · ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '—'} · ${TINGKATAN_LABELS[t]||t||'—'} · dari ${escHtml(s._fromKelas||'—')}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    render();
+  };
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (!kls) return;
     try {
@@ -8307,13 +8423,25 @@ function openEditMateriModal(item, defaultJenjang = '', defaultSem = '1') {
 
 function openAddKelasModal(kelompokId, onSaved) {
   if (!kelompokId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
-  let el = document.getElementById('kelasModal');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'kelasModal';
-    el.className = 'modal-overlay';
-    document.body.appendChild(el);
+
+  // Hitung suffix otomatis (A, B, C, ...)
+  async function getNextSuffix(tipe) {
+    const existing = await SB.kelas.getByKelompok(kelompokId) || [];
+    const sameType = existing.filter(k => (k.nama_kelas||'').startsWith(tipe));
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return letters[sameType.length] || letters[0];
   }
+
+  // Default jenjang per tipe
+  const TIPE_JENJANG = {
+    'CABERAWIT': 'SD 3',
+    'PRA REMAJA': 'SMP 1',
+    'REMAJA': 'SMA 1',
+    'PRA NIKAH': 'PRA 1',
+  };
+
+  let el = document.getElementById('kelasModal');
+  if (!el) { el = document.createElement('div'); el.id = 'kelasModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
   el.innerHTML = `<div class="modal">
     <div class="modal-head">
       <h3 class="modal-title">Tambah Kelas</h3>
@@ -8321,9 +8449,17 @@ function openAddKelasModal(kelompokId, onSaved) {
     </div>
     <div class="modal-body">
       <div class="form-group" style="margin-bottom:14px;">
-        <label>Nama Kelas (bebas sesuai kelompok)</label>
-        <input id="kelasNama" placeholder="contoh: Kelas A, Caberawit 1, Pra Remaja">
-        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:5px;">Nama lokal kelas di kelompok Anda. Boleh dikosongkan.</div>
+        <label>Kelas Usia *</label>
+        <select id="kelasTipe" onchange="KLS_updatePreview()" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:14px; font-weight:700;">
+          <option value="CABERAWIT">CABERAWIT</option>
+          <option value="PRA REMAJA">PRA REMAJA</option>
+          <option value="REMAJA">REMAJA</option>
+          <option value="PRA NIKAH">PRA NIKAH</option>
+        </select>
+      </div>
+      <div style="padding:12px 14px; background:var(--green-soft); border-radius:var(--radius-sm); margin-bottom:14px;">
+        <div style="font-size:11px; color:var(--ink-soft); margin-bottom:4px;">Nama kelas yang akan dibuat:</div>
+        <div id="kelasPreview" style="font-size:20px; font-weight:800; color:var(--green);">CABERAWIT A</div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -8331,13 +8467,13 @@ function openAddKelasModal(kelompokId, onSaved) {
           <select id="kelasJenjang">
             ${JENJANG_ORDER.map(j => `<option>${j}</option>`).join('')}
           </select>
-          <div style="font-size:11.5px; color:var(--ink-soft); margin-top:5px;">Menentukan materi kurikulum yang berlaku untuk kelas ini.</div>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Otomatis sesuai kelas usia. Ubah jika perlu.</div>
         </div>
         <div class="form-group">
           <label>Semester</label>
           <select id="kelasSem">
-            <option value="1">Semester 1 (Juli – Desember)</option>
-            <option value="2">Semester 2 (Januari – Juni)</option>
+            <option value="1">Semester 1 (Jul – Des)</option>
+            <option value="2">Semester 2 (Jan – Jun)</option>
           </select>
         </div>
       </div>
@@ -8348,17 +8484,33 @@ function openAddKelasModal(kelompokId, onSaved) {
     </div>
   </div>`;
 
+  // Update preview dan jenjang saat tipe berubah
+  window.KLS_updatePreview = async () => {
+    const tipe = document.getElementById('kelasTipe').value;
+    const suffix = await getNextSuffix(tipe);
+    document.getElementById('kelasPreview').textContent = tipe + ' ' + suffix;
+    // Auto set jenjang
+    const jenjangDefault = TIPE_JENJANG[tipe] || 'SD 3';
+    const jenjangSel = document.getElementById('kelasJenjang');
+    for (let i = 0; i < jenjangSel.options.length; i++) {
+      if (jenjangSel.options[i].value === jenjangDefault) { jenjangSel.selectedIndex = i; break; }
+    }
+  };
+
+  // Initial preview
+  KLS_updatePreview();
+
   document.getElementById('kelasSaveBtn').onclick = async () => {
-    const nama_kelas = document.getElementById('kelasNama').value.trim().toUpperCase();
+    const tipe = document.getElementById('kelasTipe').value;
+    const suffix = await getNextSuffix(tipe);
+    const nama_kelas = tipe + ' ' + suffix;
     const jenjang = document.getElementById('kelasJenjang').value;
-    const semester = document.getElementById('kelasSem').value;
-    if (!kelompokId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
-    if (!nama_kelas) { showToast('Nama kelas wajib diisi', true); return; }
+    const semester = parseInt(document.getElementById('kelasSem').value);
     const btn = document.getElementById('kelasSaveBtn');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
     try {
-      await SB.kelas.insert({ kelompok_id: kelompokId, nama_kelas, jenjang, semester: parseInt(semester) });
-      showToast('Kelas berhasil ditambahkan');
+      await SB.kelas.insert({ kelompok_id: kelompokId, nama_kelas, jenjang, semester });
+      showToast('Kelas ' + nama_kelas + ' berhasil ditambahkan');
       closeModal('kelasModal');
       onSaved();
     } catch(e) {
