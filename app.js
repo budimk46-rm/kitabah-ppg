@@ -2443,7 +2443,15 @@ async function renderAbsensi() {
       App.cache.materi = await SB.materi.getAll();
     }
     let selectedMateriIds = new Set();
-  const kelasOptions = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
+  let kelasKlp = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
+  // Juga load kelas gabungan desa
+  const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
+  if (myKlp?.desa_id) {
+    const gabungan = await SB.kelas.getByDesa(myKlp.desa_id) || [];
+    gabungan.forEach(g => { g._isGabungan = true; });
+    kelasKlp = [...kelasKlp, ...sortKelas(gabungan)];
+  }
+  const kelasOptions = kelasKlp;
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
   let activeKelompokId = myKelompokId; // track kelompok aktif untuk progress
@@ -2505,7 +2513,7 @@ async function renderAbsensi() {
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const kelasOptHtml = kelasOptions.map(k =>
       `<option value="${k.id}" data-kelompok-id="${k.kelompok_id||myKelompokId||''}" ${k.id === selectedKelasId ? 'selected' : ''}>
-        ${k.nama_kelas ? escHtml(k.nama_kelas)+' — ' : ''}${escHtml(k.jenjang)} Sem ${k.semester}
+        ${k.nama_kelas ? escHtml(k.nama_kelas)+' — ' : ''}${escHtml(k.jenjang)} Sem ${k.semester}${k.desa_id ? ' 🏘️ Gabungan' : ''}
       </option>`
     ).join('');
 
