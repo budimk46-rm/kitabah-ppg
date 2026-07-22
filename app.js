@@ -669,6 +669,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function boxIcon() { return SVG('<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'); }
 function idCardIcon() { return SVG('<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="8" cy="14" r="1.5"/><path d="M14 14h4"/>'); }
 function briefcaseIcon() { return SVG('<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>'); }
 function listIcon() { return SVG('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>'); }
@@ -686,6 +687,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
@@ -697,6 +699,7 @@ const NAV_ITEMS = {
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
@@ -707,6 +710,7 @@ const NAV_ITEMS = {
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -718,6 +722,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -801,6 +806,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'sarpras':     await renderSarpras(); break;
       case 'mtms':        await renderMtMs(); break;
       case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
@@ -2940,6 +2946,274 @@ async function renderAbsensi() {
 
   await loadPertemuan();
   } // end lanjutAbsensi
+}
+
+/* ===== PAGE: DATA SARPRAS ===== */
+async function renderSarpras() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isPjp = u.role === 'pjp_kelompok';
+  const canEdit = isAdmin || isPjp;
+  const isRekap = isAdmin || isDaerah || isDesa;
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+
+  const DEFAULT_ITEMS = ['Peraga Tilawati','Papan Peraga','White Board','Spidol','Penghapus','Dampar','Laptop SB','LCD Proyektor / TV Monitor','Layar Proyektor','Wifi'];
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Load data
+  let allData = [];
+  if (isAdmin || isDaerah) {
+    allData = await SB.sarpras.getAll() || [];
+  } else if (isDesa) {
+    const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+    const results = await Promise.all(klpDesa.map(k => SB.sarpras.getByKelompok(k.id)));
+    allData = results.filter(Boolean).flat();
+  } else if (u.kelompok_id) {
+    allData = await SB.sarpras.getByKelompok(u.kelompok_id) || [];
+    // Auto-create default items jika belum ada
+    if (!allData.length) {
+      const batch = DEFAULT_ITEMS.map(item => ({
+        kelompok_id: u.kelompok_id, nama_item: item.toUpperCase(),
+        status: null, kondisi: null, keterangan: null, dibuat_oleh: u.id,
+      }));
+      for (const b of batch) {
+        const r = await SB.sarpras.insert(b);
+        if (r?.[0]) allData.push(r[0]); else allData.push({...b, id:'tmp_'+Date.now()+Math.random()});
+      }
+    }
+  }
+
+  function render() {
+    if (isRekap) { renderRekap(); return; }
+    // === PJP Kelompok view ===
+    const klpNama = kelompokMap[u.kelompok_id]?.nama || u.kelompok_id;
+    const rows = allData.map((d, i) => {
+      const stIcon = d.status === 'Ada' ? '✅' : d.status === 'Tidak Ada' ? '❌' : '—';
+      const stColor = d.status === 'Ada' ? 'var(--green)' : d.status === 'Tidak Ada' ? 'var(--rose)' : 'var(--ink-soft)';
+      const kdIcon = d.kondisi === 'Baik' ? '🟢' : d.kondisi === 'Rusak' ? '🔴' : '';
+      const kdColor = d.kondisi === 'Baik' ? 'var(--green)' : d.kondisi === 'Rusak' ? 'var(--rose)' : 'var(--ink-soft)';
+      return `<tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:7px 6px; text-align:center; font-size:12px;">${i+1}</td>
+        <td style="padding:7px 8px; font-size:13px; font-weight:600; color:#111;">${escHtml(d.nama_item)}</td>
+        <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${stColor};">${stIcon} ${escHtml(d.status||'—')}</td>
+        <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${kdColor};">${kdIcon} ${escHtml(d.kondisi||'—')}</td>
+        <td style="padding:7px 8px; font-size:12px; color:#111;">${escHtml(d.keterangan||'')}</td>
+        ${canEdit ? `<td style="padding:7px 4px; text-align:center;">
+          <div style="display:flex; gap:3px; justify-content:center;">
+            <button class="btn-icon" onclick="SP_edit('${d.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+            <button class="btn-icon danger" onclick="SP_hapus('${d.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+          </div>
+        </td>` : ''}
+      </tr>`;
+    }).join('');
+
+    const adaCount = allData.filter(d=>d.status==='Ada').length;
+    const tidakAdaCount = allData.filter(d=>d.status==='Tidak Ada').length;
+    const baikCount = allData.filter(d=>d.kondisi==='Baik').length;
+    const rusakCount = allData.filter(d=>d.kondisi==='Rusak').length;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Data Sarana Prasarana</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(klpNama)} · ${allData.length} item</p>
+        </div>
+        ${canEdit ? '<button class="btn btn-green" onclick="SP_tambah()">+ Tambah Item</button>' : ''}
+      </div>
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num" style="color:var(--green);">${adaCount}</div><div class="stat-label">Ada</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${tidakAdaCount}</div><div class="stat-label">Tidak Ada</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--green);">${baikCount}</div><div class="stat-label">Baik</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${rusakCount}</div><div class="stat-label">Rusak</div></div>
+      </div>
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:500px;">
+          <thead><tr style="background:var(--green);">
+            <th style="color:#fff; padding:7px 6px; font-size:11px; width:35px;">No</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Item</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:center;">Status</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:center;">Kondisi</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Keterangan</th>
+            ${canEdit ? '<th style="color:#fff; padding:7px 4px; font-size:11px; width:60px;">Aksi</th>' : ''}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`;
+  }
+
+  // === REKAP (desa/daerah/admin) ===
+  function renderRekap() {
+    const scopeLabel = isDesa ? (DESA_NAMA_MAP[u.desa_id]||'Desa') : 'Daerah Sidoarjo Utara';
+
+    // Masalah: rusak atau tidak ada
+    const masalah = allData.filter(d => d.status === 'Tidak Ada' || d.kondisi === 'Rusak');
+    const masalahByDesa = {};
+    masalah.forEach(d => {
+      const klp = kelompokMap[d.kelompok_id];
+      const desaNama = klp?.desa?.nama || DESA_NAMA_MAP[klp?.desa_id] || '—';
+      if (!masalahByDesa[desaNama]) masalahByDesa[desaNama] = [];
+      masalahByDesa[desaNama].push({...d, klpNama: klp?.nama || d.kelompok_id});
+    });
+
+    const masalahHtml = masalah.length ? Object.entries(masalahByDesa).map(([desaNama, list]) => `
+      <div class="card" style="margin-bottom:12px; padding:0; overflow:hidden;">
+        <div style="background:var(--rose); padding:8px 16px;">
+          <div style="font-weight:700; font-size:13px; color:#fff;">🏘️ ${escHtml(desaNama)} — ${list.length} item perlu perhatian</div>
+        </div>
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--rose-soft);">
+            <th style="padding:5px 8px; font-size:11px; text-align:left; color:var(--rose);">Kelompok</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:left; color:var(--rose);">Item</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:center; color:var(--rose);">Masalah</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:left; color:var(--rose);">Keterangan</th>
+          </tr></thead>
+          <tbody>${list.map(d => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:5px 8px; font-size:12px; font-weight:600;">${escHtml(d.klpNama)}</td>
+            <td style="padding:5px 8px; font-size:12px; color:#111;">${escHtml(d.nama_item)}</td>
+            <td style="padding:5px 8px; font-size:12px; text-align:center; font-weight:700; color:var(--rose);">${d.status==='Tidak Ada'?'❌ Tidak Ada':'🔴 Rusak'}</td>
+            <td style="padding:5px 8px; font-size:12px; color:#111;">${escHtml(d.keterangan||'')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`).join('') : '<div class="card"><p style="color:var(--green); font-weight:600;">✅ Semua item dalam kondisi baik!</p></div>';
+
+    // Ringkasan per item
+    const itemNames = [...new Set(allData.map(d => d.nama_item))].sort();
+    const summaryRows = itemNames.map(item => {
+      const list = allData.filter(d => d.nama_item === item);
+      const ada = list.filter(d => d.status === 'Ada').length;
+      const tidakAda = list.filter(d => d.status === 'Tidak Ada').length;
+      const baik = list.filter(d => d.kondisi === 'Baik').length;
+      const rusak = list.filter(d => d.kondisi === 'Rusak').length;
+      const belum = list.filter(d => !d.status).length;
+      return `<tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:5px 8px; font-size:12px; font-weight:600; color:#111;">${escHtml(item)}</td>
+        <td style="padding:5px 8px; text-align:center; font-size:12px; color:var(--green); font-weight:700;">${ada}</td>
+        <td style="padding:5px 8px; text-align:center; font-size:12px; color:var(--rose); font-weight:700;">${tidakAda}</td>
+        <td style="padding:5px 8px; text-align:center; font-size:12px; color:var(--green); font-weight:700;">${baik}</td>
+        <td style="padding:5px 8px; text-align:center; font-size:12px; color:var(--rose); font-weight:700;">${rusak}</td>
+        <td style="padding:5px 8px; text-align:center; font-size:12px; color:var(--ink-soft);">${belum}</td>
+      </tr>`;
+    }).join('');
+
+    // Count total kelompok yang sudah isi data
+    const klpDiisi = [...new Set(allData.map(d => d.kelompok_id))].length;
+    const totalKlp = isDesa ? (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id).length : (App.cache.kelompok||[]).length;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Rekap Sarana Prasarana</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · ${klpDiisi}/${totalKlp} kelompok sudah mengisi</p>
+        </div>
+      </div>
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num">${allData.length}</div><div class="stat-label">Total Item</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--green);">${allData.filter(d=>d.status==='Ada').length}</div><div class="stat-label">Ada</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${allData.filter(d=>d.status==='Tidak Ada').length}</div><div class="stat-label">Tidak Ada</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${allData.filter(d=>d.kondisi==='Rusak').length}</div><div class="stat-label">Rusak</div></div>
+      </div>
+
+      <div class="fw-bold" style="font-size:15px; color:var(--rose); margin-bottom:10px;">⚠️ Item Perlu Perhatian (${masalah.length})</div>
+      ${masalahHtml}
+
+      <div class="card" style="margin-top:16px; padding:0; overflow:hidden;">
+        <div style="background:var(--green); padding:10px 16px;">
+          <div style="font-weight:700; font-size:14px; color:#fff;">📊 Ringkasan per Item</div>
+        </div>
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 8px; font-size:11px; text-align:left; color:#fff;">Item</th>
+            <th style="padding:7px 8px; font-size:11px; text-align:center; color:#fff;">✅ Ada</th>
+            <th style="padding:7px 8px; font-size:11px; text-align:center; color:#fff;">❌ Tdk Ada</th>
+            <th style="padding:7px 8px; font-size:11px; text-align:center; color:#fff;">🟢 Baik</th>
+            <th style="padding:7px 8px; font-size:11px; text-align:center; color:#fff;">🔴 Rusak</th>
+            <th style="padding:7px 8px; font-size:11px; text-align:center; color:#fff;">Belum Isi</th>
+          </tr></thead>
+          <tbody>${summaryRows}</tbody>
+        </table></div>
+      </div>`;
+  }
+
+  // === HANDLERS ===
+  window.SP_tambah = () => openSarprasModal(null);
+  window.SP_edit = (id) => openSarprasModal(allData.find(d=>d.id===id));
+  window.SP_hapus = async (id) => {
+    if (!confirm('Hapus item ini?')) return;
+    await SB.sarpras.delete(id);
+    allData = allData.filter(d=>d.id!==id);
+    showToast('Dihapus'); render();
+  };
+
+  function openSarprasModal(existing) {
+    const p = existing;
+    let el = document.getElementById('sarprasModal');
+    if (!el) { el = document.createElement('div'); el.id = 'sarprasModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">${p?'Edit':'Tambah'} Item Sarpras</h3><button class="modal-close" onclick="closeModal('sarprasModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Nama Item *</label><input id="spNama" value="${escHtml(p?.nama_item||'')}" ${p?'readonly style="background:#f5f5f5;"':''}></div>
+        <div class="form-row">
+          <div class="form-group"><label>Status *</label>
+            <select id="spStatus">
+              <option value="">Pilih...</option>
+              <option value="Ada" ${p?.status==='Ada'?'selected':''}>✅ Ada</option>
+              <option value="Tidak Ada" ${p?.status==='Tidak Ada'?'selected':''}>❌ Tidak Ada</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Kondisi</label>
+            <select id="spKondisi">
+              <option value="-" ${!p?.kondisi||p?.kondisi==='-'?'selected':''}>—</option>
+              <option value="Baik" ${p?.kondisi==='Baik'?'selected':''}>🟢 Baik</option>
+              <option value="Rusak" ${p?.kondisi==='Rusak'?'selected':''}>🔴 Rusak</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Keterangan</label><input id="spKet" value="${escHtml(p?.keterangan||'')}" placeholder="Jumlah, merk, speed wifi, dll"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('sarprasModal')">Batal</button>
+        <button class="btn btn-green" id="spSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('spSaveBtn').onclick = async () => {
+      const nama = document.getElementById('spNama').value.trim().toUpperCase();
+      const status = document.getElementById('spStatus').value;
+      const kondisi = document.getElementById('spKondisi').value;
+      const ket = document.getElementById('spKet').value.trim();
+      if (!nama) { showToast('Nama item wajib diisi',true); return; }
+      if (!status) { showToast('Status wajib dipilih',true); return; }
+
+      // Jika status Tidak Ada, kondisi otomatis -
+      const kondisiFinal = status === 'Tidak Ada' ? '-' : kondisi;
+
+      const data = {
+        kelompok_id: u.kelompok_id,
+        nama_item: nama, status, kondisi: kondisiFinal,
+        keterangan: ket || null, dibuat_oleh: u.id,
+      };
+      try {
+        if (p) {
+          await SB.sarpras.update(p.id, data);
+          Object.assign(p, data);
+        } else {
+          const r = await SB.sarpras.insert(data);
+          if (r?.[0]) allData.push(r[0]); else allData.push({...data, id:'tmp_'+Date.now()});
+        }
+        showToast('Tersimpan'); closeModal('sarprasModal'); render();
+      } catch(e) { showToast('Gagal: '+e.message, true); }
+    };
+    openModal('sarprasModal');
+  }
+
+  render();
 }
 
 /* ===== PAGE: DATA MT/MS ===== */

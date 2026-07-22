@@ -338,6 +338,18 @@ const sbMusKonfig = {
   },
 };
 
+// ============ SARPRAS ============
+const sbSarpras = {
+  getByKelompok: (klpId) => sbFetch(`sarpras?kelompok_id=eq.${klpId}&select=*&order=created_at`),
+  getAll: () => sbFetch('sarpras?select=*&order=kelompok_id,created_at&limit=5000'),
+  insert: async (data) => {
+    try { return await sbFetch('sarpras', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }); }
+    catch(e) { if (e.message?.includes('409')) return [data]; throw e; }
+  },
+  update: (id, data) => sbFetch(`sarpras?id=eq.${id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`sarpras?id=eq.${id}`, { method:'DELETE' }),
+};
+
 // ============ MT/MS ============
 const sbMtMs = {
   getByKelompok: (klpId) => sbFetch(`mt_ms?kelompok_id=eq.${klpId}&select=*&order=nama_lengkap`),
@@ -417,4 +429,5 @@ window.SB = {
   laporan: sbLaporan,
   sumberDana: sbSumberDana,
   mtMs: sbMtMs,
+  sarpras: sbSarpras,
 };
