@@ -4686,6 +4686,13 @@ async function renderMusyawarah() {
 
   const nowMonth = currentMonthName();
   let filterLevel = 'semua';
+  const KALENDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const bulanSkrg = currentMonthName();
+  const idxSkrg = KALENDER.indexOf(bulanSkrg);
+  const bulanLalu = idxSkrg > 0 ? KALENDER[idxSkrg - 1] : null;
+  let filterBulanSet = new Set([bulanSkrg]);
+  if (bulanLalu) filterBulanSet.add(bulanLalu);
+  let showAllBulan = false;
 
   // Auto-detect default level musyawarah berdasar role
   let defaultLevel = '';
@@ -4695,9 +4702,11 @@ async function renderMusyawarah() {
   // kelompok level → pilih antara guru_generus atau unsur_5
 
   function renderPage() {
-    const filtered = allMusyawarah.filter(m =>
-      filterLevel === 'semua' || m.level === filterLevel
-    );
+    const filtered = allMusyawarah.filter(m => {
+      const levelOk = filterLevel === 'semua' || m.level === filterLevel;
+      const bulanOk = showAllBulan || filterBulanSet.has(m.bulan);
+      return levelOk && bulanOk;
+    });
 
     // === Form notulensi baru (inline) ===
     let formHtml = '';
@@ -4862,9 +4871,31 @@ async function renderMusyawarah() {
         <h1 class="page-title">Musyawarah</h1>
       </div>
       ${formHtml}
-      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:12px;">Riwayat Notulensi</div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; overflow-x:auto; padding-bottom:4px;">
+      <div class="fw-bold color-green" style="font-size:14px; margin-bottom:8px;">Riwayat Notulensi</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
         ${levelTabs}
+      </div>
+      <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:14px; align-items:center;">
+        <span style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-right:4px;">Bulan:</span>
+        ${KALENDER.map(b => {
+          const hasMus = allMusyawarah.some(m => m.bulan === b);
+          if (!hasMus) return '';
+          const isActive = showAllBulan || filterBulanSet.has(b);
+          return `<div onclick="MUS_toggleBulan('${b}')"
+            style="padding:4px 10px; border-radius:16px; font-size:11px; font-weight:700; cursor:pointer;
+              background:${isActive?'var(--green)':'var(--white)'};
+              color:${isActive?'#fff':'var(--ink-soft)'};
+              border:1.5px solid ${isActive?'var(--green)':'var(--line)'};">
+            ${b.slice(0,3)}
+          </div>`;
+        }).join('')}
+        <div onclick="MUS_toggleAllBulan()"
+          style="padding:4px 10px; border-radius:16px; font-size:11px; font-weight:700; cursor:pointer;
+            background:${showAllBulan?'var(--gold)':'var(--white)'};
+            color:${showAllBulan?'#fff':'var(--ink-soft)'};
+            border:1.5px solid ${showAllBulan?'var(--gold)':'var(--line)'};">
+          Semua
+        </div>
       </div>
       ${daftarHtml}`;
   }
@@ -4880,6 +4911,17 @@ async function renderMusyawarah() {
 
   window.MUS_absensi = (id, level) => openMusAbsensiModal(id, level, u);
   window.MUS_setFilter = (lv) => { filterLevel = lv; renderPage(); };
+  window.MUS_toggleBulan = (b) => {
+    showAllBulan = false;
+    if (filterBulanSet.has(b)) filterBulanSet.delete(b);
+    else filterBulanSet.add(b);
+    if (filterBulanSet.size === 0) filterBulanSet.add(bulanSkrg);
+    renderPage();
+  };
+  window.MUS_toggleAllBulan = () => {
+    showAllBulan = !showAllBulan;
+    renderPage();
+  };
 
   // Auto-load untuk desa/daerah
   if (defaultLevel && !['admin'].includes(role)) {
