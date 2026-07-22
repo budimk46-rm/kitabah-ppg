@@ -147,6 +147,8 @@ const sbKelas = {
 const sbSantri = {
   getByKelas: (kelasId) =>
     sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=*&order=nama`),
+  getUnassigned: (kelompokIds) =>
+    sbFetch(`santri?aktif=eq.true&kelas_id=is.null&select=*&order=nama`),
   getByKelompok: (kelompokId) =>
     sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
   getAll: () =>

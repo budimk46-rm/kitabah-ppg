@@ -2037,6 +2037,13 @@ async function renderKelolaKelas() {
       const s = await SB.santri.getByKelas(k.id);
       allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang, _fromKelasId: k.id}))];
     }
+    // Juga load santri tanpa kelas (kelas_id = null)
+    const unassignedPool = await SB.santri.getUnassigned() || [];
+    unassignedPool.forEach(s => {
+      if (!allSantriKlp.find(x => x.id === s.id)) {
+        allSantriKlp.push({...s, _fromKelas: 'Belum masuk kelas', _fromKelasId: null});
+      }
+    });
 
     // Filter by tingkatan dan belum di kelas ini
     const currentSantriIds = new Set(santriList.map(s => s.id));
@@ -2134,7 +2141,7 @@ async function renderKelolaKelas() {
                 <button class="btn-icon" onclick="STR_edit('${s.id}')" title="Edit">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
                 </button>
-                <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Hapus">
+                <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Keluarkan dari kelas">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
                 </button>
               </div>
@@ -2465,9 +2472,9 @@ async function renderKelolaKelas() {
     openAddSantriModal(selectedKelasId, s, async () => await loadSantri(selectedKelasId));
   };
   window.STR_delete = async (id, nama) => {
-    if (!confirm(`Hapus santri "${nama}"?`)) return;
-    await SB.santri.softDelete(id);
-    showToast('Santri dihapus');
+    if (!confirm(`Keluarkan "${nama}" dari kelas ini?\nSantri akan dipindah ke daftar belum masuk kelas.`)) return;
+    await SB.santri.update(id, { kelas_id: null });
+    showToast('Santri dikeluarkan dari kelas');
     await loadSantri(selectedKelasId);
   };
 
