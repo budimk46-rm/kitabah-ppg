@@ -669,6 +669,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function clipboardCheckIcon() { return SVG('<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>'); }
 function boxIcon() { return SVG('<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'); }
 function idCardIcon() { return SVG('<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="8" cy="14" r="1.5"/><path d="M14 14h4"/>'); }
 function briefcaseIcon() { return SVG('<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>'); }
@@ -687,6 +688,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
@@ -699,6 +701,7 @@ const NAV_ITEMS = {
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
@@ -710,6 +713,7 @@ const NAV_ITEMS = {
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
@@ -806,6 +810,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'monitor_mus': await renderMonitorMus(); break;
       case 'sarpras':     await renderSarpras(); break;
       case 'mtms':        await renderMtMs(); break;
       case 'proker':      await renderProker(); break;
@@ -2946,6 +2951,235 @@ async function renderAbsensi() {
 
   await loadPertemuan();
   } // end lanjutAbsensi
+}
+
+/* ===== PAGE: MONITORING MUSYAWARAH ===== */
+async function renderMonitorMus() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+
+  // Filter kelompok sesuai role
+  let kelompokList = App.cache.kelompok || [];
+  if (isDesa) {
+    kelompokList = kelompokList.filter(k => k.desa_id === u.desa_id);
+  } else if (u.kelompok_id) {
+    kelompokList = kelompokList.filter(k => k.id === u.kelompok_id);
+  }
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Load semua musyawarah
+  let allMus = [];
+  if (isAdmin || isDaerah) {
+    allMus = await SB.musyawarah.getAll() || [];
+  } else {
+    // Load per kelompok
+    const results = await Promise.all(kelompokList.map(k => SB.musyawarah.getByKelompok(k.id)));
+    allMus = results.filter(Boolean).flat();
+  }
+
+  const nowMonth = currentMonthName();
+  let selectedBulan = nowMonth;
+
+  function render() {
+    // Filter musyawarah by bulan
+    const musBulan = allMus.filter(m => {
+      if (!m.tanggal) return false;
+      const d = new Date(m.tanggal);
+      const bln = BULAN_NAMES_FULL[d.getMonth()];
+      return bln === selectedBulan;
+    });
+
+    // Map: kelompok_id → { guru_generus: tanggal, unsur_5: tanggal }
+    const statusMap = {};
+    kelompokList.forEach(k => { statusMap[k.id] = { guru_generus: null, unsur_5: null }; });
+    musBulan.forEach(m => {
+      if (m.kelompok_id && statusMap[m.kelompok_id]) {
+        if (m.level === 'guru_generus') statusMap[m.kelompok_id].guru_generus = m.tanggal;
+        if (m.level === 'unsur_5') statusMap[m.kelompok_id].unsur_5 = m.tanggal;
+      }
+    });
+
+    // Group by desa
+    const byDesa = {};
+    kelompokList.forEach(k => {
+      const desaNama = k.desa?.nama || DESA_NAMA_MAP[k.desa_id] || k.desa_id;
+      if (!byDesa[desaNama]) byDesa[desaNama] = [];
+      byDesa[desaNama].push(k);
+    });
+
+    // Total stats
+    const totalKlp = kelompokList.length;
+    const guruDone = kelompokList.filter(k => statusMap[k.id]?.guru_generus).length;
+    const unsurDone = kelompokList.filter(k => statusMap[k.id]?.unsur_5).length;
+
+    // Bulan chips
+    const bulanChips = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 1 (Jul - Des):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM1_MONTHS.map(m => `
+            <div onclick="MM_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 2 (Jan - Jun):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM2_MONTHS.map(m => `
+            <div onclick="MM_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--green)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    // Tabel per desa
+    const desaCards = Object.entries(byDesa).map(([desaNama, klpList]) => {
+      const guruDesaDone = klpList.filter(k => statusMap[k.id]?.guru_generus).length;
+      const unsurDesaDone = klpList.filter(k => statusMap[k.id]?.unsur_5).length;
+
+      const rows = klpList.map(k => {
+        const st = statusMap[k.id];
+        const guruOk = !!st.guru_generus;
+        const unsurOk = !!st.unsur_5;
+        return `<tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:7px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(k.nama)}</td>
+          <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${guruOk?'var(--green)':'var(--rose)'};">
+            ${guruOk ? '✅ '+fmtDateShort(st.guru_generus) : '❌ Belum'}
+          </td>
+          <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${unsurOk?'var(--green)':'var(--rose)'};">
+            ${unsurOk ? '✅ '+fmtDateShort(st.unsur_5) : '❌ Belum'}
+          </td>
+        </tr>`;
+      }).join('');
+
+      const pctGuru = klpList.length ? Math.round(guruDesaDone/klpList.length*100) : 0;
+      const pctUnsur = klpList.length ? Math.round(unsurDesaDone/klpList.length*100) : 0;
+
+      return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+        <div style="background:var(--green); padding:10px 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+          <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ ${escHtml(desaNama)}</div>
+          <div style="font-size:11px; color:rgba(255,255,255,.8);">Guru: ${guruDesaDone}/${klpList.length} (${pctGuru}%) · 5 Unsur: ${unsurDesaDone}/${klpList.length} (${pctUnsur}%)</div>
+        </div>
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+            <th style="padding:7px 8px; text-align:center; font-size:11px; color:#fff;">Mus. Guru Generus</th>
+            <th style="padding:7px 8px; text-align:center; font-size:11px; color:#fff;">Mus. 5 Unsur</th>
+          </tr></thead>
+          <tbody>
+            ${rows}
+            <tr style="background:var(--green-soft); font-weight:700;">
+              <td style="padding:7px 10px; font-size:12px; color:var(--green);">TOTAL</td>
+              <td style="padding:7px 8px; text-align:center; font-size:12px; color:${pctGuru>=100?'var(--green)':'var(--rose)'};">${guruDesaDone}/${klpList.length} (${pctGuru}%)</td>
+              <td style="padding:7px 8px; text-align:center; font-size:12px; color:${pctUnsur>=100?'var(--green)':'var(--rose)'};">${unsurDesaDone}/${klpList.length} (${pctUnsur}%)</td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div>`;
+    }).join('');
+
+    // Ringkasan
+    const pctGuruAll = totalKlp ? Math.round(guruDone/totalKlp*100) : 0;
+    const pctUnsurAll = totalKlp ? Math.round(unsurDone/totalKlp*100) : 0;
+
+    // Status PJP Desa (admin/daerah only)
+    let desaMusHtml = '';
+    let pjpDesaDone = 0;
+    const totalDesa = 6;
+    if (isAdmin || isDaerah) {
+      const DESA_IDS = ['D1','D2','D3','D4','D5','D6'];
+      const musPjpDesa = musBulan.filter(m => m.level === 'pjp_desa');
+      const desaStatus = DESA_IDS.map(did => {
+        const desaNama = DESA_NAMA_MAP[did] || did;
+        const found = musPjpDesa.find(m => m.desa_id === did || m.desa_id === desaNama);
+        return { id: did, nama: desaNama, tanggal: found?.tanggal || null };
+      });
+      pjpDesaDone = desaStatus.filter(d => d.tanggal).length;
+      const pctPD = Math.round(pjpDesaDone/totalDesa*100);
+
+      desaMusHtml = `
+        <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:#1a5c3a; padding:10px 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+            <div style="font-weight:800; font-size:14px; color:#fff;">🏛️ Musyawarah PJP Desa</div>
+            <div style="font-size:11px; color:rgba(255,255,255,.8);">${pjpDesaDone}/${totalDesa} terlaksana (${pctPD}%)</div>
+          </div>
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#1a5c3a;">
+              <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Desa</th>
+              <th style="padding:7px 8px; text-align:center; font-size:11px; color:#fff;">Mus. PJP Desa</th>
+            </tr></thead>
+            <tbody>
+              ${desaStatus.map(d => `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:7px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(d.nama)}</td>
+                <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${d.tanggal?'var(--green)':'var(--rose)'};">
+                  ${d.tanggal ? '✅ '+fmtDateShort(d.tanggal) : '❌ Belum'}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+    }
+
+    const scopeLabel = isDesa ? (DESA_NAMA_MAP[u.desa_id]||'Desa') : 'Daerah Sidoarjo Utara';
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Monitoring Musyawarah</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · Bulan ${selectedBulan} ${new Date().getFullYear()}</p>
+        </div>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card">
+          <div class="stat-num" style="color:${pctGuruAll>=100?'var(--green)':pctGuruAll>=50?'#e6a817':'var(--rose)'};">${guruDone}/${totalKlp}</div>
+          <div class="stat-label">Mus. Guru</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${pctGuruAll}%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:${pctUnsurAll>=100?'var(--green)':pctUnsurAll>=50?'#e6a817':'var(--rose)'};">${unsurDone}/${totalKlp}</div>
+          <div class="stat-label">Mus. 5 Unsur</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${pctUnsurAll}%</div>
+        </div>
+        ${(isAdmin||isDaerah) ? `<div class="stat-card">
+          <div class="stat-num" style="color:${pjpDesaDone>=totalDesa?'var(--green)':pjpDesaDone>=3?'#e6a817':'var(--rose)'};">${pjpDesaDone}/${totalDesa}</div>
+          <div class="stat-label">Mus. PJP Desa</div>
+          <div style="font-size:11px; color:var(--ink-soft);">${Math.round(pjpDesaDone/totalDesa*100)}%</div>
+        </div>` : ''}
+        <div class="stat-card">
+          <div class="stat-num" style="color:var(--rose);">${(totalKlp-guruDone)+(totalKlp-unsurDone)}</div>
+          <div class="stat-label">Total Belum</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">${bulanChips}</div>
+
+      ${desaMusHtml}
+      ${desaCards}
+    `;
+  }
+
+  const BULAN_NAMES_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  window.MM_setBulan = (b) => { selectedBulan = b; render(); };
+
+  render();
 }
 
 /* ===== PAGE: DATA SARPRAS ===== */
