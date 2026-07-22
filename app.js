@@ -7550,12 +7550,16 @@ function openAddKelasGabunganModal(desaId, desaNama, onSaved) {
     const btn = document.getElementById('kelasGabSaveBtn');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
     try {
-      await SB.kelas.insert({ kelompok_id: desaId, desa_id: desaId, nama_kelas, jenjang, semester });
+      // Untuk kelompok_id, pakai kelompok pertama di desa (agar valid)
+      const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
+      const klpId = klpDesa.length ? klpDesa[0].id : desaId;
+      await SB.kelas.insert({ kelompok_id: klpId, desa_id: desaId, nama_kelas, jenjang, semester });
       showToast('Kelas gabungan berhasil dibuat');
       closeModal('kelasGabModal');
       onSaved();
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
+      console.error('Insert kelas gabungan error:', e);
     }
     btn.disabled = false; btn.textContent = 'Simpan Kelas Gabungan';
   };
