@@ -6012,25 +6012,46 @@ async function renderRekap() {
     SB.progress.getByKelompok(myKelompokId, getTahunAjaran()),
   ]);
 
-  const kelasList = sortKelas(kelasListRaw);
+  // Juga load kelas gabungan desa
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const myKlpObj = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
+  let kelasGabungan = [];
+  let progDataGabungan = [];
+  if (myKlpObj?.desa_id) {
+    kelasGabungan = (await SB.kelas.getByDesa(myKlpObj.desa_id)) || [];
+    // Load progress untuk kelas gabungan (kelompok_id = kelompok pertama di desa)
+    const klpDesaFirst = (App.cache.kelompok||[]).find(k => k.desa_id === myKlpObj.desa_id);
+    if (klpDesaFirst) {
+      progDataGabungan = await SB.progress.getByKelompok(klpDesaFirst.id, getTahunAjaran()) || [];
+    }
+  }
+
+  const kelasList = sortKelas([...kelasListRaw, ...kelasGabungan]);
 
   // Load pertemuan, santri, absensi untuk semua kelas
   const kelasData = {};
   await Promise.all(kelasList.map(async k => {
-    const [pertemuanList, santriList] = await Promise.all([
+    const [pertemuanList, santriListAll] = await Promise.all([
       SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
       SB.santri.getByKelas(k.id),
     ]);
+    // Untuk kelas gabungan: filter santri hanya dari kelompok ini
+    const santriList = k.desa_id
+      ? santriListAll.filter(s => s.kelompok_asal_id === myKelompokId)
+      : santriListAll;
+    const santriIds = new Set(santriList.map(s => s.id));
     // Load absensi untuk semua pertemuan
     const absensiAll = {};
     await Promise.all(pertemuanList.map(async p => {
-      const absen = await SB.absensi.getByPertemuan(p.id);
-      absensiAll[p.id] = absen;
+      const absenAll = await SB.absensi.getByPertemuan(p.id);
+      // Untuk kelas gabungan: filter absensi hanya santri kelompok ini
+      absensiAll[p.id] = k.desa_id ? absenAll.filter(a => santriIds.has(a.santri_id)) : absenAll;
     }));
-    kelasData[k.id] = { kelas: k, pertemuanList, santriList, absensiAll };
+    kelasData[k.id] = { kelas: k, pertemuanList, santriList: santriList, absensiAll, _isGabungan: !!k.desa_id };
   }));
 
-  const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+  const allProgData = [...progData, ...progDataGabungan];
+  const progressSet = new Set(allProgData.map(p => p.materi_id + '|' + p.bulan));
   const allMonths = [...SEM1_MONTHS, ...SEM2_MONTHS];
   const nowMonth = currentMonthName();
 
@@ -6152,7 +6173,7 @@ async function renderRekap() {
 
     const kelasCards = kelasStats.map(ks => {
       const tingkatan = TINGKATAN_MAP[ks.kelas.jenjang] || '';
-      const namaKelas = ks.kelas.nama_kelas || ks.kelas.jenjang;
+      const namaKelas = (ks.kelas.nama_kelas || ks.kelas.jenjang) + (ks._isGabungan ? ' 🏘️' : '');
 
       const santriRows = ks.santriStats.map((s, i) => {
         const pctColor = s.pct === null ? 'var(--ink-soft)' : s.pct >= 80 ? 'var(--green)' : s.pct >= 50 ? '#e6a817' : 'var(--rose)';
@@ -6486,7 +6507,7 @@ async function renderRekap() {
 
         // Nama kelas header
         page.drawRectangle({ x: ML, y: y-4, width: W-ML-MR, height: 18, color: GREEN });
-        const namaKelas = ks.kelas.nama_kelas || ks.kelas.jenjang;
+        const namaKelas = (ks.kelas.nama_kelas || ks.kelas.jenjang) + (ks._isGabungan ? ' (Gabungan)' : '');
         page.drawText(`${namaKelas}  -  ${ks.kelas.jenjang} Sem ${ks.kelas.semester}  |  ${ks.totalSantri} Generus  |  ${ks.totalPertemuan}x Pertemuan`,
           { x: ML+5, y: y+0, font: fBold, size: 9, color: rgb(1,1,1) });
         y -= 22;
@@ -6656,6 +6677,32 @@ async function renderRekapDesa() {
     kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
   }));
 
+  // Load kelas gabungan desa
+  const desaIdForGabungan = myDesaId || Object.keys({'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'}).find(k => DESA_NAMA_MAP[k] === desaFilterNama);
+  let kelasGabunganDesa = [];
+  const gabunganData = {};
+  if (desaIdForGabungan) {
+    kelasGabunganDesa = sortKelas(await SB.kelas.getByDesa(desaIdForGabungan) || []);
+    await Promise.all(kelasGabunganDesa.map(async k => {
+      const [pertemuanList, santriAll] = await Promise.all([
+        SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
+        SB.santri.getByKelas(k.id),
+      ]);
+      const absensiAll = {};
+      await Promise.all(pertemuanList.map(async p => {
+        absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id);
+      }));
+      // Group santri by kelompok_asal_id
+      const santriByKlp = {};
+      santriAll.forEach(s => {
+        const kid = s.kelompok_asal_id || 'unknown';
+        if (!santriByKlp[kid]) santriByKlp[kid] = [];
+        santriByKlp[kid].push(s);
+      });
+      gabunganData[k.id] = { kelas: k, pertemuanList, santriAll, santriByKlp, absensiAll };
+    }));
+  }
+
   function hitungStatsKlp(klpId, bulan) {
     const d = kelompokData[klpId];
     if (!d) return null;
@@ -6761,6 +6808,8 @@ async function renderRekapDesa() {
       kelompok: klp,
       stats: hitungStatsKlp(klp.id, selectedBulan),
     }));
+
+    gabunganSectionHtml = buildGabunganSection(selectedBulan);
 
     // Total desa
     const totalDesa = {
@@ -6870,9 +6919,86 @@ async function renderRekapDesa() {
 
       <div style="margin-bottom:16px;">${bulanChips}</div>
 
+      ${kelasGabunganDesa.length ? gabunganSectionHtml : ''}
+
       ${tabelHtml}
     `;
   }
+
+  // ── Render kelas gabungan section ──
+  function buildGabunganSection(bulan) {
+    if (!kelasGabunganDesa.length) return '';
+    const cards = kelasGabunganDesa.map(k => {
+      const gd = gabunganData[k.id];
+      if (!gd) return '';
+      const perBulan = gd.pertemuanList.filter(p => p.bulan === bulan);
+      const totalSantri = gd.santriAll.length;
+
+      // Total stats
+      let tH=0, tSlot=0;
+      perBulan.forEach(p => {
+        const absen = gd.absensiAll[p.id] || [];
+        gd.santriAll.forEach(s => {
+          const st = absen.find(x => x.santri_id === s.id)?.status || 'A';
+          if (st==='H') tH++;
+          tSlot++;
+        });
+      });
+      const pctTotal = tSlot > 0 ? Math.round(tH/tSlot*100) : null;
+
+      // Per kelompok breakdown
+      const klpBreakdown = kelompokDesa.map(klp => {
+        const santriKlp = gd.santriByKlp[klp.id] || [];
+        if (!santriKlp.length) return '';
+        let kH=0, kSlot=0;
+        const santriIds = new Set(santriKlp.map(s=>s.id));
+        perBulan.forEach(p => {
+          const absen = gd.absensiAll[p.id] || [];
+          santriKlp.forEach(s => {
+            const st = absen.find(x => x.santri_id === s.id)?.status || 'A';
+            if (st==='H') kH++;
+            kSlot++;
+          });
+        });
+        const pctK = kSlot > 0 ? Math.round(kH/kSlot*100) : null;
+        return `<tr style="background:var(--green-soft);">
+          <td style="padding:4px 10px; font-size:11.5px; color:var(--ink-soft);">↳ ${escHtml(klp.nama)}</td>
+          <td style="text-align:center; font-size:11px;">${santriKlp.length}</td>
+          <td style="text-align:center; font-size:11px;">${perBulan.length}x</td>
+          <td style="padding:4px 10px;">${pctBar(pctK)}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <tr style="border-bottom:2px solid var(--green-soft);">
+          <td style="padding:7px 10px; font-size:13px; font-weight:700; color:var(--green);">🏘️ ${escHtml(k.nama_kelas || k.jenjang)}</td>
+          <td style="text-align:center; font-size:12px; font-weight:700;">${totalSantri}</td>
+          <td style="text-align:center; font-size:12px; font-weight:700;">${perBulan.length}x</td>
+          <td style="padding:6px 10px;">${pctBar(pctTotal)}</td>
+        </tr>
+        ${klpBreakdown}`;
+    }).join('');
+
+    return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+      <div style="background:#2a7a4f; padding:10px 16px;">
+        <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ Kelas Gabungan Desa</div>
+        <div style="font-size:11px; color:rgba(255,255,255,.7);">Kelas yang digabung dari semua kelompok</div>
+      </div>
+      <div class="table-wrap">
+        <table style="width:100%; border-collapse:collapse; min-width:400px;">
+          <thead><tr style="background:#2a7a4f;">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelas / Kelompok</th>
+            <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Generus</th>
+            <th style="text-align:center; font-size:11px; color:#fff; padding:7px 4px;">Pertemuan</th>
+            <th style="font-size:11px; color:#fff; padding:7px 10px;">Kehadiran</th>
+          </tr></thead>
+          <tbody>${cards}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  let gabunganSectionHtml = '';
 
   window.RD_setBulan = (b) => { selectedBulan = b; renderDashboard(); };
   window.RD_gantiDesa = () => { App.cache.rekapDesaId = null; renderRekapDesa(); };
