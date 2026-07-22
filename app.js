@@ -1969,6 +1969,7 @@ async function renderKelolaKelas() {
   const isAdminForm = u.role === 'admin';
   const isDesaForm = u.role === 'desa';
   const showPicker = isAdminForm || isDesaForm;
+  const canEdit = isAdminForm || u.role === 'pjp_kelompok' || u.role === 'guru';
 
   let selectedKelompokId = u.kelompok_id || null;
   let kelasGabunganDesa = [];
@@ -2234,7 +2235,6 @@ async function renderKelolaKelas() {
 
   // ── Unassigned checklist untuk kelas biasa ──
   let unassignedChecklistHtml = '';
-  const canEdit = isAdminForm || u.role === 'pjp_kelompok' || u.role === 'guru';
 
   async function loadUnassignedChecklist() {
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
