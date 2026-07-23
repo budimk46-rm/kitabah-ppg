@@ -718,6 +718,7 @@ const NAV_ITEMS = {
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   pjp_kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
