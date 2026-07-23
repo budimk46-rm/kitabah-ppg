@@ -719,7 +719,6 @@ const NAV_ITEMS = {
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
-    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
