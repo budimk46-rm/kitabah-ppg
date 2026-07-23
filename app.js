@@ -5234,12 +5234,14 @@ async function renderPengurus() {
       const desaList = isAdmin || u.role === 'daerah'
         ? Object.entries(DESA_NAMA_MAP)
         : [[u.desa_id, DESA_NAMA_MAP[u.desa_id] || u.desa_id]];
-      for (const [did, dNama] of desaList) {
-        const p = await SB.musPeserta.getByDesa(dNama) || [];
-        const p2 = await SB.musPeserta.getByDesa(did) || [];
+      await Promise.all(desaList.map(async ([did, dNama]) => {
+        const [p, p2] = await Promise.all([
+          SB.musPeserta.getByDesa(dNama),
+          SB.musPeserta.getByDesa(did),
+        ]);
         const seen = new Set();
-        pengurusDesa[dNama] = [...p, ...p2].filter(x => { if(seen.has(x.id)) return false; seen.add(x.id); return true; });
-      }
+        pengurusDesa[dNama] = [...(p||[]), ...(p2||[])].filter(x => { if(seen.has(x.id)) return false; seen.add(x.id); return true; });
+      }));
     }
 
     if (isAdmin) {
@@ -5250,9 +5252,9 @@ async function renderPengurus() {
       pengurusKlp[u.kelompok_id] = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
     } else if (u.role === 'desa') {
       const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
-      for (const klp of klpDesa) {
+      await Promise.all(klpDesa.map(async klp => {
         pengurusKlp[klp.id] = await SB.musPeserta.getByKelompok(klp.id) || [];
-      }
+      }));
     }
   } catch(e) { console.error(e); }
 
