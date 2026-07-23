@@ -4692,15 +4692,32 @@ async function renderMusyawarah() {
     if (role === 'admin' || role === 'daerah') {
       allMusyawarah = await SB.musyawarah.getAll();
     } else if (role === 'desa') {
-      const desaId = u.desa_id || u.kelompok_id;
-      allMusyawarah = await SB.musyawarah.getByDesa(desaId);
-      const daerah = await SB.musyawarah.getByLevel('ppg_daerah');
-      allMusyawarah = [...allMusyawarah, ...(daerah||[])];
+      // Desa: musyawarah desa sendiri + kelompok di desa + ppg_daerah
+      const desaId = u.desa_id;
+      const desaMus = await SB.musyawarah.getByDesa(desaId) || [];
+      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+      const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
+      let klpMus = [];
+      for (const k of klpDesa) {
+        const m = await SB.musyawarah.getByKelompok(k.id) || [];
+        klpMus = [...klpMus, ...m];
+      }
+      const daerahMus = await SB.musyawarah.getByLevel('ppg_daerah') || [];
+      allMusyawarah = [...desaMus, ...klpMus, ...daerahMus];
     } else if (u.kelompok_id) {
-      const klp = await SB.musyawarah.getByKelompok(u.kelompok_id);
-      const desa = await SB.musyawarah.getByLevel('pjp_desa');
-      const daerah = await SB.musyawarah.getByLevel('ppg_daerah');
-      allMusyawarah = [...(klp||[]), ...(desa||[]), ...(daerah||[])];
+      // Kelompok: musyawarah kelompok sendiri + PJP desa sendiri + ppg_daerah
+      const klpMus = await SB.musyawarah.getByKelompok(u.kelompok_id) || [];
+      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+      const myKlp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
+      const myDesaId = myKlp?.desa_id || u.desa_id;
+      // Hanya PJP Desa dari desa sendiri
+      let desaMus = [];
+      if (myDesaId) {
+        const allDesaMus = await SB.musyawarah.getByLevel('pjp_desa') || [];
+        desaMus = allDesaMus.filter(m => m.desa_id === myDesaId);
+      }
+      const daerahMus = await SB.musyawarah.getByLevel('ppg_daerah') || [];
+      allMusyawarah = [...klpMus, ...desaMus, ...daerahMus];
     } else {
       allMusyawarah = await SB.musyawarah.getAll();
     }
