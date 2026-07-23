@@ -3324,7 +3324,14 @@ async function renderPenilaian() {
           <span style="font-size:11px; font-weight:700; color:#ca8a04; background:#fef9c3; padding:2px 8px; border-radius:10px;">C Cukup</span>
           <span style="font-size:11px; font-weight:700; color:#c0392b; background:#fde8e8; padding:2px 8px; border-radius:10px;">D Kurang</span>
           <span style="font-size:11px; color:var(--ink-soft); margin-left:8px;">Terisi: ${filledCells}/${totalCells} (${pct}%)</span>
+          ${unsavedChanges.size ? `<span style="font-size:11px; color:var(--rose); font-weight:700; margin-left:8px;">⚠️ ${unsavedChanges.size} belum disimpan</span>` : ''}
         </div>
+
+        ${canEdit ? `<div style="margin-bottom:14px;">
+          <button id="pnlSaveBtn" class="btn btn-green" onclick="PNL_save()" ${!unsavedChanges.size?'disabled':''} style="padding:10px 24px;">
+            💾 Simpan Penilaian${unsavedChanges.size ? ' ('+unsavedChanges.size+')' : ''}
+          </button>
+        </div>` : ''}
 
         ${topikList.length && santriList.length ? `
         <div class="card" style="padding:0; overflow:hidden;">
@@ -3341,26 +3348,43 @@ async function renderPenilaian() {
       `;
     }
 
-    window.PNL_tap = async (santriId, topik) => {
+    let unsavedChanges = new Set(); // track key yang berubah
+
+    window.PNL_tap = (santriId, topik) => {
       if (!canEdit) return;
       const key = santriId + '|' + topik;
       const current = nilaiMap[key] || null;
       const idx = NILAI_CYCLE.indexOf(current);
       const next = NILAI_CYCLE[(idx + 1) % NILAI_CYCLE.length];
       nilaiMap[key] = next;
+      unsavedChanges.add(key);
       render();
-      // Auto-save
-      if (next) {
-        try {
-          const kls = myKelasList.find(k => k.id === selectedKelasId);
-          await SB.penilaian.upsert({
-            santri_id: santriId, kelas_id: selectedKelasId,
-            kelompok_id: myKelompokId || kls?.kelompok_id,
-            bulan: selectedBulan, tahun_ajaran: ta,
-            topik, nilai: next,
-          });
-        } catch(e) { console.error('Save error:', e); }
+    };
+
+    window.PNL_save = async () => {
+      if (!unsavedChanges.size) { showToast('Tidak ada perubahan'); return; }
+      const btn = document.getElementById('pnlSaveBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+      const kls = myKelasList.find(k => k.id === selectedKelasId);
+      let saved = 0, errors = 0;
+      for (const key of unsavedChanges) {
+        const [santriId, topik] = [key.split('|')[0], key.split('|').slice(1).join('|')];
+        const nilai = nilaiMap[key];
+        if (nilai) {
+          try {
+            await SB.penilaian.upsert({
+              santri_id: santriId, kelas_id: selectedKelasId,
+              kelompok_id: myKelompokId || kls?.kelompok_id,
+              bulan: selectedBulan, tahun_ajaran: ta,
+              topik, nilai,
+            });
+            saved++;
+          } catch(e) { errors++; console.error(e); }
+        }
       }
+      unsavedChanges.clear();
+      showToast(`${saved} penilaian tersimpan${errors ? ', '+errors+' gagal' : ''}`);
+      render();
     };
 
     window.PNL_setKelas = async (id) => {
