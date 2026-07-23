@@ -915,12 +915,15 @@ function getQuickMenuItems() {
   const all = [
     { page: 'kurikulum', emoji: '📖', label: 'Kurikulum', roles: ['admin','kelompok','pjp_kelompok','wali_kbm','guru'] },
     { page: 'absensi', emoji: '📋', label: 'Absensi & Jurnal', roles: ['admin','guru','pjp_kelompok'] },
-    { page: 'santri', emoji: '👥', label: 'Data Santri', roles: ['admin','kelompok','pjp_kelompok'] },
-    { page: 'users', emoji: '⚙️', label: 'Kelola Pengguna', roles: ['admin'] },
+    { page: 'santri', emoji: '👥', label: 'Data Santri', roles: ['admin','kelompok','pjp_kelompok','desa'] },
     { page: 'rekap', emoji: '📊', label: 'Rekap KBM', roles: ['admin','kelompok','pjp_kelompok','wali_kbm'] },
+    { page: 'sarpras', emoji: '📦', label: 'Data Sarpras', roles: ['kelompok','pjp_kelompok','desa'] },
+    { page: 'musyawarah', emoji: '💬', label: 'Musyawarah', roles: ['kelompok','pjp_kelompok','guru','desa'] },
     { page: 'rekap_desa', emoji: '🏡', label: 'Rekap Desa', roles: ['admin','desa'] },
+    { page: 'monitor_mus', emoji: '📋', label: 'Monitoring Musyawarah', roles: ['desa'] },
     { page: 'rekap_daerah', emoji: '🗺️', label: 'Rekap Daerah', roles: ['admin','daerah'] },
     { page: 'proker', emoji: '💼', label: 'Program Kerja PPG', roles: ['admin','daerah'] },
+    { page: 'users', emoji: '⚙️', label: 'Kelola Pengguna', roles: ['admin'] },
   ];
   return all.filter(x => x.roles.includes(u.role));
 }
