@@ -3253,7 +3253,13 @@ async function renderPenilaian() {
       // Load existing penilaian
       const existing = await SB.penilaian.getByKelas(selectedKelasId, selectedBulan, ta) || [];
       nilaiMap = {};
-      existing.forEach(p => { nilaiMap[p.santri_id + '|' + p.topik] = p.nilai; });
+      detailMap = {};
+      catatanMap = {};
+      existing.forEach(p => {
+        nilaiMap[p.santri_id + '|' + p.topik] = p.nilai;
+        if (p.detail) detailMap[p.santri_id + '|' + p.topik] = p.detail;
+        if (p.catatan) catatanMap[p.santri_id + '|' + p.topik] = p.catatan;
+      });
     }
 
     await loadData();
@@ -3364,16 +3370,147 @@ async function renderPenilaian() {
     }
 
     let unsavedChanges = new Set(); // track key yang berubah
+    let detailMap = {}; // santriId|topik → {items:[{materi_id,label,tuntas}]}
+    let catatanMap = {}; // santriId|topik → catatan
+
+    // Load existing detail & catatan
+    async function loadExistingDetail() {
+      if (!selectedKelasId) return;
+      const existing = await SB.penilaian.getByKelas(selectedKelasId, selectedBulan, ta) || [];
+      existing.forEach(p => {
+        const key = p.santri_id + '|' + p.topik;
+        if (p.detail) detailMap[key] = p.detail;
+        if (p.catatan) catatanMap[key] = p.catatan;
+      });
+    }
 
     window.PNL_tap = (santriId, topik) => {
       if (!canEdit) return;
+      // Buka modal detail
+      const kls = myKelasList.find(k => k.id === selectedKelasId);
+      const jenjang = kls?.jenjang || 'SD 3';
+      const sem = String(kls?.semester || 1);
+      const santri = santriList.find(s => s.id === santriId);
       const key = santriId + '|' + topik;
-      const current = nilaiMap[key] || null;
-      const idx = NILAI_CYCLE.indexOf(current);
-      const next = NILAI_CYCLE[(idx + 1) % NILAI_CYCLE.length];
-      nilaiMap[key] = next;
-      unsavedChanges.add(key);
-      render();
+
+      // Cari materi items untuk topik ini di bulan ini
+      const materiList = (App.cache.materi||[]).filter(m =>
+        m.jenjang === jenjang && String(m.semester) === sem && m.bab_title === topik
+      );
+
+      // Cek materi yang ada target di bulan ini
+      const bulanCol = selectedBulan.toLowerCase();
+      const materiItems = materiList.filter(m => m[bulanCol] && m[bulanCol].trim()).map(m => ({
+        materi_id: m.id,
+        label: [m.sub_title, m.topik, m.poin_title].filter(Boolean).join(' — ') || m.bab_title,
+        tuntas: false,
+      }));
+
+      // Jika tidak ada materi spesifik bulan ini, tampilkan semua materi topik
+      const itemsToShow = materiItems.length ? materiItems : materiList.map(m => ({
+        materi_id: m.id,
+        label: [m.sub_title, m.topik, m.poin_title].filter(Boolean).join(' — ') || m.bab_title,
+        tuntas: false,
+      }));
+
+      // Restore dari detail yang sudah ada
+      const existingDetail = detailMap[key];
+      if (existingDetail?.items) {
+        itemsToShow.forEach(item => {
+          const found = existingDetail.items.find(d => d.materi_id === item.materi_id);
+          if (found) item.tuntas = found.tuntas;
+        });
+      }
+
+      const currentNilai = nilaiMap[key] || null;
+      const currentCatatan = catatanMap[key] || '';
+
+      let el = document.getElementById('pnlDetailModal');
+      if (!el) { el = document.createElement('div'); el.id = 'pnlDetailModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+
+      function renderModal() {
+        const tuntasCount = itemsToShow.filter(i => i.tuntas).length;
+        const totalCount = itemsToShow.length;
+        const pctTuntas = totalCount ? Math.round(tuntasCount / totalCount * 100) : 0;
+        const autoNilai = pctTuntas >= 80 ? 'A' : pctTuntas >= 60 ? 'B' : pctTuntas >= 40 ? 'C' : totalCount ? 'D' : null;
+
+        el.innerHTML = `<div class="modal" style="max-width:500px;">
+          <div class="modal-head" style="background:var(--green);">
+            <h3 class="modal-title" style="color:#fff;">${escHtml(santri?.nama||'')} — ${escHtml(topik)}</h3>
+            <button class="modal-close" onclick="closeModal('pnlDetailModal')" style="color:#fff;">✕</button>
+          </div>
+          <div class="modal-body" style="max-height:60vh; overflow-y:auto;">
+            <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">
+              Bulan ${selectedBulan} · ${escHtml(kls?.jenjang||'')} Sem ${kls?.semester||''}
+            </div>
+
+            ${itemsToShow.length ? `
+            <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:8px;">Target Materi (${tuntasCount}/${totalCount} tuntas — ${pctTuntas}%):</div>
+            <div style="background:var(--bg); border-radius:8px; padding:4px 0; margin-bottom:12px;">
+              ${itemsToShow.map((item, idx) => `
+                <div onclick="PNL_toggleItem(${idx})" style="display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:pointer; border-bottom:1px solid var(--line);">
+                  <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0;
+                    border:2px solid ${item.tuntas?'var(--green)':'var(--line)'};
+                    background:${item.tuntas?'var(--green)':'transparent'};
+                    display:flex; align-items:center; justify-content:center;">
+                    ${item.tuntas ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+                  </div>
+                  <div style="font-size:12px; color:#111; ${item.tuntas?'':'opacity:.7;'}">${escHtml(item.label)}</div>
+                </div>`).join('')}
+            </div>` : '<div style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">Tidak ada detail materi untuk topik ini di bulan ${selectedBulan}.</div>'}
+
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+              <div style="font-size:12px; font-weight:700; color:var(--green);">Nilai:</div>
+              ${['A','B','C','D'].map(n => `
+                <div onclick="PNL_setNilaiModal('${n}')" style="width:36px; height:32px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:800;
+                  background:${(currentNilai||autoNilai)===n ? NILAI_BG[n] : '#f5f5f5'};
+                  color:${(currentNilai||autoNilai)===n ? NILAI_COLOR[n] : '#ccc'};
+                  border:2px solid ${(currentNilai||autoNilai)===n ? NILAI_COLOR[n] : '#e5e5e5'};
+                  display:flex; align-items:center; justify-content:center;">
+                  ${n}
+                </div>`).join('')}
+              ${autoNilai && totalCount ? `<span style="font-size:11px; color:var(--ink-soft);">Auto: ${autoNilai} (${pctTuntas}%)</span>` : ''}
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="font-size:12px;">Catatan</label>
+              <input id="pnlCatatanInput" value="${escHtml(currentCatatan)}" placeholder="Catatan tambahan (opsional)" style="font-size:13px;">
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-outline" onclick="closeModal('pnlDetailModal')">Batal</button>
+            <button class="btn btn-green" onclick="PNL_saveDetail('${santriId}','${escHtml(topik)}')">Simpan</button>
+          </div>
+        </div>`;
+      }
+
+      window.PNL_toggleItem = (idx) => {
+        itemsToShow[idx].tuntas = !itemsToShow[idx].tuntas;
+        // Auto-update nilai
+        const tuntasCount = itemsToShow.filter(i => i.tuntas).length;
+        const totalCount = itemsToShow.length;
+        const pctTuntas = totalCount ? Math.round(tuntasCount / totalCount * 100) : 0;
+        const autoNilai = pctTuntas >= 80 ? 'A' : pctTuntas >= 60 ? 'B' : pctTuntas >= 40 ? 'C' : 'D';
+        nilaiMap[key] = autoNilai;
+        renderModal();
+      };
+
+      window.PNL_setNilaiModal = (n) => {
+        nilaiMap[key] = n;
+        renderModal();
+      };
+
+      window.PNL_saveDetail = (sid, tpk) => {
+        const k2 = sid + '|' + tpk;
+        detailMap[k2] = { items: itemsToShow };
+        catatanMap[k2] = document.getElementById('pnlCatatanInput')?.value || '';
+        unsavedChanges.add(k2);
+        closeModal('pnlDetailModal');
+        render();
+      };
+
+      renderModal();
+      openModal('pnlDetailModal');
     };
 
     window.PNL_save = async () => {
@@ -3383,16 +3520,20 @@ async function renderPenilaian() {
       const kls = myKelasList.find(k => k.id === selectedKelasId);
       let saved = 0, errors = 0;
       for (const key of unsavedChanges) {
-        const [santriId, topik] = [key.split('|')[0], key.split('|').slice(1).join('|')];
+        const [santriId, ...topikParts] = key.split('|');
+        const topik = topikParts.join('|');
         const nilai = nilaiMap[key];
         if (nilai) {
           try {
-            await SB.penilaian.upsert({
+            const payload = {
               santri_id: santriId, kelas_id: selectedKelasId,
               kelompok_id: myKelompokId || kls?.kelompok_id,
               bulan: selectedBulan, tahun_ajaran: ta,
               topik, nilai,
-            });
+              detail: detailMap[key] || null,
+              catatan: catatanMap[key] || null,
+            };
+            await SB.penilaian.upsert(payload);
             saved++;
           } catch(e) { errors++; console.error(e); }
         }
