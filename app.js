@@ -6940,20 +6940,39 @@ async function renderSettings() {
     ${u.role === 'admin' ? `
     <div class="card" style="border:2px solid var(--rose); background:var(--rose-soft);">
       <div class="fw-bold" style="color:var(--rose); font-size:15px; margin-bottom:8px;">🗑️ Reset Data Uji Coba</div>
-      <p style="font-size:13px; color:var(--ink); margin:0 0 12px;">
-        Hapus semua data transaksi (absensi, jurnal, pertemuan, progress) dari semua kelompok.
-        Data master tetap aman: desa, kelompok, kelas, santri, materi kurikulum, dan akun pengguna tidak akan terhapus.
-      </p>
-      <div style="background:var(--white); border-radius:var(--radius-sm); padding:12px; margin-bottom:14px; font-size:12.5px; color:var(--ink-soft);">
-        <b style="color:var(--rose);">Yang akan dihapus:</b><br>
-        Absensi · Jurnal · Jurnal Materi · Pertemuan · Progress Materi
-        <br><br>
-        <b style="color:var(--green);">Yang tetap ada:</b><br>
-        Desa · Kelompok · Kelas · Santri · Materi Kurikulum · Pengguna
+      <p style="font-size:13px; color:var(--ink); margin:0 0 12px;">Pilih data mana yang ingin di-reset. Data master (desa, kelompok, materi, pengguna) <b>tidak</b> akan terhapus.</p>
+
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_kbm" checked> <b>KBM</b> — Absensi, Jurnal, Pertemuan, Progress Materi
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_mus"> <b>Musyawarah</b> — Notulensi, Peserta, Absensi Musyawarah
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_penilaian"> <b>Penilaian Generus</b> — Semua data penilaian
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_mtms"> <b>Data MT/MS</b> — Semua data muda tugas / muda setia
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_sarpras"> <b>Data Sarpras</b> — Semua data sarana prasarana
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_proker"> <b>Program Kerja</b> — Program, Laporan, Sumber Dana
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; background:#fde8e8; border-radius:8px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="rst_santri"> <b>Data Santri & Kelas</b> — Semua santri dan kelas (hati-hati!)
+        </label>
       </div>
-      <button class="btn btn-danger" onclick="SET_resetData()">
+
+      <div style="background:var(--white); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:14px; font-size:12px; color:var(--green);">
+        <b>Yang TIDAK akan dihapus:</b> Desa, Kelompok, Materi Kurikulum, Akun Pengguna, Konfigurasi Musyawarah
+      </div>
+
+      <button class="btn btn-danger" id="resetBtn" onclick="SET_resetData()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-        Hapus Data Transaksi
+        Hapus Data Terpilih
       </button>
     </div>` : ''}
   `;
@@ -6965,51 +6984,84 @@ async function renderSettings() {
   };
 
   window.SET_resetData = async () => {
-    // Konfirmasi berlapis
+    const checks = {
+      kbm: document.getElementById('rst_kbm')?.checked,
+      mus: document.getElementById('rst_mus')?.checked,
+      penilaian: document.getElementById('rst_penilaian')?.checked,
+      mtms: document.getElementById('rst_mtms')?.checked,
+      sarpras: document.getElementById('rst_sarpras')?.checked,
+      proker: document.getElementById('rst_proker')?.checked,
+      santri: document.getElementById('rst_santri')?.checked,
+    };
+    const selected = Object.entries(checks).filter(([,v]) => v).map(([k]) => k);
+    if (!selected.length) { showToast('Pilih minimal 1 kategori', true); return; }
+
+    const labels = {
+      kbm: 'KBM (Absensi, Jurnal, Pertemuan, Progress)',
+      mus: 'Musyawarah (Notulensi, Peserta, Absensi)',
+      penilaian: 'Penilaian Generus',
+      mtms: 'Data MT/MS',
+      sarpras: 'Data Sarpras',
+      proker: 'Program Kerja (Program, Laporan, Sumber Dana)',
+      santri: 'Data Santri & Kelas',
+    };
+
     const step1 = confirm(
-      '⚠️ PERINGATAN!\n\n' +
-      'Anda akan menghapus SEMUA data transaksi:\n' +
-      '- Absensi semua kelompok\n' +
-      '- Jurnal KBM semua kelompok\n' +
-      '- Data pertemuan semua kelompok\n' +
-      '- Progress materi semua kelompok\n\n' +
-      'Data ini TIDAK BISA dikembalikan!\n\n' +
-      'Lanjutkan?'
+      '⚠️ PERINGATAN!\n\nAnda akan menghapus:\n' +
+      selected.map(k => '• ' + labels[k]).join('\n') +
+      '\n\nData ini TIDAK BISA dikembalikan!\nLanjutkan?'
     );
     if (!step1) return;
 
-    const step2 = prompt(
-      'Ketik HAPUS untuk konfirmasi penghapusan data:'
-    );
-    if (step2 !== 'HAPUS') {
-      showToast('Reset dibatalkan — konfirmasi tidak sesuai', true);
-      return;
-    }
+    const step2 = prompt('Ketik HAPUS untuk konfirmasi:');
+    if (step2 !== 'HAPUS') { showToast('Reset dibatalkan', true); return; }
 
-    const btn = document.querySelector('[onclick="SET_resetData()"]');
+    const btn = document.getElementById('resetBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Menghapus...'; }
+    const DEL = (tbl) => sbFetch(tbl + '?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
 
     try {
-      showToast('Menghapus data transaksi...');
+      showToast('Menghapus data...');
+      let count = 0;
 
-      // Hapus berurutan sesuai foreign key dependency
-      await sbFetch('jurnal_materi?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
-      await sbFetch('jurnal?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
-      await sbFetch('absensi?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
-      await sbFetch('pertemuan?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
-      await sbFetch('progress?id=neq.00000000-0000-0000-0000-000000000000', { method: 'DELETE' });
+      if (checks.kbm) {
+        await DEL('jurnal_materi'); await DEL('jurnal');
+        await DEL('absensi'); await DEL('pertemuan'); await DEL('progress');
+        count += 5;
+      }
+      if (checks.mus) {
+        await DEL('musyawarah_absensi'); await DEL('musyawarah_peserta'); await DEL('musyawarah');
+        count += 3;
+      }
+      if (checks.penilaian) {
+        await DEL('penilaian');
+        count += 1;
+      }
+      if (checks.mtms) {
+        await DEL('mt_ms');
+        count += 1;
+      }
+      if (checks.sarpras) {
+        await DEL('sarpras');
+        count += 1;
+      }
+      if (checks.proker) {
+        await DEL('laporan_kegiatan'); await DEL('program_kerja'); await DEL('sumber_dana');
+        count += 3;
+      }
+      if (checks.santri) {
+        await DEL('santri'); await DEL('kelas');
+        count += 2;
+      }
 
-      // Reset cache
-      App.cache.myProgress = null;
-
-      showToast('✓ Semua data transaksi berhasil dihapus');
+      App.cache = {};
+      showToast(`✓ ${count} tabel berhasil di-reset`);
       setTimeout(() => renderSettings(), 1000);
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
       console.error('Reset error:', e);
     }
-
-    if (btn) { btn.disabled = false; btn.textContent = 'Hapus Data Transaksi'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Hapus Data Terpilih'; }
   };
 
   window.SET_naikKelas = () => openNaikKelasModal();
