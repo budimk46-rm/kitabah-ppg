@@ -3755,10 +3755,10 @@ async function renderDataBK() {
   // Load data per kelompok
   const bkData = {}; // klpId → [{santri, kelas, pct, h, total}]
   async function loadBKData(bulan) {
-    for (const klp of kelompokList) {
+    // Parallel load semua kelompok sekaligus
+    await Promise.all(kelompokList.map(async klp => {
       bkData[klp.id] = [];
       let kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
-      // Juga include kelas gabungan
       if (klp.desa_id) {
         const gabungan = await SB.kelas.getByDesa(klp.desa_id) || [];
         kelasList = [...kelasList, ...gabungan.map(g => ({...g, _isGab: true}))];
@@ -3768,11 +3768,9 @@ async function renderDataBK() {
         const ptList = (await SB.pertemuan.getByKelas(kls.id, getTahunAjaran())).filter(p => p.bulan === bulan);
         if (!ptList.length) return;
         let santriList = await SB.santri.getByKelas(kls.id);
-        // Kelas gabungan: filter santri kelompok ini saja
         if (kls._isGab) santriList = santriList.filter(s => s.kelompok_asal_id === klp.id);
         if (!santriList.length) return;
 
-        // Hitung kehadiran per santri
         const absensiAll = {};
         await Promise.all(ptList.map(async p => { absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id); }));
 
@@ -3791,7 +3789,7 @@ async function renderDataBK() {
           }
         });
       }));
-    }
+    }));
   }
 
   await loadBKData(selectedBulan);
