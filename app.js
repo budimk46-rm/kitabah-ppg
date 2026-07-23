@@ -3237,6 +3237,9 @@ async function renderPenilaian() {
     let santriList = [];
     let topikList = [];
     let nilaiMap = {}; // santriId|topik → nilai
+    let detailMap = {}; // santriId|topik → {items:[...]}
+    let catatanMap = {}; // santriId|topik → catatan
+    let unsavedChanges = new Set();
 
     async function loadData() {
       if (!selectedKelasId) return;
@@ -3368,10 +3371,6 @@ async function renderPenilaian() {
         </div>` : '<div class="card"><p style="color:var(--ink-soft);">Pilih kelas untuk mulai penilaian. Pastikan kelas sudah memiliki santri dan jenjang kurikulum yang benar.</p></div>'}
       `;
     }
-
-    let unsavedChanges = new Set(); // track key yang berubah
-    let detailMap = {}; // santriId|topik → {items:[{materi_id,label,tuntas}]}
-    let catatanMap = {}; // santriId|topik → catatan
 
     // Load existing detail & catatan
     async function loadExistingDetail() {
