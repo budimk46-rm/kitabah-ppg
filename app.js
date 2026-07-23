@@ -691,7 +691,6 @@ const NAV_ITEMS = {
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
-    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
@@ -758,6 +757,7 @@ const NAV_ITEMS = {
     { id: 'absensi', icon: calIcon(), label: 'Input Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -3389,8 +3389,13 @@ async function renderPenilaian() {
       await Promise.all(kelompokList.map(async klp => {
         const penilaian = await SB.penilaian.getByKelompok(klp.id, selectedBulan, ta) || [];
         const byNilai = { A:0, B:0, C:0, D:0 };
-        penilaian.forEach(p => { if (p.nilai && byNilai[p.nilai] !== undefined) byNilai[p.nilai]++; });
-        rekapData[klp.id] = { total: penilaian.length, ...byNilai };
+        const byTopik = {};
+        penilaian.forEach(p => {
+          if (p.nilai && byNilai[p.nilai] !== undefined) byNilai[p.nilai]++;
+          if (!byTopik[p.topik]) byTopik[p.topik] = { A:0, B:0, C:0, D:0 };
+          if (p.nilai) byTopik[p.topik][p.nilai]++;
+        });
+        rekapData[klp.id] = { total: penilaian.length, ...byNilai, byTopik };
       }));
       return rekapData;
     }
@@ -3420,15 +3425,26 @@ async function renderPenilaian() {
 
       const desaCards = Object.entries(byDesa).map(([dn, klpList]) => {
         const rows = klpList.map(k => {
-          const d = rekapData[k.id] || { total:0, A:0, B:0, C:0, D:0 };
-          return `<tr style="border-bottom:1px solid var(--line);">
-            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
+          const d = rekapData[k.id] || { total:0, A:0, B:0, C:0, D:0, byTopik:{} };
+          const topikRows = Object.entries(d.byTopik||{}).map(([topik, v]) =>
+            `<tr style="background:#f9f9f6;">
+              <td style="padding:3px 10px 3px 28px; font-size:11px; color:var(--ink-soft);">↳ ${escHtml(topik)}</td>
+              <td style="text-align:center; font-size:11px;">${v.A+v.B+v.C+v.D}</td>
+              <td style="text-align:center; font-size:11px; color:#1a6b3a;">${v.A||'—'}</td>
+              <td style="text-align:center; font-size:11px; color:#2563eb;">${v.B||'—'}</td>
+              <td style="text-align:center; font-size:11px; color:#ca8a04;">${v.C||'—'}</td>
+              <td style="text-align:center; font-size:11px; color:#c0392b;">${v.D||'—'}</td>
+            </tr>`
+          ).join('');
+          return `<tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)} ${Object.keys(d.byTopik||{}).length ? '<span style=font-size:10px;color:var(--ink-soft)>▼</span>' : ''}</td>
             <td style="text-align:center; font-size:12px; font-weight:700;">${d.total||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#1a6b3a;">${d.A||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#2563eb;">${d.B||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#ca8a04;">${d.C||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#c0392b;">${d.D||'—'}</td>
-          </tr>`;
+          </tr>
+          <tbody style="display:none;">${topikRows}</tbody>`;
         }).join('');
 
         return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
