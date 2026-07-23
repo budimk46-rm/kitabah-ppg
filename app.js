@@ -4726,6 +4726,9 @@ async function renderMusyawarah() {
     allMusyawarah = allMusyawarah.filter(m => { if(seen.has(m.id)) return false; seen.add(m.id); return true; });
   } catch(e) { console.error(e); }
 
+  // Pastikan kelompok cache sudah ready untuk renderPage
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
   const nowMonth = currentMonthName();
   let filterLevel = 'semua';
   const KALENDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
