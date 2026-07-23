@@ -669,6 +669,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function starIcon() { return SVG('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'); }
 function alertIcon() { return SVG('<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'); }
 function clipboardCheckIcon() { return SVG('<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>'); }
 function boxIcon() { return SVG('<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'); }
@@ -689,6 +690,8 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
+    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
@@ -718,6 +721,7 @@ const NAV_ITEMS = {
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
@@ -733,6 +737,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -819,6 +824,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'penilaian':   await renderPenilaian(); break;
       case 'data_bk':     await renderDataBK(); break;
       case 'monitor_mus': await renderMonitorMus(); break;
       case 'sarpras':     await renderSarpras(); break;
@@ -3183,6 +3189,294 @@ async function renderAbsensi() {
 
   await loadPertemuan();
   } // end lanjutAbsensi
+}
+
+/* ===== PAGE: PENILAIAN GENERUS ===== */
+async function renderPenilaian() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isKelompok = ['pjp_kelompok','guru','kelompok','wali_kbm'].includes(u.role);
+  const canEdit = isAdmin || u.role === 'pjp_kelompok' || u.role === 'guru';
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  if (!App.cache.materi) App.cache.materi = await SB.materi.getAll();
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const NILAI_CYCLE = [null,'A','B','C','D'];
+  const NILAI_COLOR = { A:'#1a6b3a', B:'#2563eb', C:'#ca8a04', D:'#c0392b' };
+  const NILAI_BG = { A:'#e8f5ed', B:'#eff6ff', C:'#fef9c3', D:'#fde8e8' };
+  const NILAI_LABEL = { A:'Sangat Baik', B:'Baik', C:'Cukup', D:'Kurang' };
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  const nowMonth = currentMonthName();
+  let selectedBulan = nowMonth;
+  const ta = getTahunAjaran();
+
+  if (isKelompok || isAdmin) {
+    // === INPUT MODE (kelompok/admin) ===
+    const myKelompokId = u.kelompok_id || null;
+    let myKelasList = [];
+    if (myKelompokId) {
+      myKelasList = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
+      const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
+      if (myKlp?.desa_id) {
+        const gab = await SB.kelas.getByDesa(myKlp.desa_id) || [];
+        myKelasList = [...myKelasList, ...sortKelas(gab)];
+      }
+    }
+    let selectedKelasId = myKelasList.length ? myKelasList[0].id : null;
+    let santriList = [];
+    let topikList = [];
+    let nilaiMap = {}; // santriId|topik → nilai
+
+    async function loadData() {
+      if (!selectedKelasId) return;
+      const kls = myKelasList.find(k => k.id === selectedKelasId);
+      santriList = await SB.santri.getByKelas(selectedKelasId);
+      if (kls?.desa_id && myKelompokId) santriList = santriList.filter(s => s.kelompok_asal_id === myKelompokId);
+
+      // Get topik dari materi berdasar jenjang
+      const jenjang = kls?.jenjang || 'SD 3';
+      const sem = String(kls?.semester || 1);
+      const materiList = (App.cache.materi||[]).filter(m => m.jenjang === jenjang && String(m.semester) === sem);
+      topikList = [...new Set(materiList.map(m => m.bab_title).filter(Boolean))];
+
+      // Load existing penilaian
+      const existing = await SB.penilaian.getByKelas(selectedKelasId, selectedBulan, ta) || [];
+      nilaiMap = {};
+      existing.forEach(p => { nilaiMap[p.santri_id + '|' + p.topik] = p.nilai; });
+    }
+
+    await loadData();
+
+    function render() {
+      const kls = myKelasList.find(k => k.id === selectedKelasId);
+      const kelasOpts = myKelasList.map(k =>
+        `<option value="${k.id}" ${k.id===selectedKelasId?'selected':''}>${k.nama_kelas||k.jenjang} — ${k.jenjang} Sem ${k.semester}${k.desa_id?' 🏘️':''}</option>`
+      ).join('');
+
+      const bulanChips = [...SEM1_MONTHS, ...SEM2_MONTHS].map(m =>
+        `<div onclick="PNL_setBulan('${m}')" style="padding:5px 10px; border-radius:16px; font-size:11px; font-weight:700; cursor:pointer; display:inline-block; margin:2px;
+          background:${selectedBulan===m?'var(--green)':'var(--white)'}; color:${selectedBulan===m?'#fff':'var(--ink-soft)'}; border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+          ${m.slice(0,3)}${m===nowMonth?' ●':''}
+        </div>`).join('');
+
+      // Header topik (singkat)
+      const topikHeaders = topikList.map(t =>
+        `<th style="padding:5px 3px; font-size:10px; color:#fff; text-align:center; min-width:42px; max-width:60px; word-break:break-word;">${escHtml(t.length > 10 ? t.slice(0,8)+'..' : t)}</th>`
+      ).join('');
+
+      // Rows
+      const rows = santriList.map((s, i) => {
+        const cells = topikList.map(t => {
+          const key = s.id + '|' + t;
+          const val = nilaiMap[key] || null;
+          const color = val ? NILAI_COLOR[val] : '#ccc';
+          const bg = val ? NILAI_BG[val] : '#f5f5f5';
+          return `<td style="padding:3px 2px; text-align:center;">
+            <div onclick="PNL_tap('${s.id}','${escHtml(t)}')" title="${escHtml(t)}: ${val ? NILAI_LABEL[val] : 'Belum'}"
+              style="width:32px; height:28px; border-radius:6px; margin:0 auto; cursor:pointer; font-size:12px; font-weight:800;
+                background:${bg}; color:${color}; border:1.5px solid ${color};
+                display:flex; align-items:center; justify-content:center; user-select:none;">
+              ${val || '—'}
+            </div>
+          </td>`;
+        }).join('');
+        return `<tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:5px 6px; font-size:11px; text-align:center;">${i+1}</td>
+          <td style="padding:5px 8px; font-size:12px; font-weight:600; white-space:nowrap;">${escHtml(s.nama)}</td>
+          <td style="padding:5px 4px; text-align:center; font-size:11px; font-weight:700; color:${s.jenis_kel==='L'?'#1a6b3a':'#a6483b'};">${s.jenis_kel||'—'}</td>
+          ${cells}
+        </tr>`;
+      }).join('');
+
+      // Hitung stats
+      const totalCells = santriList.length * topikList.length;
+      const filledCells = Object.values(nilaiMap).filter(v => v).length;
+      const pct = totalCells ? Math.round(filledCells/totalCells*100) : 0;
+
+      const scopeLabel = (App.cache.kelompok||[]).find(k => k.id === myKelompokId)?.nama || '';
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Penilaian Generus</h1>
+            <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · Bulan ${selectedBulan} · TA ${ta}</p>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="flex:1; min-width:180px;">
+            <label style="font-size:11px; font-weight:700; color:var(--green); display:block; margin-bottom:4px;">Kelas</label>
+            <select onchange="PNL_setKelas(this.value)" style="width:100%; padding:8px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">${kelasOpts}</select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px; display:flex; flex-wrap:wrap; gap:2px;">${bulanChips}</div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+          <span style="font-size:11px; color:var(--ink-soft);">Keterangan:</span>
+          <span style="font-size:11px; font-weight:700; color:#1a6b3a; background:#e8f5ed; padding:2px 8px; border-radius:10px;">A Sangat Baik</span>
+          <span style="font-size:11px; font-weight:700; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px;">B Baik</span>
+          <span style="font-size:11px; font-weight:700; color:#ca8a04; background:#fef9c3; padding:2px 8px; border-radius:10px;">C Cukup</span>
+          <span style="font-size:11px; font-weight:700; color:#c0392b; background:#fde8e8; padding:2px 8px; border-radius:10px;">D Kurang</span>
+          <span style="font-size:11px; color:var(--ink-soft); margin-left:8px;">Terisi: ${filledCells}/${totalCells} (${pct}%)</span>
+        </div>
+
+        ${topikList.length && santriList.length ? `
+        <div class="card" style="padding:0; overflow:hidden;">
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--green);">
+              <th style="padding:5px 6px; font-size:10px; color:#fff; width:28px;">No</th>
+              <th style="padding:5px 8px; font-size:10px; color:#fff; text-align:left;">Nama</th>
+              <th style="padding:5px 4px; font-size:10px; color:#fff; text-align:center; width:28px;">L/P</th>
+              ${topikHeaders}
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>` : '<div class="card"><p style="color:var(--ink-soft);">Pilih kelas untuk mulai penilaian. Pastikan kelas sudah memiliki santri dan jenjang kurikulum yang benar.</p></div>'}
+      `;
+    }
+
+    window.PNL_tap = async (santriId, topik) => {
+      if (!canEdit) return;
+      const key = santriId + '|' + topik;
+      const current = nilaiMap[key] || null;
+      const idx = NILAI_CYCLE.indexOf(current);
+      const next = NILAI_CYCLE[(idx + 1) % NILAI_CYCLE.length];
+      nilaiMap[key] = next;
+      render();
+      // Auto-save
+      if (next) {
+        try {
+          const kls = myKelasList.find(k => k.id === selectedKelasId);
+          await SB.penilaian.upsert({
+            santri_id: santriId, kelas_id: selectedKelasId,
+            kelompok_id: myKelompokId || kls?.kelompok_id,
+            bulan: selectedBulan, tahun_ajaran: ta,
+            topik, nilai: next,
+          });
+        } catch(e) { console.error('Save error:', e); }
+      }
+    };
+
+    window.PNL_setKelas = async (id) => {
+      selectedKelasId = id;
+      main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+      await loadData();
+      render();
+    };
+
+    window.PNL_setBulan = async (b) => {
+      selectedBulan = b;
+      main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+      await loadData();
+      render();
+    };
+
+    render();
+
+  } else {
+    // === REKAP MODE (desa/daerah) ===
+    let kelompokList = App.cache.kelompok || [];
+    if (isDesa) kelompokList = kelompokList.filter(k => k.desa_id === u.desa_id);
+
+    async function loadRekapData() {
+      const rekapData = {};
+      await Promise.all(kelompokList.map(async klp => {
+        const penilaian = await SB.penilaian.getByKelompok(klp.id, selectedBulan, ta) || [];
+        const byNilai = { A:0, B:0, C:0, D:0 };
+        penilaian.forEach(p => { if (p.nilai && byNilai[p.nilai] !== undefined) byNilai[p.nilai]++; });
+        rekapData[klp.id] = { total: penilaian.length, ...byNilai };
+      }));
+      return rekapData;
+    }
+
+    let rekapData = await loadRekapData();
+
+    function render() {
+      const byDesa = {};
+      kelompokList.forEach(k => {
+        const dn = k.desa?.nama || DESA_NAMA_MAP[k.desa_id] || k.desa_id;
+        if (!byDesa[dn]) byDesa[dn] = [];
+        byDesa[dn].push(k);
+      });
+
+      const scopeLabel = isDesa ? (DESA_NAMA_MAP[u.desa_id]||'Desa') : 'Daerah Sidoarjo Utara';
+      const allTotal = Object.values(rekapData).reduce((s,d) => s+d.total, 0);
+      const allA = Object.values(rekapData).reduce((s,d) => s+d.A, 0);
+      const allB = Object.values(rekapData).reduce((s,d) => s+d.B, 0);
+      const allC = Object.values(rekapData).reduce((s,d) => s+d.C, 0);
+      const allD = Object.values(rekapData).reduce((s,d) => s+d.D, 0);
+
+      const bulanChips = [...SEM1_MONTHS, ...SEM2_MONTHS].map(m =>
+        `<div onclick="PNL_setBulan('${m}')" style="padding:5px 10px; border-radius:16px; font-size:11px; font-weight:700; cursor:pointer; display:inline-block; margin:2px;
+          background:${selectedBulan===m?'var(--green)':'var(--white)'}; color:${selectedBulan===m?'#fff':'var(--ink-soft)'}; border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+          ${m.slice(0,3)}${m===nowMonth?' ●':''}
+        </div>`).join('');
+
+      const desaCards = Object.entries(byDesa).map(([dn, klpList]) => {
+        const rows = klpList.map(k => {
+          const d = rekapData[k.id] || { total:0, A:0, B:0, C:0, D:0 };
+          return `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
+            <td style="text-align:center; font-size:12px; font-weight:700;">${d.total||'—'}</td>
+            <td style="text-align:center; font-size:12px; font-weight:700; color:#1a6b3a;">${d.A||'—'}</td>
+            <td style="text-align:center; font-size:12px; font-weight:700; color:#2563eb;">${d.B||'—'}</td>
+            <td style="text-align:center; font-size:12px; font-weight:700; color:#ca8a04;">${d.C||'—'}</td>
+            <td style="text-align:center; font-size:12px; font-weight:700; color:#c0392b;">${d.D||'—'}</td>
+          </tr>`;
+        }).join('');
+
+        return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:var(--green); padding:10px 16px;">
+            <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ ${escHtml(dn)}</div>
+          </div>
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--green);">
+              <th style="padding:6px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+              <th style="padding:6px 4px; text-align:center; font-size:11px; color:#fff;">Total</th>
+              <th style="padding:6px 4px; text-align:center; font-size:11px; color:#fff;">A</th>
+              <th style="padding:6px 4px; text-align:center; font-size:11px; color:#fff;">B</th>
+              <th style="padding:6px 4px; text-align:center; font-size:11px; color:#fff;">C</th>
+              <th style="padding:6px 4px; text-align:center; font-size:11px; color:#fff;">D</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+      }).join('');
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Rekap Penilaian Generus</h1>
+            <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · Bulan ${selectedBulan} · TA ${ta}</p>
+          </div>
+        </div>
+        <div class="stat-grid" style="margin-bottom:16px;">
+          <div class="stat-card"><div class="stat-num">${allTotal}</div><div class="stat-label">Total Penilaian</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:#1a6b3a;">${allA}</div><div class="stat-label">A Sangat Baik</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:#2563eb;">${allB}</div><div class="stat-label">B Baik</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:#ca8a04;">${allC}</div><div class="stat-label">C Cukup</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:#c0392b;">${allD}</div><div class="stat-label">D Kurang</div></div>
+        </div>
+        <div style="margin-bottom:14px; display:flex; flex-wrap:wrap; gap:2px;">${bulanChips}</div>
+        ${desaCards}
+      `;
+    }
+
+    window.PNL_setBulan = async (b) => {
+      selectedBulan = b;
+      main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+      rekapData = await loadRekapData();
+      render();
+    };
+
+    render();
+  }
 }
 
 /* ===== PAGE: DATA BK ===== */

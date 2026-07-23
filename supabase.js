@@ -341,6 +341,16 @@ const sbMusKonfig = {
   },
 };
 
+// ============ PENILAIAN ============
+const sbPenilaian = {
+  getByKelas: (kelasId, bulan, ta) =>
+    sbFetch(`penilaian?kelas_id=eq.${kelasId}&bulan=eq.${encodeURIComponent(bulan)}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  getByKelompok: (klpId, bulan, ta) =>
+    sbFetch(`penilaian?kelompok_id=eq.${klpId}&bulan=eq.${encodeURIComponent(bulan)}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  upsert: (data) =>
+    sbFetch('penilaian', { method:'POST', headers:{'Prefer':'return=representation,resolution=merge-duplicates'}, body:JSON.stringify(data) }),
+};
+
 // ============ SARPRAS ============
 const sbSarpras = {
   getByKelompok: (klpId) => sbFetch(`sarpras?kelompok_id=eq.${klpId}&select=*&order=created_at`),
@@ -433,4 +443,5 @@ window.SB = {
   sumberDana: sbSumberDana,
   mtMs: sbMtMs,
   sarpras: sbSarpras,
+  penilaian: sbPenilaian,
 };
