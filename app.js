@@ -2731,6 +2731,17 @@ async function renderAbsensi() {
   }
 
   function renderMain() {
+    // Simpan state jurnal sebelum re-render
+    const jurnalEl = document.getElementById('jurnalCatatan');
+    if (jurnalEl) _savedJurnalText = jurnalEl.value;
+
+    // Simpan state absensi
+    const absensiState = {};
+    document.querySelectorAll('[data-santri-id]').forEach(el => {
+      const sid = el.dataset.santriId;
+      const active = el.querySelector('.active');
+      if (active) absensiState[sid] = active.dataset.status;
+    });
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const kelasOptHtml = kelasOptions.map(k =>
       `<option value="${k.id}" data-kelompok-id="${k.kelompok_id||myKelompokId||''}" ${k.id === selectedKelasId ? 'selected' : ''}>
@@ -2999,6 +3010,12 @@ async function renderAbsensi() {
           </button>
         </div>`}
     `;
+
+    // Restore jurnal text setelah re-render
+    const jurnalRestored = document.getElementById('jurnalCatatan');
+    if (jurnalRestored && _savedJurnalText) {
+      jurnalRestored.value = _savedJurnalText;
+    }
   }
 
   // State bulan jurnal
@@ -3038,25 +3055,20 @@ async function renderAbsensi() {
   };
 
   window.ABS_toggleMateri = async (materiId) => {
+    // Simpan isi jurnal sebelum re-render
+    const textarea = document.getElementById('jurnalCatatan');
+    if (textarea) _savedJurnalText = textarea.value;
+
     if (selectedMateriIds.has(materiId)) {
       selectedMateriIds.delete(materiId);
     } else {
       selectedMateriIds.add(materiId);
     }
-    // Auto-update catatan jurnal
-    const textarea = document.getElementById('jurnalCatatan');
-    if (textarea) {
-      const materiList = Array.from(selectedMateriIds).map(id => {
-        const m = (App.cache.materi || []).find(r => r.id === id);
-        if (!m) return null;
-        return `• ${m.topik || ''}${m.poin_title ? ' - ' + m.poin_title : ''}`;
-      }).filter(Boolean);
-      textarea.value = materiList.length
-        ? 'Materi yang disampaikan:\n' + materiList.join('\n')
-        : '';
-    }
     renderMain();
   };
+
+  // Simpan state jurnal agar tidak hilang saat re-render
+  let _savedJurnalText = '';
 
   // Simpan untuk pertemuan BARU
   window.ABS_simpanBaru = async () => {
