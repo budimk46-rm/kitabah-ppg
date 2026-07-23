@@ -669,6 +669,7 @@ function calIcon() { return SVG('<rect x="3" y="4" width="18" height="18" rx="2"
 function usersIcon() { return SVG('<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>'); }
 function meetIcon() { return SVG('<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'); }
 function contactIcon() { return SVG('<path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'); }
+function alertIcon() { return SVG('<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'); }
 function clipboardCheckIcon() { return SVG('<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/>'); }
 function boxIcon() { return SVG('<path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'); }
 function idCardIcon() { return SVG('<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><circle cx="8" cy="14" r="1.5"/><path d="M14 14h4"/>'); }
@@ -688,6 +689,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
+    { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -698,9 +700,11 @@ const NAV_ITEMS = {
   ],
   daerah: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Daerah' },
+    { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -710,9 +714,11 @@ const NAV_ITEMS = {
   ],
   desa: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
+    { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -727,6 +733,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
@@ -756,6 +763,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -811,6 +819,7 @@ async function renderPage(page) {
       case 'users':       await renderUsers(); break;
       case 'settings':    await renderSettings(); break;
       case 'rekap':       await renderRekap(); break;
+      case 'data_bk':     await renderDataBK(); break;
       case 'monitor_mus': await renderMonitorMus(); break;
       case 'sarpras':     await renderSarpras(); break;
       case 'mtms':        await renderMtMs(); break;
@@ -3174,6 +3183,221 @@ async function renderAbsensi() {
 
   await loadPertemuan();
   } // end lanjutAbsensi
+}
+
+/* ===== PAGE: DATA BK ===== */
+async function renderDataBK() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isKelompok = ['pjp_kelompok','guru','kelompok','wali_kbm'].includes(u.role);
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+
+  // Tentukan kelompok yang diproses
+  let kelompokList = App.cache.kelompok || [];
+  if (isDesa) kelompokList = kelompokList.filter(k => k.desa_id === u.desa_id);
+  else if (isKelompok) kelompokList = kelompokList.filter(k => k.id === u.kelompok_id);
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  const nowMonth = currentMonthName();
+  let selectedBulan = nowMonth;
+
+  // Load data per kelompok
+  const bkData = {}; // klpId → [{santri, kelas, pct, h, total}]
+  async function loadBKData(bulan) {
+    for (const klp of kelompokList) {
+      bkData[klp.id] = [];
+      let kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
+      // Juga include kelas gabungan
+      if (klp.desa_id) {
+        const gabungan = await SB.kelas.getByDesa(klp.desa_id) || [];
+        kelasList = [...kelasList, ...gabungan.map(g => ({...g, _isGab: true}))];
+      }
+
+      await Promise.all(kelasList.map(async kls => {
+        const ptList = (await SB.pertemuan.getByKelas(kls.id, getTahunAjaran())).filter(p => p.bulan === bulan);
+        if (!ptList.length) return;
+        let santriList = await SB.santri.getByKelas(kls.id);
+        // Kelas gabungan: filter santri kelompok ini saja
+        if (kls._isGab) santriList = santriList.filter(s => s.kelompok_asal_id === klp.id);
+        if (!santriList.length) return;
+
+        // Hitung kehadiran per santri
+        const absensiAll = {};
+        await Promise.all(ptList.map(async p => { absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id); }));
+
+        santriList.forEach(s => {
+          let h = 0;
+          ptList.forEach(p => {
+            const a = (absensiAll[p.id]||[]).find(x => x.santri_id === s.id);
+            if (a?.status === 'H') h++;
+          });
+          const pct = Math.round(h / ptList.length * 100);
+          if (pct < 50) {
+            bkData[klp.id].push({
+              santri: s, kelas: kls, pct, h, total: ptList.length,
+              kelasNama: kls.nama_kelas || kls.jenjang,
+            });
+          }
+        });
+      }));
+    }
+  }
+
+  await loadBKData(selectedBulan);
+
+  function render() {
+    const bulanChips = `
+      <div style="margin-bottom:6px;">
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 1 (Jul - Des):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM1_MONTHS.map(m => `
+            <div onclick="BK_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--rose)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--rose)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-soft); margin-bottom:6px;">Semester 2 (Jan - Jun):</div>
+        <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;">
+          ${SEM2_MONTHS.map(m => `
+            <div onclick="BK_setBulan('${m}')"
+              style="padding:7px 4px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; text-align:center;
+                background:${selectedBulan===m?'var(--rose)':'var(--white)'};
+                color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+                border:1.5px solid ${selectedBulan===m?'var(--rose)':'var(--line)'};">
+              ${m.slice(0,3)}${m===nowMonth?' ●':''}
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    // Hitung total
+    const allBK = Object.values(bkData).flat();
+    const totalL = allBK.filter(d => d.santri.jenis_kel === 'L').length;
+    const totalP = allBK.filter(d => d.santri.jenis_kel === 'P').length;
+    const totalAll = allBK.length;
+
+    const scopeLabel = isKelompok ? (kelompokMap[u.kelompok_id]?.nama||'') : isDesa ? (DESA_NAMA_MAP[u.desa_id]||'Desa') : 'Daerah Sidoarjo Utara';
+
+    let contentHtml = '';
+
+    if (isKelompok) {
+      // === Level Kelompok: detail per kelas ===
+      const myBK = bkData[u.kelompok_id] || [];
+      const byKelas = {};
+      myBK.forEach(d => {
+        const kn = d.kelasNama;
+        if (!byKelas[kn]) byKelas[kn] = [];
+        byKelas[kn].push(d);
+      });
+
+      contentHtml = Object.entries(byKelas).length ? Object.entries(byKelas).map(([kelasNama, list]) => `
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <div class="fw-bold" style="color:var(--rose); font-size:14px;">🔴 ${escHtml(kelasNama)}</div>
+            <span class="badge badge-rose">${list.length} generus</span>
+          </div>
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--rose);">
+              <th style="color:#fff; padding:6px; font-size:11px; width:30px;">No</th>
+              <th style="color:#fff; padding:6px 8px; font-size:11px; text-align:left;">Nama</th>
+              <th style="color:#fff; padding:6px; font-size:11px; text-align:center;">L/P</th>
+              <th style="color:#fff; padding:6px; font-size:11px; text-align:center;">Ptm</th>
+              <th style="color:#fff; padding:6px 8px; font-size:11px; text-align:center;">Kehadiran</th>
+            </tr></thead>
+            <tbody>${list.map((d, i) => `<tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:5px 6px; font-size:12px; text-align:center;">${i+1}</td>
+              <td style="padding:5px 8px; font-size:13px; font-weight:600; color:#111;">${escHtml(d.santri.nama)}</td>
+              <td style="padding:5px 6px; font-size:12px; text-align:center; font-weight:700; color:${d.santri.jenis_kel==='L'?'#1a6b3a':'#a6483b'};">${d.santri.jenis_kel}</td>
+              <td style="padding:5px 6px; font-size:12px; text-align:center;">${d.total}x</td>
+              <td style="padding:5px 8px; font-size:12px; text-align:center; font-weight:800; color:var(--rose);">${d.pct}% (${d.h}/${d.total})</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>`).join('')
+        : '<div class="card" style="text-align:center; padding:24px;"><div style="font-size:24px; margin-bottom:8px;">✅</div><div style="font-size:14px; color:var(--green); font-weight:700;">Alhamdulillah, tidak ada generus di bawah 50% kehadiran bulan ini.</div></div>';
+    } else {
+      // === Level Desa/Daerah: jumlah per kelompok ===
+      const byDesa = {};
+      kelompokList.forEach(k => {
+        const desaNama = k.desa?.nama || DESA_NAMA_MAP[k.desa_id] || k.desa_id;
+        if (!byDesa[desaNama]) byDesa[desaNama] = [];
+        byDesa[desaNama].push(k);
+      });
+
+      contentHtml = Object.entries(byDesa).map(([desaNama, klpList]) => {
+        const desaBK = klpList.flatMap(k => bkData[k.id] || []);
+        const desaL = desaBK.filter(d => d.santri.jenis_kel === 'L').length;
+        const desaP = desaBK.filter(d => d.santri.jenis_kel === 'P').length;
+
+        const rows = klpList.map(k => {
+          const kb = bkData[k.id] || [];
+          const kL = kb.filter(d => d.santri.jenis_kel === 'L').length;
+          const kP = kb.filter(d => d.santri.jenis_kel === 'P').length;
+          return `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(k.nama)}</td>
+            <td style="padding:6px 8px; text-align:center; font-size:13px; font-weight:700; color:${kb.length?'var(--rose)':'var(--green)'};">${kb.length || '✅'}</td>
+            <td style="padding:6px 8px; text-align:center; font-size:12px; color:#1a6b3a; font-weight:700;">${kL||'—'}</td>
+            <td style="padding:6px 8px; text-align:center; font-size:12px; color:#a6483b; font-weight:700;">${kP||'—'}</td>
+          </tr>`;
+        }).join('');
+
+        return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:var(--rose); padding:10px 16px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ ${escHtml(desaNama)}</div>
+            <div style="font-size:12px; color:rgba(255,255,255,.8);">${desaBK.length} generus (${desaL}L · ${desaP}P)</div>
+          </div>
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--rose);">
+              <th style="padding:6px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">Total</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">L</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">P</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+      }).join('');
+    }
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Data BK</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
+          <p style="font-size:12px; color:var(--ink-soft); margin-top:2px;">Generus dengan kehadiran di bawah 50%</p>
+        </div>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${totalAll}</div><div class="stat-label">Total BK</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:#1a6b3a;">${totalL}</div><div class="stat-label">Laki-laki</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:#a6483b;">${totalP}</div><div class="stat-label">Perempuan</div></div>
+      </div>
+
+      <div style="margin-bottom:16px;">${bulanChips}</div>
+
+      ${contentHtml}
+    `;
+  }
+
+  window.BK_setBulan = async (b) => {
+    selectedBulan = b;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadBKData(b);
+    render();
+  };
+
+  render();
 }
 
 /* ===== PAGE: MONITORING MUSYAWARAH ===== */
