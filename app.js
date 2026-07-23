@@ -3198,12 +3198,19 @@ async function renderMonitorMus() {
   let selectedBulan = nowMonth;
 
   function render() {
-    // Filter musyawarah by bulan
+    // Filter musyawarah by bulan DAN tahun (dari tanggal)
+    const tahunFilter = getTahunAjaran(); // misal "2026/2027"
     const musBulan = allMus.filter(m => {
       if (!m.tanggal) return false;
       const d = new Date(m.tanggal);
       const bln = BULAN_NAMES_FULL[d.getMonth()];
-      return bln === selectedBulan;
+      const thn = d.getFullYear();
+      // Cek apakah tanggal masuk tahun ajaran yang sama
+      const mTA = thn + '/' + (thn+1);
+      const mTA2 = (thn-1) + '/' + thn;
+      const bulanOk = bln === selectedBulan;
+      const tahunOk = d.getMonth() >= 6 ? mTA === tahunFilter : mTA2 === tahunFilter;
+      return bulanOk && tahunOk;
     });
 
     // Map: kelompok_id → { guru_generus: tanggal, unsur_5: tanggal }
@@ -3352,7 +3359,7 @@ async function renderMonitorMus() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Monitoring Musyawarah</h1>
-          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · Bulan ${selectedBulan} ${new Date().getFullYear()}</p>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
         </div>
       </div>
 
@@ -4750,10 +4757,19 @@ async function renderMusyawarah() {
   // kelompok level → pilih antara guru_generus atau unsur_5
 
   function renderPage() {
+    const taFilter = getTahunAjaran(); // misal "2026/2027"
     const filtered = allMusyawarah.filter(m => {
       const levelOk = filterLevel === 'semua' || m.level === filterLevel;
       const bulanOk = showAllBulan || filterBulanSet.has(m.bulan);
-      return levelOk && bulanOk;
+      // Filter tahun ajaran
+      let tahunOk = true;
+      if (m.tanggal) {
+        const d = new Date(m.tanggal);
+        const thn = d.getFullYear();
+        const mTA = d.getMonth() >= 6 ? thn+'/'+(thn+1) : (thn-1)+'/'+thn;
+        tahunOk = mTA === taFilter;
+      }
+      return levelOk && bulanOk && tahunOk;
     });
 
     // === Form notulensi baru (inline) ===
