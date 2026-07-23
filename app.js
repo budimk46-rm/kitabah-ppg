@@ -6280,16 +6280,20 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         allPesertaForKonfig = [...allPesertaForKonfig, ...dp];
       }
     } else if (levelMus === 'pjp_desa') {
-      // Ambil dari semua desa + semua kelompok
-      const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
-      for (const dn of DESA_NAMES) {
-        const dp = await SB.musPeserta.getByDesa(dn) || [];
-        allPesertaForKonfig = [...allPesertaForKonfig, ...dp];
-      }
-      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-      for (const klp of (App.cache.kelompok||[])) {
-        const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
-        allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+      // Hanya desa sendiri + kelompok di desa sendiri
+      const myDesaId = desaId || u.desa_id;
+      if (myDesaId) {
+        const DESA_NAMA_MAP_K = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+        const desaNama = DESA_NAMA_MAP_K[myDesaId] || myDesaId;
+        const dp1 = await SB.musPeserta.getByDesa(myDesaId) || [];
+        const dp2 = desaNama !== myDesaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
+        allPesertaForKonfig = [...dp1, ...dp2];
+        if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+        const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === myDesaId);
+        await Promise.all(klpDesa.map(async klp => {
+          const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
+          allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+        }));
       }
     } else {
       // guru_generus / unsur_5 — hanya kelompok sendiri (cepat)
