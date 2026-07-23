@@ -3215,7 +3215,7 @@ async function renderPenilaian() {
   let selectedBulan = nowMonth;
   const ta = getTahunAjaran();
 
-  if (isKelompok || isAdmin) {
+  if (isKelompok) {
     // === INPUT MODE (kelompok/admin) ===
     let myKelompokId = u.kelompok_id || null;
     let myKelasList = [];
