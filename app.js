@@ -3217,16 +3217,22 @@ async function renderPenilaian() {
 
   if (isKelompok || isAdmin) {
     // === INPUT MODE (kelompok/admin) ===
-    const myKelompokId = u.kelompok_id || null;
+    let myKelompokId = u.kelompok_id || null;
     let myKelasList = [];
-    if (myKelompokId) {
-      myKelasList = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
-      const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
-      if (myKlp?.desa_id) {
-        const gab = await SB.kelas.getByDesa(myKlp.desa_id) || [];
-        myKelasList = [...myKelasList, ...sortKelas(gab)];
+
+    async function loadKelasList() {
+      myKelasList = [];
+      if (myKelompokId) {
+        myKelasList = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
+        const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
+        if (myKlp?.desa_id) {
+          const gab = await SB.kelas.getByDesa(myKlp.desa_id) || [];
+          myKelasList = [...myKelasList, ...sortKelas(gab)];
+        }
       }
     }
+
+    await loadKelasList();
     let selectedKelasId = myKelasList.length ? myKelasList[0].id : null;
     let santriList = [];
     let topikList = [];
@@ -3309,9 +3315,18 @@ async function renderPenilaian() {
         </div>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+          ${isAdmin ? `<div style="flex:1; min-width:180px;">
+            <label style="font-size:11px; font-weight:700; color:var(--green); display:block; margin-bottom:4px;">Kelompok</label>
+            <select onchange="PNL_setKelompok(this.value)" style="width:100%; padding:8px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih kelompok...</option>
+              ${(App.cache.kelompok||[]).map(k => `<option value="${k.id}" ${k.id===myKelompokId?'selected':''}>${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}</option>`).join('')}
+            </select>
+          </div>` : ''}
           <div style="flex:1; min-width:180px;">
             <label style="font-size:11px; font-weight:700; color:var(--green); display:block; margin-bottom:4px;">Kelas</label>
-            <select onchange="PNL_setKelas(this.value)" style="width:100%; padding:8px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">${kelasOpts}</select>
+            <select onchange="PNL_setKelas(this.value)" style="width:100%; padding:8px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              ${myKelasList.length ? kelasOpts : '<option value="">Pilih kelompok dulu</option>'}
+            </select>
           </div>
         </div>
 
@@ -3390,6 +3405,16 @@ async function renderPenilaian() {
     window.PNL_setKelas = async (id) => {
       selectedKelasId = id;
       main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+      await loadData();
+      render();
+    };
+
+    window.PNL_setKelompok = async (id) => {
+      myKelompokId = id;
+      main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+      await loadKelasList();
+      selectedKelasId = myKelasList.length ? myKelasList[0].id : null;
+      unsavedChanges.clear();
       await loadData();
       render();
     };
