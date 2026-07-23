@@ -3396,6 +3396,13 @@ async function renderPenilaian() {
       const materiList = (App.cache.materi||[]).filter(m =>
         m.jenjang === jenjang && String(m.semester) === sem && m.bab_title === topik
       );
+      console.log('PNL_tap debug:', { jenjang, sem, topik, bulan: selectedBulan, totalMateri: (App.cache.materi||[]).length, matchedMateri: materiList.length });
+      if (materiList.length) console.log('Sample materi:', JSON.stringify(materiList[0]).slice(0,200));
+      if (!materiList.length) {
+        // Coba cek bab_title yang ada
+        const allBabs = [...new Set((App.cache.materi||[]).filter(m => m.jenjang === jenjang && String(m.semester) === sem).map(m => m.bab_title))];
+        console.log('Available bab_titles for', jenjang, sem, ':', allBabs);
+      }
 
       // Cek materi yang ada target di bulan ini
       const bulanCol = selectedBulan.toLowerCase();
