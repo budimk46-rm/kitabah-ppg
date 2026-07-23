@@ -4868,9 +4868,15 @@ async function renderMusyawarah() {
       </div>`;
     }).join('');
 
+    const klpMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
+    const DESA_NAMA_MUS = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+
     const daftarHtml = filtered.length ? filtered.map(m => {
       const cfg = MUSYAWARAH_LEVEL[m.level] || {};
       const bisa_edit = m.dibuat_oleh === u.id || role === 'admin';
+      const klpObj = klpMap[m.kelompok_id];
+      const klpNama = klpObj?.nama || '';
+      const desaNama = klpObj?.desa?.nama || DESA_NAMA_MUS[klpObj?.desa_id] || DESA_NAMA_MUS[m.desa_id] || '';
       return `<div class="card" style="margin-bottom:12px; padding:16px;">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px;">
           <div>
@@ -4880,6 +4886,8 @@ async function renderMusyawarah() {
             </div>
             <div style="font-size:12px; color:var(--ink-soft);">
               Bulan: <b>${escHtml(m.bulan||'')}</b>
+              ${klpNama ? ' · 👥 '+escHtml(klpNama) : ''}
+              ${desaNama ? ' · 🏘️ '+escHtml(desaNama) : ''}
               ${m.anggota?.nama_lengkap ? ' · Oleh: '+escHtml(m.anggota.nama_lengkap) : ''}
             </div>
           </div>
