@@ -5486,11 +5486,8 @@ async function renderMusyawarah() {
       const desaMus = await SB.musyawarah.getByDesa(desaId) || [];
       if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
       const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
-      let klpMus = [];
-      for (const k of klpDesa) {
-        const m = await SB.musyawarah.getByKelompok(k.id) || [];
-        klpMus = [...klpMus, ...m];
-      }
+      const klpMusResults = await Promise.all(klpDesa.map(k => SB.musyawarah.getByKelompok(k.id)));
+      const klpMus = klpMusResults.filter(Boolean).flat();
       const daerahMus = await SB.musyawarah.getByLevel('ppg_daerah') || [];
       allMusyawarah = [...desaMus, ...klpMus, ...daerahMus];
     } else if (u.kelompok_id) {
@@ -5806,22 +5803,23 @@ async function renderMusyawarah() {
       const progData = await SB.progress.getByKelompok(klpId, getTahunAjaran());
       const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
       const results = [];
-      for (const k of kelasList) {
+      await Promise.all(kelasList.map(async k => {
         const [ptList, sList] = await Promise.all([
           SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
           SB.santri.getByKelas(k.id),
         ]);
         const ptBulan = ptList.filter(p => p.bulan === bulan);
         let H=0,I=0,S=0,A=0,slot=0;
-        for (const p of ptBulan) {
-          const abs = await SB.absensi.getByPertemuan(p.id);
+        const absResults = await Promise.all(ptBulan.map(p => SB.absensi.getByPertemuan(p.id)));
+        ptBulan.forEach((p, pi) => {
+          const abs = absResults[pi];
           sList.forEach(s => {
             const a = abs.find(x => x.santri_id === s.id);
             const st = a?.status || 'A';
             if(st==='H')H++; else if(st==='I')I++; else if(st==='S')S++; else A++;
             slot++;
           });
-        }
+        });
         const col = bulan.toLowerCase();
         const mk = (App.cache.materi||[]).filter(r =>
           r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
@@ -5837,7 +5835,7 @@ async function renderMusyawarah() {
           mTarget, mCapai,
           pctMateri: mTarget>0 ? Math.round(mCapai/mTarget*100) : null,
         });
-      }
+      }));
       return results;
     }
 
@@ -5935,8 +5933,11 @@ async function renderMusyawarah() {
         const tampilBulan = window._musRekapBulan;
 
         let desaHtml = '';
-        for (const klp of klpDesa) {
-          const rows = await hitungKelompokStats(klp.id, tampilBulan);
+        const klpStatsResults = await Promise.all(klpDesa.map(async klp => ({
+          klp,
+          rows: await hitungKelompokStats(klp.id, tampilBulan),
+        })));
+        for (const { klp, rows } of klpStatsResults) {
           const avgHadir = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctHadir||0),0)/rows.length) : null;
           const avgMateri = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctMateri||0),0)/rows.length) : null;
           const klpElId = 'musRekapKlp_' + klp.id;
@@ -5993,8 +5994,11 @@ async function renderMusyawarah() {
         if (selectedDesa) {
           const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === selectedDesa);
           let desaHtml = '';
-          for (const klp of klpDesa) {
-            const rows = await hitungKelompokStats(klp.id, tampilBulan);
+          const klpStatsResults2 = await Promise.all(klpDesa.map(async klp => ({
+            klp,
+            rows: await hitungKelompokStats(klp.id, tampilBulan),
+          })));
+          for (const { klp, rows } of klpStatsResults2) {
             const avgHadir = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctHadir||0),0)/rows.length) : null;
             const avgMateri = rows.length ? Math.round(rows.reduce((n,r)=>n+(r.pctMateri||0),0)/rows.length) : null;
             const klpElId = 'musRekapKlp_' + klp.id;
@@ -7041,10 +7045,8 @@ async function openKonfigMusyawarahModal(levelMus, u) {
       allPesertaForKonfig = await SB.musPeserta.getByDaerah() || [];
       // Juga ambil dapukan dari semua desa
       const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
-      for (const dn of DESA_NAMES) {
-        const dp = await SB.musPeserta.getByDesa(dn) || [];
-        allPesertaForKonfig = [...allPesertaForKonfig, ...dp];
-      }
+      const desaResults = await Promise.all(DESA_NAMES.map(dn => SB.musPeserta.getByDesa(dn)));
+      desaResults.filter(Boolean).forEach(dp => { allPesertaForKonfig = [...allPesertaForKonfig, ...dp]; });
     } else if (levelMus === 'pjp_desa') {
       // Hanya desa sendiri + kelompok di desa sendiri
       const myDesaId = desaId || u.desa_id;
@@ -7068,10 +7070,8 @@ async function openKonfigMusyawarahModal(levelMus, u) {
       } else {
         // Admin — load sampel 2 kelompok saja untuk daftar dapukan
         if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-        for (const klp of (App.cache.kelompok||[]).slice(0, 2)) {
-          const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
-          allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
-        }
+        const sampleResults = await Promise.all((App.cache.kelompok||[]).slice(0, 2).map(klp => SB.musPeserta.getByKelompok(klp.id)));
+        sampleResults.filter(Boolean).forEach(kp => { allPesertaForKonfig = [...allPesertaForKonfig, ...kp]; });
       }
     }
   } catch(e) { console.error(e); }
