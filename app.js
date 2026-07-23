@@ -3451,31 +3451,31 @@ async function renderPenilaian() {
             </div>
 
             ${itemsToShow.length ? `
-            <div style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:8px;">Target Materi (${tuntasCount}/${totalCount} tuntas — ${pctTuntas}%):</div>
+            <div id="pnl-progress" style="font-size:12px; font-weight:700; color:var(--green); margin-bottom:8px;">Target Materi (${tuntasCount}/${totalCount} tuntas — ${pctTuntas}%):</div>
             <div style="background:var(--bg); border-radius:8px; padding:4px 0; margin-bottom:12px;">
               ${itemsToShow.map((item, idx) => `
-                <div onclick="PNL_toggleItem(${idx})" style="display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:pointer; border-bottom:1px solid var(--line);">
-                  <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0;
+                <div id="pnl-item-${idx}" onclick="PNL_toggleItem(${idx})" style="display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:pointer; border-bottom:1px solid var(--line);">
+                  <div class="pnl-checkbox" style="width:22px; height:22px; border-radius:6px; flex-shrink:0;
                     border:2px solid ${item.tuntas?'var(--green)':'var(--line)'};
                     background:${item.tuntas?'var(--green)':'transparent'};
                     display:flex; align-items:center; justify-content:center;">
                     ${item.tuntas ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
                   </div>
-                  <div style="font-size:12px; color:#111; ${item.tuntas?'':'opacity:.7;'}">${escHtml(item.label)}</div>
+                  <div class="pnl-label" style="font-size:12px; color:#111; ${item.tuntas?'':'opacity:.7;'}">${escHtml(item.label)}</div>
                 </div>`).join('')}
             </div>` : '<div style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">Tidak ada detail materi untuk topik ini di bulan ${selectedBulan}.</div>'}
 
             <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
               <div style="font-size:12px; font-weight:700; color:var(--green);">Nilai:</div>
               ${['A','B','C','D'].map(n => `
-                <div onclick="PNL_setNilaiModal('${n}')" style="width:36px; height:32px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:800;
+                <div id="pnl-nbtn-${n}" onclick="PNL_setNilaiModal('${n}')" style="width:36px; height:32px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:800;
                   background:${(currentNilai||autoNilai)===n ? NILAI_BG[n] : '#f5f5f5'};
                   color:${(currentNilai||autoNilai)===n ? NILAI_COLOR[n] : '#ccc'};
                   border:2px solid ${(currentNilai||autoNilai)===n ? NILAI_COLOR[n] : '#e5e5e5'};
                   display:flex; align-items:center; justify-content:center;">
                   ${n}
                 </div>`).join('')}
-              ${autoNilai && totalCount ? `<span style="font-size:11px; color:var(--ink-soft);">Auto: ${autoNilai} (${pctTuntas}%)</span>` : ''}
+              ${autoNilai && totalCount ? `<span id="pnl-auto" style="font-size:11px; color:var(--ink-soft);">Auto: ${autoNilai} (${pctTuntas}%)</span>` : ''}
             </div>
 
             <div class="form-group" style="margin-bottom:0;">
@@ -3492,18 +3492,55 @@ async function renderPenilaian() {
 
       window.PNL_toggleItem = (idx) => {
         itemsToShow[idx].tuntas = !itemsToShow[idx].tuntas;
-        // Auto-update nilai
+        // Update DOM langsung tanpa re-render
+        const itemEl = document.getElementById('pnl-item-'+idx);
+        if (itemEl) {
+          const box = itemEl.querySelector('.pnl-checkbox');
+          const label = itemEl.querySelector('.pnl-label');
+          if (itemsToShow[idx].tuntas) {
+            box.style.borderColor = 'var(--green)';
+            box.style.background = 'var(--green)';
+            box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>';
+            if (label) label.style.opacity = '1';
+          } else {
+            box.style.borderColor = 'var(--line)';
+            box.style.background = 'transparent';
+            box.innerHTML = '';
+            if (label) label.style.opacity = '.7';
+          }
+        }
+        // Update progress & auto nilai
         const tuntasCount = itemsToShow.filter(i => i.tuntas).length;
         const totalCount = itemsToShow.length;
         const pctTuntas = totalCount ? Math.round(tuntasCount / totalCount * 100) : 0;
         const autoNilai = pctTuntas >= 80 ? 'A' : pctTuntas >= 60 ? 'B' : pctTuntas >= 40 ? 'C' : 'D';
         nilaiMap[key] = autoNilai;
-        renderModal();
+        // Update progress text
+        const progEl = document.getElementById('pnl-progress');
+        if (progEl) progEl.textContent = `Target Materi (${tuntasCount}/${totalCount} tuntas — ${pctTuntas}%):`;
+        const autoEl = document.getElementById('pnl-auto');
+        if (autoEl) autoEl.textContent = `Auto: ${autoNilai} (${pctTuntas}%)`;
+        // Update nilai buttons
+        ['A','B','C','D'].forEach(n => {
+          const btn = document.getElementById('pnl-nbtn-'+n);
+          if (btn) {
+            btn.style.background = autoNilai===n ? NILAI_BG[n] : '#f5f5f5';
+            btn.style.color = autoNilai===n ? NILAI_COLOR[n] : '#ccc';
+            btn.style.borderColor = autoNilai===n ? NILAI_COLOR[n] : '#e5e5e5';
+          }
+        });
       };
 
       window.PNL_setNilaiModal = (n) => {
         nilaiMap[key] = n;
-        renderModal();
+        ['A','B','C','D'].forEach(v => {
+          const btn = document.getElementById('pnl-nbtn-'+v);
+          if (btn) {
+            btn.style.background = n===v ? NILAI_BG[v] : '#f5f5f5';
+            btn.style.color = n===v ? NILAI_COLOR[v] : '#ccc';
+            btn.style.borderColor = n===v ? NILAI_COLOR[v] : '#e5e5e5';
+          }
+        });
       };
 
       window.PNL_saveDetail = (sid, tpk) => {
