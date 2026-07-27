@@ -680,6 +680,7 @@ function userIcon() { return SVG('<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4
 function checkIcon() { return SVG('<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>'); }
 function chartIcon() { return SVG('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'); }
 function cogIcon() { return SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>'); }
+function gradCapIcon() { return SVG('<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-4.5"/><path d="M22 10v6"/>'); }
 
 const NAV_ITEMS = {
   admin: [
@@ -695,6 +696,7 @@ const NAV_ITEMS = {
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
+    { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -710,6 +712,7 @@ const NAV_ITEMS = {
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
+    { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -724,6 +727,7 @@ const NAV_ITEMS = {
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
+    { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -739,6 +743,7 @@ const NAV_ITEMS = {
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
+    { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -754,6 +759,7 @@ const NAV_ITEMS = {
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
+    { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -836,6 +842,7 @@ async function renderPage(page) {
       case 'monitor_mus': await renderMonitorMus(); break;
       case 'sarpras':     await renderSarpras(); break;
       case 'mtms':        await renderMtMs(); break;
+      case 'guru_sekolah': await renderGuruSekolah(); break;
       case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
@@ -4818,6 +4825,236 @@ async function renderMtMs() {
     };
 
     openModal('mtmsModal');
+  }
+
+  render();
+}
+
+/* ===== PAGE: DATA GURU SEKOLAH ===== */
+async function renderGuruSekolah() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isPjp = u.role === 'pjp_kelompok';
+  const isWaliKbm = u.role === 'wali_kbm';
+  const canEdit = isAdmin || isPjp || isWaliKbm;
+
+  const STATUS_OPTIONS = ['GTT', 'GTY', 'PPPK', 'PNS'];
+  const PENDIDIKAN_OPTIONS = ['SMA/SMK', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3'];
+  const KOMPETENSI_OPTIONS = ['SD', 'SMP', 'SMK'];
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Load data sesuai role
+  let allData = [];
+  if (isAdmin || isDaerah) {
+    allData = await SB.guruSekolah.getAll() || [];
+  } else if (isDesa) {
+    const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+    const results = await Promise.all(klpDesa.map(k => SB.guruSekolah.getByKelompok(k.id)));
+    allData = results.filter(Boolean).flat();
+  } else if (u.kelompok_id) {
+    allData = await SB.guruSekolah.getByKelompok(u.kelompok_id) || [];
+  }
+
+  function fmtWa(no) {
+    if (!no) return '—';
+    let n = no.replace(/\D/g,'');
+    if (n.startsWith('0')) n = '62' + n.slice(1);
+    return `<a href="https://wa.me/${n}" target="_blank" style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:var(--green); color:#fff; text-decoration:none;" title="${escHtml(no)}">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+    </a>`;
+  }
+
+  function kompetensiChips(str) {
+    if (!str) return '—';
+    return str.split(',').filter(Boolean).map(k => `<span style="display:inline-block; padding:2px 7px; border-radius:20px; background:var(--green-soft,#eaf3ec); color:var(--green); font-size:10px; font-weight:700; margin:1px;">${escHtml(k)}</span>`).join(' ');
+  }
+
+  function render() {
+    const cL = allData.filter(d => d.gender === 'L').length;
+    const cP = allData.filter(d => d.gender === 'P').length;
+    const countByStatus = Object.fromEntries(STATUS_OPTIONS.map(s => [s, allData.filter(d => d.status_kepegawaian === s).length]));
+
+    const showGrouped = isAdmin || isDaerah || isDesa;
+    let tabelHtml = '';
+
+    function renderTable(list) {
+      if (!list.length) return '<div style="font-size:12px; color:var(--ink-soft); padding:8px;">Belum ada data.</div>';
+      return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:800px;">
+        <thead><tr style="background:var(--green);">
+          <th style="color:#fff; padding:7px 6px; font-size:11px;">No</th>
+          <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Nama</th>
+          <th style="color:#fff; padding:7px 4px; font-size:11px;">L/P</th>
+          <th style="color:#fff; padding:7px 6px; font-size:11px;">Lahir</th>
+          <th style="color:#fff; padding:7px 6px; font-size:11px;">Status</th>
+          <th style="color:#fff; padding:7px 8px; font-size:11px;">Pendidikan</th>
+          <th style="color:#fff; padding:7px 8px; font-size:11px;">Kompetensi</th>
+          <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Penugasan</th>
+          <th style="color:#fff; padding:7px 4px; font-size:11px;">WA</th>
+          ${canEdit ? '<th style="color:#fff; padding:7px 4px; font-size:11px; width:60px;">Aksi</th>' : ''}
+        </tr></thead>
+        <tbody>${list.map((d, i) => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:5px 6px; font-size:12px; text-align:center;">${i+1}</td>
+            <td style="padding:5px 8px; font-size:13px; font-weight:600; color:#111;">${escHtml(d.nama_lengkap)}</td>
+            <td style="padding:5px 4px; font-size:12px; text-align:center; font-weight:700; color:${d.gender==='L'?'#1a6b3a':'#a6483b'};">${d.gender||'—'}</td>
+            <td style="padding:5px 6px; font-size:11px; text-align:center; color:#111;">${d.tgl_lahir ? fmtDateShort(d.tgl_lahir) : '—'}</td>
+            <td style="padding:5px 6px; font-size:12px; text-align:center; font-weight:700; color:#111;">${d.status_kepegawaian||'—'}</td>
+            <td style="padding:5px 8px; font-size:12px; color:#111;">${escHtml(d.pendidikan_terakhir||'—')}${d.program_studi ? '<br><span style="font-size:10px; color:var(--ink-soft);">'+escHtml(d.program_studi)+'</span>' : ''}</td>
+            <td style="padding:5px 8px; font-size:12px;">${kompetensiChips(d.kompetensi_mengajar)}</td>
+            <td style="padding:5px 8px; font-size:12px; color:#111;">${escHtml(d.penugasan_saat_ini||'—')}</td>
+            <td style="padding:5px 4px; text-align:center;">${fmtWa(d.no_wa)}</td>
+            ${canEdit ? `<td style="padding:5px 4px; text-align:center;">
+              <div style="display:flex; gap:3px; justify-content:center;">
+                <button class="btn-icon" onclick="GS_edit('${d.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                <button class="btn-icon danger" onclick="GS_hapus('${d.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+              </div>
+            </td>` : ''}
+          </tr>`).join('')}</tbody>
+      </table></div>`;
+    }
+
+    if (showGrouped) {
+      const byDesa = {};
+      allData.forEach(d => {
+        const klp = kelompokMap[d.kelompok_id];
+        const desaNama = klp?.desa?.nama || klp?.desa_id || '—';
+        if (!byDesa[desaNama]) byDesa[desaNama] = {};
+        const klpNama = klp?.nama || d.kelompok_id;
+        if (!byDesa[desaNama][klpNama]) byDesa[desaNama][klpNama] = [];
+        byDesa[desaNama][klpNama].push(d);
+      });
+
+      tabelHtml = Object.entries(byDesa).map(([desaNama, klpMap]) => {
+        const klpCards = Object.entries(klpMap).map(([klpNama, list]) => `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:700; font-size:13px; color:var(--green); margin-bottom:6px;">👥 ${escHtml(klpNama)} <span style="font-weight:400; color:var(--ink-soft);">(${list.length} orang)</span></div>
+            ${renderTable(list)}
+          </div>`).join('');
+
+        return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:var(--green); padding:10px 16px;">
+            <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ ${escHtml(desaNama)}</div>
+          </div>
+          <div style="padding:14px;">${klpCards}</div>
+        </div>`;
+      }).join('');
+      if (!allData.length) tabelHtml = '<div class="card"><div style="font-size:12px; color:var(--ink-soft); padding:8px;">Belum ada data.</div></div>';
+    } else {
+      tabelHtml = `<div class="card">${renderTable(allData)}</div>`;
+    }
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Data Guru Sekolah</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Total ${allData.length} orang</p>
+        </div>
+        ${canEdit ? '<button class="btn btn-green" onclick="GS_tambah()">+ Tambah Guru</button>' : ''}
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-num">${allData.length}</div><div class="stat-label">Total Guru</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL}L</span> · <span style="color:#a6483b;">${cP}P</span></div></div>
+        ${STATUS_OPTIONS.map(s => `<div class="stat-card"><div class="stat-num">${countByStatus[s]}</div><div class="stat-label">${s}</div></div>`).join('')}
+      </div>
+
+      ${tabelHtml}
+    `;
+  }
+
+  // === HANDLERS ===
+  window.GS_tambah = () => openGuruSekolahModal(null);
+  window.GS_edit = (id) => openGuruSekolahModal(allData.find(d=>d.id===id));
+  window.GS_hapus = async (id) => {
+    if (!confirm('Hapus data guru ini?')) return;
+    await SB.guruSekolah.delete(id);
+    allData = allData.filter(d=>d.id!==id);
+    showToast('Dihapus'); render();
+  };
+
+  function openGuruSekolahModal(existing) {
+    const p = existing;
+    const klpId = p?.kelompok_id || u.kelompok_id || '';
+    const kompetensiSet = (p?.kompetensi_mengajar || '').split(',').filter(Boolean);
+
+    const formHtml = `
+      <div class="form-group"><label>Nama Lengkap *</label><input id="gsNama" value="${escHtml(p?.nama_lengkap||'')}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Gender *</label>
+          <select id="gsGender"><option value="">Pilih...</option><option value="L" ${p?.gender==='L'?'selected':''}>Laki-laki</option><option value="P" ${p?.gender==='P'?'selected':''}>Perempuan</option></select>
+        </div>
+        <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="gsLahir" value="${p?.tgl_lahir||''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Status Kepegawaian *</label>
+          <select id="gsStatus"><option value="">Pilih...</option>${STATUS_OPTIONS.map(s=>`<option value="${s}" ${p?.status_kepegawaian===s?'selected':''}>${s}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Pendidikan Terakhir</label>
+          <select id="gsPendidikan"><option value="">Pilih...</option>${PENDIDIKAN_OPTIONS.map(s=>`<option value="${s}" ${p?.pendidikan_terakhir===s?'selected':''}>${s}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="form-group"><label>Program Studi</label><input id="gsProdi" value="${escHtml(p?.program_studi||'')}" placeholder="contoh: Pendidikan Agama Islam"></div>
+      <div class="form-group"><label>Kompetensi Mengajar</label>
+        <div style="display:flex; gap:14px; flex-wrap:wrap; padding:6px 0;">
+          ${KOMPETENSI_OPTIONS.map(k => `<label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:500; color:#111;">
+            <input type="checkbox" class="gsKomp" value="${k}" ${kompetensiSet.includes(k)?'checked':''}> ${k}
+          </label>`).join('')}
+        </div>
+      </div>
+      <div class="form-group"><label>Penugasan Saat Ini</label><input id="gsPenugasan" value="${escHtml(p?.penugasan_saat_ini||'')}" placeholder="contoh: SDN Sidoklumpuk 1"></div>
+      <div class="form-group"><label>No WhatsApp</label><input id="gsWa" value="${escHtml(p?.no_wa||'')}" placeholder="contoh: 08123456789"></div>
+    `;
+
+    let el = document.getElementById('gsModal');
+    if (!el) { el = document.createElement('div'); el.id = 'gsModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">${p?'Edit':'Tambah'} Data Guru Sekolah</h3><button class="modal-close" onclick="closeModal('gsModal')">✕</button></div>
+      <div class="modal-body">${formHtml}</div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('gsModal')">Batal</button>
+        <button class="btn btn-green" id="gsSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('gsSaveBtn').onclick = async () => {
+      const nama = document.getElementById('gsNama').value.trim().toUpperCase();
+      const gender = document.getElementById('gsGender').value;
+      const status = document.getElementById('gsStatus').value;
+      if (!nama || !gender || !status) { showToast('Nama, Gender, dan Status Kepegawaian wajib diisi', true); return; }
+      const kompetensi = Array.from(document.querySelectorAll('.gsKomp:checked')).map(c => c.value).join(',');
+
+      const data = {
+        kelompok_id: klpId,
+        nama_lengkap: nama,
+        gender,
+        tgl_lahir: document.getElementById('gsLahir').value || null,
+        status_kepegawaian: status,
+        pendidikan_terakhir: document.getElementById('gsPendidikan').value || null,
+        program_studi: document.getElementById('gsProdi').value.trim() || null,
+        kompetensi_mengajar: kompetensi || null,
+        penugasan_saat_ini: document.getElementById('gsPenugasan').value.trim() || null,
+        no_wa: document.getElementById('gsWa').value.trim() || null,
+        dibuat_oleh: u.id,
+      };
+
+      try {
+        if (p) {
+          await SB.guruSekolah.update(p.id, data);
+          Object.assign(p, data);
+        } else {
+          const r = await SB.guruSekolah.insert(data);
+          if (r?.[0]) allData.push(r[0]); else allData.push({...data, id: 'tmp_'+Date.now()});
+        }
+        showToast('Tersimpan'); closeModal('gsModal'); render();
+      } catch(e) { showToast('Gagal: ' + e.message, true); }
+    };
+
+    openModal('gsModal');
   }
 
   render();

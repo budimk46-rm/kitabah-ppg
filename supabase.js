@@ -375,6 +375,18 @@ const sbMtMs = {
   delete: (id) => sbFetch(`mt_ms?id=eq.${id}`, { method:'DELETE' }),
 };
 
+// ============ DATA GURU SEKOLAH ============
+const sbGuruSekolah = {
+  getByKelompok: (klpId) => sbFetch(`guru_sekolah?kelompok_id=eq.${klpId}&select=*&order=nama_lengkap`),
+  getAll: () => sbFetch('guru_sekolah?select=*&order=nama_lengkap&limit=5000'),
+  insert: async (data) => {
+    try { return await sbFetch('guru_sekolah', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }); }
+    catch(e) { if (e.message?.includes('409')) return [data]; throw e; }
+  },
+  update: (id, data) => sbFetch(`guru_sekolah?id=eq.${id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`guru_sekolah?id=eq.${id}`, { method:'DELETE' }),
+};
+
 // ============ PROGRAM KERJA ============
 const sbProker = {
   getAll: (tahun) => sbFetch(`program_kerja?tahun=eq.${tahun}&select=*&order=bidang,bulan_mulai`),
@@ -442,6 +454,7 @@ window.SB = {
   laporan: sbLaporan,
   sumberDana: sbSumberDana,
   mtMs: sbMtMs,
+  guruSekolah: sbGuruSekolah,
   sarpras: sbSarpras,
   penilaian: sbPenilaian,
 };

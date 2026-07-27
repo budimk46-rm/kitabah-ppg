@@ -1,0 +1,18 @@
+{
+  "name": "kitabah_v2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "validate": "node -e \"const a=require('acorn');const fs=require('fs');['app.js','supabase.js'].forEach(f=>{a.parse(fs.readFileSync(f,'utf8'),{ecmaVersion:2022,sourceType:'script'});console.log(f+' OK')})\"",
+    "build": "npm run validate && npx terser app.js -c -m -o app.min.js --source-map \"url='app.min.js.map'\" && npx terser supabase.js -c -m -o supabase.min.js --source-map \"url='supabase.min.js.map'\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "acorn": "^8.17.0",
+    "terser": "^5.49.0"
+  }
+}
