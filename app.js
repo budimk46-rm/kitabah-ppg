@@ -4841,7 +4841,12 @@ async function renderGuruSekolah() {
   const isWaliKbm = u.role === 'wali_kbm';
   const canEdit = isAdmin || isPjp || isWaliKbm;
 
-  const STATUS_OPTIONS = ['GTT', 'GTY', 'PPPK', 'PNS'];
+  const STATUS_OPTIONS = [
+    { val: 'PNS', label: 'PNS (Pegawai Negeri Sipil)' },
+    { val: 'PPPK', label: 'PPPK (Pegawai Pemerintah dengan Perjanjian Kerja)' },
+    { val: 'GTT', label: 'GTT (Guru Tidak Tetap)' },
+    { val: 'GTY', label: 'GTY (Guru Tetap Yayasan)' },
+  ];
   const PENDIDIKAN_OPTIONS = ['SMA/SMK', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3'];
   const KOMPETENSI_OPTIONS = ['SD', 'SMP', 'SMK'];
 
@@ -4879,7 +4884,7 @@ async function renderGuruSekolah() {
   function render() {
     const cL = allData.filter(d => d.gender === 'L').length;
     const cP = allData.filter(d => d.gender === 'P').length;
-    const countByStatus = Object.fromEntries(STATUS_OPTIONS.map(s => [s, allData.filter(d => d.status_kepegawaian === s).length]));
+    const countByStatus = Object.fromEntries(STATUS_OPTIONS.map(s => [s.val, allData.filter(d => d.status_kepegawaian === s.val).length]));
 
     const showGrouped = isAdmin || isDaerah || isDesa;
     let tabelHtml = '';
@@ -4960,7 +4965,7 @@ async function renderGuruSekolah() {
 
       <div class="stat-grid" style="margin-bottom:16px;">
         <div class="stat-card"><div class="stat-num">${allData.length}</div><div class="stat-label">Total Guru</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL}L</span> · <span style="color:#a6483b;">${cP}P</span></div></div>
-        ${STATUS_OPTIONS.map(s => `<div class="stat-card"><div class="stat-num">${countByStatus[s]}</div><div class="stat-label">${s}</div></div>`).join('')}
+        ${STATUS_OPTIONS.map(s => `<div class="stat-card"><div class="stat-num">${countByStatus[s.val]}</div><div class="stat-label">${s.val}</div></div>`).join('')}
       </div>
 
       ${tabelHtml}
@@ -4992,7 +4997,7 @@ async function renderGuruSekolah() {
       </div>
       <div class="form-row">
         <div class="form-group"><label>Status Kepegawaian *</label>
-          <select id="gsStatus"><option value="">Pilih...</option>${STATUS_OPTIONS.map(s=>`<option value="${s}" ${p?.status_kepegawaian===s?'selected':''}>${s}</option>`).join('')}</select>
+          <select id="gsStatus"><option value="">Pilih...</option>${STATUS_OPTIONS.map(s=>`<option value="${s.val}" ${p?.status_kepegawaian===s.val?'selected':''}>${escHtml(s.label)}</option>`).join('')}</select>
         </div>
         <div class="form-group"><label>Pendidikan Terakhir</label>
           <select id="gsPendidikan"><option value="">Pilih...</option>${PENDIDIKAN_OPTIONS.map(s=>`<option value="${s}" ${p?.pendidikan_terakhir===s?'selected':''}>${s}</option>`).join('')}</select>
