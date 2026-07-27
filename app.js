@@ -788,9 +788,28 @@ const NAV_ITEMS = {
   ],
 };
 
+// Hitung menu apa saja yang boleh diakses user ini.
+// u.akses_menu = null/kosong -> pakai semua menu default role-nya.
+// u.akses_menu = "id1,id2,..." -> hanya menu itu (dashboard & settings selalu ikut).
+function getAllowedMenuIds(u) {
+  const roleItems = NAV_ITEMS[u.role] || NAV_ITEMS.kelompok;
+  const roleIds = roleItems.map(i => i.id);
+  let allowed;
+  if (u.akses_menu !== null && u.akses_menu !== undefined) {
+    allowed = new Set(u.akses_menu.split(',').map(s => s.trim()).filter(Boolean));
+  } else {
+    allowed = new Set(roleIds);
+  }
+  allowed.add('dashboard');
+  if (roleIds.includes('settings')) allowed.add('settings');
+  return allowed;
+}
+
 function renderNav() {
   const u = App.user;
-  const items = NAV_ITEMS[u.role] || NAV_ITEMS.kelompok;
+  const roleItems = NAV_ITEMS[u.role] || NAV_ITEMS.kelompok;
+  const allowed = getAllowedMenuIds(u);
+  const items = roleItems.filter(item => allowed.has(item.id));
   document.getElementById('navUserName').textContent = u.nama_lengkap;
   document.getElementById('navUserRole').textContent = ROLE_LABELS[u.role] || u.role;
   document.getElementById('navAvatar').textContent = u.nama_lengkap.charAt(0).toUpperCase();
@@ -826,6 +845,19 @@ function navigate(page) {
 async function renderPage(page) {
   const main = document.getElementById('mainContent');
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Guard: blokir akses ke halaman yang tidak diizinkan untuk user ini,
+  // bukan cuma disembunyikan dari sidebar.
+  const allowed = getAllowedMenuIds(App.user);
+  if (!allowed.has(page)) {
+    main.innerHTML = `<div class="card" style="text-align:center; padding:40px;">
+      <div style="font-size:32px; margin-bottom:8px;">🔒</div>
+      <div class="fw-bold" style="color:var(--rose); margin-bottom:4px;">Akses Ditolak</div>
+      <div style="font-size:13px; color:var(--ink-soft);">Kamu tidak punya izin untuk mengakses halaman ini. Hubungi admin jika ini seharusnya bisa diakses.</div>
+    </div>`;
+    return;
+  }
+
   try {
     switch(page) {
       case 'dashboard':   await renderDashboard(); break;
@@ -1508,6 +1540,9 @@ async function renderUsers() {
               <button class="btn btn-green btn-sm" onclick="USR_approve('${u.id}')">Setujui</button>
               <button class="btn btn-danger btn-sm" onclick="USR_reject('${u.id}')">Tolak</button>` : ''}
             ${u.status !== 'pending' && u.username !== 'admin' ? `
+              <button class="btn-icon" onclick="USR_aturAkses('${u.id}')" title="Atur Akses Fitur">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </button>
               <button class="btn-icon danger" onclick="USR_delete('${u.id}','${escHtml(u.nama_lengkap)}')" title="Hapus">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
               </button>` : ''}
@@ -1565,6 +1600,54 @@ async function renderUsers() {
     showToast('Pengguna dihapus');
     await renderUsers();
   };
+
+  window.USR_aturAkses = (id) => {
+    const target = allUsers.find(x => x.id === id);
+    if (target) openAksesModal(target);
+  };
+
+  function openAksesModal(target) {
+    const roleItems = (NAV_ITEMS[target.role] || NAV_ITEMS.kelompok).filter(i => i.id !== 'dashboard' && i.id !== 'settings');
+    const isDefault = target.akses_menu === null || target.akses_menu === undefined;
+    const currentSet = isDefault ? new Set(roleItems.map(i => i.id)) : new Set(target.akses_menu.split(',').map(s=>s.trim()).filter(Boolean));
+
+    const checkboxesHtml = roleItems.map(item => `
+      <label style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:13px; color:#111;">
+        <input type="checkbox" class="akMenu" value="${item.id}" ${currentSet.has(item.id)?'checked':''}> ${escHtml(item.label)}
+      </label>`).join('');
+
+    let el = document.getElementById('aksesModal');
+    if (!el) { el = document.createElement('div'); el.id = 'aksesModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Atur Akses — ${escHtml(target.nama_lengkap)}</h3><button class="modal-close" onclick="closeModal('aksesModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Dashboard & Pengaturan selalu bisa diakses. Centang menu lain yang boleh dipakai user ini.</div>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="document.querySelectorAll('.akMenu').forEach(c=>c.checked=true)">Pilih Semua</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="document.querySelectorAll('.akMenu').forEach(c=>c.checked=false)">Kosongkan</button>
+        </div>
+        <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:0 8px;">${checkboxesHtml}</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('aksesModal')">Batal</button>
+        <button class="btn btn-green" id="aksesSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('aksesSaveBtn').onclick = async () => {
+      const checked = Array.from(document.querySelectorAll('.akMenu:checked')).map(c => c.value);
+      const fullDefault = checked.length === roleItems.length;
+      const value = fullDefault ? null : checked.join(',');
+      try {
+        await SB.anggota.update(target.id, { akses_menu: value });
+        target.akses_menu = value;
+        showToast('Akses tersimpan');
+        closeModal('aksesModal');
+      } catch(e) { showToast('Gagal: ' + e.message, true); }
+    };
+
+    openModal('aksesModal');
+  }
 }
 
 /* ===== PAGE: SANTRI ===== */
