@@ -1531,12 +1531,17 @@ async function renderUsers() {
   // Map kelompok ke desa untuk sorting
   const klpDesaMap = Object.fromEntries(kelompokList.map(k => [k.id, k.desa_id || '']));
 
-  // Sort: desa_id → kelompok_id → nama
+  // Sort: Admin dulu → Daerah → lalu per desa_id → kelompok_id → nama
+  function groupKey(u) {
+    if (u.role === 'admin') return '0_ADMIN';
+    if (u.role === 'daerah') return '1_DAERAH';
+    const desaId = u.desa_id || klpDesaMap[u.kelompok_id] || 'ZZ';
+    return '2_' + desaId;
+  }
   function sortUsers(list) {
     return [...list].sort((a, b) => {
-      const desaA = a.desa_id || klpDesaMap[a.kelompok_id] || 'Z';
-      const desaB = b.desa_id || klpDesaMap[b.kelompok_id] || 'Z';
-      if (desaA !== desaB) return desaA.localeCompare(desaB);
+      const gA = groupKey(a), gB = groupKey(b);
+      if (gA !== gB) return gA.localeCompare(gB);
       const klpA = a.kelompok_id || '';
       const klpB = b.kelompok_id || '';
       if (klpA !== klpB) return klpA.localeCompare(klpB);
@@ -1554,16 +1559,22 @@ async function renderUsers() {
     return `<span class="badge ${map[status] || 'badge-gray'}">${lbl[status] || status}</span>`;
   }
 
+  function groupLabel(u) {
+    if (u.role === 'admin') return '👑 Administrator';
+    if (u.role === 'daerah') return '🏛️ Level Daerah';
+    const desaId = u.desa_id || klpDesaMap[u.kelompok_id] || '';
+    return '🏘️ ' + (desaMap[desaId] || desaId || 'Tanpa Desa/Kelompok');
+  }
+
   function userRows(list) {
     if (!list.length) return '<tr><td colspan="8" style="text-align:center; color:var(--ink-soft); padding:24px;">Tidak ada data</td></tr>';
-    let lastDesa = '';
+    let lastGroup = null;
     return list.map(u => {
-      const desaId = u.desa_id || klpDesaMap[u.kelompok_id] || '';
-      const desaNama = desaMap[desaId] || desaId || '—';
+      const gKey = groupKey(u);
       let separator = '';
-      if (desaId && desaId !== lastDesa) {
-        lastDesa = desaId;
-        separator = `<tr><td colspan="8" style="padding:8px 10px; background:var(--green); color:#fff; font-weight:700; font-size:12px;">🏘️ ${escHtml(desaNama)}</td></tr>`;
+      if (gKey !== lastGroup) {
+        lastGroup = gKey;
+        separator = `<tr><td colspan="8" style="padding:8px 10px; background:var(--green); color:#fff; font-weight:700; font-size:12px;">${escHtml(groupLabel(u))}</td></tr>`;
       }
       return separator + `
       <tr>
