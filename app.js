@@ -3341,7 +3341,7 @@ async function renderPenilaian() {
           <div style="flex:1; min-width:180px;">
             <label style="font-size:11px; font-weight:700; color:var(--green); display:block; margin-bottom:4px;">Kelas</label>
             <select onchange="PNL_setKelas(this.value)" style="width:100%; padding:8px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
-              ${myKelasList.length ? kelasOpts : '<option value="">Pilih kelompok dulu</option>'}
+              ${myKelasList.length ? kelasOpts : `<option value="">${isAdmin ? 'Pilih kelompok dulu' : 'Belum ada kelas — buat dulu di Kelola Kelas'}</option>`}
             </select>
           </div>
         </div>
