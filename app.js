@@ -4420,6 +4420,17 @@ async function renderSarpras() {
 
   const DEFAULT_ITEMS = ['Peraga Tilawati','Papan Peraga','White Board','Spidol','Penghapus','Dampar','Laptop SB','LCD Proyektor / TV Monitor','Layar Proyektor','Wifi'];
 
+  async function getMasterItems() {
+    try {
+      const v = await SB.settings.get('sarpras_master_items');
+      if (v) { const arr = JSON.parse(v); if (Array.isArray(arr) && arr.length) return arr; }
+    } catch(e) {}
+    return DEFAULT_ITEMS;
+  }
+  async function saveMasterItems(list) {
+    await SB.settings.set('sarpras_master_items', JSON.stringify(list));
+  }
+
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   // Load data
@@ -4432,9 +4443,10 @@ async function renderSarpras() {
     allData = results.filter(Boolean).flat();
   } else if (u.kelompok_id) {
     allData = await SB.sarpras.getByKelompok(u.kelompok_id) || [];
-    // Auto-create default items jika belum ada
+    // Auto-create item master jika belum ada
     if (!allData.length) {
-      const batch = DEFAULT_ITEMS.map(item => ({
+      const masterItems = await getMasterItems();
+      const batch = masterItems.map(item => ({
         kelompok_id: u.kelompok_id, nama_item: item.toUpperCase(),
         status: null, kondisi: null, keterangan: null, dibuat_oleh: u.id,
       }));
@@ -4524,10 +4536,10 @@ async function renderSarpras() {
         </div>
         <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
           <thead><tr style="background:var(--rose-soft);">
-            <th style="padding:5px 8px; font-size:11px; text-align:left; color:var(--rose);">Kelompok</th>
-            <th style="padding:5px 8px; font-size:11px; text-align:left; color:var(--rose);">Item</th>
-            <th style="padding:5px 8px; font-size:11px; text-align:center; color:var(--rose);">Masalah</th>
-            <th style="padding:5px 8px; font-size:11px; text-align:left; color:var(--rose);">Keterangan</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:left; color:#fff;">Kelompok</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:left; color:#fff;">Item</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:center; color:#fff;">Masalah</th>
+            <th style="padding:5px 8px; font-size:11px; text-align:left; color:#fff;">Keterangan</th>
           </tr></thead>
           <tbody>${list.map(d => `<tr style="border-bottom:1px solid var(--line);">
             <td style="padding:5px 8px; font-size:12px; font-weight:600;">${escHtml(d.klpNama)}</td>
@@ -4567,6 +4579,7 @@ async function renderSarpras() {
           <h1 class="page-title">Rekap Sarana Prasarana</h1>
           <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${escHtml(scopeLabel)} · ${klpDiisi}/${totalKlp} kelompok sudah mengisi</p>
         </div>
+        ${isAdmin ? '<button class="btn btn-green" onclick="SP_tambahMaster()">+ Tambah Item Sarpras</button>' : ''}
       </div>
       <div class="stat-grid" style="margin-bottom:16px;">
         <div class="stat-card"><div class="stat-num">${allData.length}</div><div class="stat-label">Total Item</div></div>
@@ -4604,6 +4617,55 @@ async function renderSarpras() {
     await SB.sarpras.delete(id);
     allData = allData.filter(d=>d.id!==id);
     showToast('Dihapus'); render();
+  };
+
+  window.SP_tambahMaster = () => {
+    let el = document.getElementById('spMasterModal');
+    if (!el) { el = document.createElement('div'); el.id = 'spMasterModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Tambah Item Sarpras Baru</h3><button class="modal-close" onclick="closeModal('spMasterModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Item ini akan otomatis muncul di semua 31 kelompok. Tiap kelompok tinggal isi status & kondisinya.</div>
+        <div class="form-group"><label>Nama Item Baru *</label><input id="spmNama" placeholder="contoh: Meja Lipat"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('spMasterModal')">Batal</button>
+        <button class="btn btn-green" id="spmSaveBtn">Tambahkan ke Semua Kelompok</button>
+      </div>
+    </div>`;
+
+    document.getElementById('spmSaveBtn').onclick = async () => {
+      const nama = document.getElementById('spmNama').value.trim().toUpperCase();
+      if (!nama) { showToast('Nama item wajib diisi', true); return; }
+
+      const master = await getMasterItems();
+      if (master.some(m => m.toUpperCase() === nama)) { showToast('Item ini sudah ada di daftar master', true); return; }
+
+      const btn = document.getElementById('spmSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menambahkan...';
+      try {
+        await saveMasterItems([...master, nama]);
+
+        if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+        const existingKlpIds = new Set(allData.filter(d => d.nama_item === nama).map(d => d.kelompok_id));
+        const targets = (App.cache.kelompok||[]).filter(k => !existingKlpIds.has(k.id));
+
+        for (const k of targets) {
+          const r = await SB.sarpras.insert({ kelompok_id: k.id, nama_item: nama, status: null, kondisi: null, keterangan: null, dibuat_oleh: u.id });
+          if (r?.[0]) allData.push(r[0]);
+        }
+
+        showToast(`Item ditambahkan ke ${targets.length} kelompok`);
+        closeModal('spMasterModal');
+        render();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Tambahkan ke Semua Kelompok';
+      }
+    };
+
+    openModal('spMasterModal');
   };
 
   function openSarprasModal(existing) {
