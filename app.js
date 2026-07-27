@@ -802,7 +802,17 @@ function getAllowedMenuIds(u) {
   }
   allowed.add('dashboard');
   if (roleIds.includes('settings')) allowed.add('settings');
+  // Akses lintas peran: mis. Wali KBM yang juga Pengurus Bidang Sarpras level Daerah.
+  // Disimpan sebagai id sintetis "menu:level" atau "menu:desa:desaId", langsung dipakai apa adanya.
+  if (u.akses_lintas) {
+    u.akses_lintas.split(',').map(s => s.trim()).filter(Boolean).forEach(entry => allowed.add(entry));
+  }
   return allowed;
+}
+
+function llMenuOptions(level, selected) {
+  const items = (NAV_ITEMS[level] || []).filter(i => i.id !== 'dashboard' && i.id !== 'settings');
+  return items.map(i => `<option value="${i.id}" ${i.id===selected?'selected':''}>${escHtml(i.label)}</option>`).join('');
 }
 
 function renderNav() {
@@ -810,6 +820,16 @@ function renderNav() {
   const roleItems = NAV_ITEMS[u.role] || NAV_ITEMS.kelompok;
   const allowed = getAllowedMenuIds(u);
   const items = roleItems.filter(item => allowed.has(item.id));
+
+  const DESA_NAMA_MAP_NAV = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
+  const lintasItems = (u.akses_lintas || '').split(',').map(s => s.trim()).filter(Boolean).map(entry => {
+    const [menuId, level, desaId] = entry.split(':');
+    const meta = (NAV_ITEMS[level] || []).find(i => i.id === menuId);
+    if (!meta) return null;
+    const levelLabel = level === 'desa' ? `Desa ${DESA_NAMA_MAP_NAV[desaId] || desaId || ''}`.trim() : 'Daerah';
+    return { id: entry, icon: meta.icon, label: `${meta.label} (Level ${levelLabel})` };
+  }).filter(Boolean);
+
   document.getElementById('navUserName').textContent = u.nama_lengkap;
   document.getElementById('navUserRole').textContent = ROLE_LABELS[u.role] || u.role;
   document.getElementById('navAvatar').textContent = u.nama_lengkap.charAt(0).toUpperCase();
@@ -825,6 +845,14 @@ function renderNav() {
       ${item.icon} <span>${escHtml(item.label)}</span>
     </div>`;
   });
+  if (lintasItems.length) {
+    html += `<div class="nav-section-title">AKSES LINTAS PERAN</div>`;
+    lintasItems.forEach(item => {
+      html += `<div class="nav-item" data-page="${item.id}" onclick="navigate('${item.id}')">
+        ${item.icon} <span>${escHtml(item.label)}</span>
+      </div>`;
+    });
+  }
   document.getElementById('sidebarNav').innerHTML = html;
 }
 
@@ -858,8 +886,23 @@ async function renderPage(page) {
     return;
   }
 
+  // Akses lintas peran: id halaman berformat "menu:daerah" atau "menu:desa:desaId".
+  // Selama halaman ini dirender, App.user "dipinjamkan" jadi role level tsb,
+  // supaya pakai logic rekap yang sudah ada untuk role itu. Dikembalikan setelah selesai.
+  let baseMenu = page;
+  const originalUser = App.user;
+  let swapped = false;
+  if (page.includes(':')) {
+    const [menuId, level, desaId] = page.split(':');
+    baseMenu = menuId;
+    App.user = level === 'desa'
+      ? { ...originalUser, role: 'desa', desa_id: desaId || null }
+      : { ...originalUser, role: 'daerah', desa_id: null };
+    swapped = true;
+  }
+
   try {
-    switch(page) {
+    switch(baseMenu) {
       case 'dashboard':   await renderDashboard(); break;
       case 'kurikulum':   await renderKurikulum(); break;
       case 'absensi':     await renderAbsensi(); break;
@@ -885,6 +928,8 @@ async function renderPage(page) {
   } catch(e) {
     main.innerHTML = `<div class="card"><p class="color-soft">Terjadi kesalahan: ${escHtml(e.message)}</p></div>`;
     console.error(e);
+  } finally {
+    if (swapped) App.user = originalUser;
   }
 }
 
@@ -1616,6 +1661,37 @@ async function renderUsers() {
         <input type="checkbox" class="akMenu" value="${item.id}" ${currentSet.has(item.id)?'checked':''}> ${escHtml(item.label)}
       </label>`).join('');
 
+    function llRowHtml(row) {
+      const level = row.level || 'daerah';
+      return `<div class="ll-row" style="display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
+        <select class="llLevel" onchange="LL_onLevelChange(this)" style="flex:0 0 auto;">
+          <option value="daerah" ${level==='daerah'?'selected':''}>Level Daerah</option>
+          <option value="desa" ${level==='desa'?'selected':''}>Level Desa</option>
+        </select>
+        <select class="llDesa" style="flex:0 0 auto; display:${level==='desa'?'inline-block':'none'};">
+          ${desaList.map(d=>`<option value="${d.id}" ${d.id===row.desaId?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
+        </select>
+        <select class="llMenu" style="flex:1 1 auto; min-width:140px;">${llMenuOptions(level, row.menu)}</select>
+        <button type="button" class="btn-icon danger" onclick="this.closest('.ll-row').remove()" title="Hapus baris">✕</button>
+      </div>`;
+    }
+
+    window.LL_onLevelChange = (sel) => {
+      const row = sel.closest('.ll-row');
+      const level = sel.value;
+      row.querySelector('.llDesa').style.display = level === 'desa' ? 'inline-block' : 'none';
+      row.querySelector('.llMenu').innerHTML = llMenuOptions(level, null);
+    };
+    window.LL_addRow = () => {
+      document.getElementById('llRows').insertAdjacentHTML('beforeend', llRowHtml({level:'daerah', menu:null, desaId:null}));
+    };
+
+    const existingLintas = (target.akses_lintas || '').split(',').map(s=>s.trim()).filter(Boolean).map(entry => {
+      const [menu, level, desaId] = entry.split(':');
+      return { menu, level, desaId };
+    });
+    const lintasRowsHtml = existingLintas.map(llRowHtml).join('');
+
     let el = document.getElementById('aksesModal');
     if (!el) { el = document.createElement('div'); el.id = 'aksesModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
     el.innerHTML = `<div class="modal">
@@ -1626,7 +1702,14 @@ async function renderUsers() {
           <button type="button" class="btn btn-outline btn-sm" onclick="document.querySelectorAll('.akMenu').forEach(c=>c.checked=true)">Pilih Semua</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="document.querySelectorAll('.akMenu').forEach(c=>c.checked=false)">Kosongkan</button>
         </div>
-        <div style="max-height:340px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:0 8px;">${checkboxesHtml}</div>
+        <div style="max-height:280px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:0 8px; margin-bottom:16px;">${checkboxesHtml}</div>
+
+        <div style="border-top:1px solid var(--line); padding-top:12px;">
+          <div class="fw-bold" style="font-size:13px; color:var(--green); margin-bottom:4px;">Akses Lintas Peran (opsional)</div>
+          <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Untuk user yang punya tanggung jawab ganda, misal Wali KBM kelompok yang juga Pengurus Bidang Sarpras level Daerah. Menu tambahan akan muncul terpisah di sidebar dengan label level-nya.</div>
+          <div id="llRows">${lintasRowsHtml}</div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="LL_addRow()">+ Tambah Akses Lintas Peran</button>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('aksesModal')">Batal</button>
@@ -1638,9 +1721,20 @@ async function renderUsers() {
       const checked = Array.from(document.querySelectorAll('.akMenu:checked')).map(c => c.value);
       const fullDefault = checked.length === roleItems.length;
       const value = fullDefault ? null : checked.join(',');
+
+      const lintasEntries = Array.from(document.querySelectorAll('.ll-row')).map(row => {
+        const level = row.querySelector('.llLevel').value;
+        const menu = row.querySelector('.llMenu').value;
+        if (!menu) return null;
+        const desaId = row.querySelector('.llDesa').value;
+        return level === 'desa' ? `${menu}:desa:${desaId}` : `${menu}:daerah`;
+      }).filter(Boolean);
+      const aksesLintas = lintasEntries.length ? lintasEntries.join(',') : null;
+
       try {
-        await SB.anggota.update(target.id, { akses_menu: value });
+        await SB.anggota.update(target.id, { akses_menu: value, akses_lintas: aksesLintas });
         target.akses_menu = value;
+        target.akses_lintas = aksesLintas;
         showToast('Akses tersimpan');
         closeModal('aksesModal');
       } catch(e) { showToast('Gagal: ' + e.message, true); }
