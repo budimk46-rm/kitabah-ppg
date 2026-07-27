@@ -68,6 +68,19 @@ async function verifyPassword(plain, hash) {
   return false;
 }
 
+// Hash password baru — pakai bcrypt (lib sudah dimuat di index.html), fallback SHA-256.
+// Dipakai untuk ganti password (self-service maupun reset oleh admin), supaya
+// password baru tidak pernah tersimpan plain text lagi.
+async function hashPassword(plain) {
+  if (window.dcodeIO && window.dcodeIO.bcrypt) {
+    const salt = window.dcodeIO.bcrypt.genSaltSync(10);
+    return window.dcodeIO.bcrypt.hashSync(plain, salt);
+  }
+  const enc = new TextEncoder();
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(plain));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
 // ============ USERS ============
 const sbUsers = {
   getAll: () => sbFetch('anggota?select=id,username,password_hash,nama_lengkap,role,jabatan,status,kelompok_id,desa_id,akses_menu,akses_lintas,created_at&order=created_at.asc'),

@@ -1575,7 +1575,6 @@ async function renderUsers() {
         <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : '—'}</td>
         <td style="font-size:11px; font-family:monospace;">
           <div>👤 ${escHtml(u.username)}</div>
-          <div>🔑 ${escHtml(u.password_hash || '-')}</div>
         </td>
         <td>${badge(u.status)}</td>
         <td style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(u.created_at)}</td>
@@ -1587,6 +1586,9 @@ async function renderUsers() {
             ${u.status !== 'pending' && u.username !== 'admin' ? `
               <button class="btn-icon" onclick="USR_aturAkses('${u.id}')" title="Atur Akses Fitur">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </button>
+              <button class="btn-icon" onclick="USR_resetPassword('${u.id}','${escHtml(u.nama_lengkap)}')" title="Reset Password">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="16" r="1"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
               </button>
               <button class="btn-icon danger" onclick="USR_delete('${u.id}','${escHtml(u.nama_lengkap)}')" title="Hapus">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
@@ -1608,14 +1610,14 @@ async function renderUsers() {
     <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft); margin-bottom:6px;">
       <div class="fw-bold color-green" style="margin-bottom:12px;">👥 Menunggu Persetujuan (${pending.length})</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>User & Password</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>Username</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
         <tbody>${userRows(pending)}</tbody>
       </table></div>
     </div>` : ''}
     <div class="card">
       <div class="fw-bold color-green" style="margin-bottom:12px;">✅ Pengguna Aktif (${approved.length})</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>User & Password</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>Username</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
         <tbody>${userRows(approved)}</tbody>
       </table></div>
     </div>
@@ -1623,7 +1625,7 @@ async function renderUsers() {
     <div class="card">
       <div class="fw-bold" style="color:var(--rose); margin-bottom:12px;">✕ Ditolak (${rejected.length})</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>User & Password</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>Username</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
         <tbody>${userRows(rejected)}</tbody>
       </table></div>
     </div>` : ''}
@@ -1649,6 +1651,38 @@ async function renderUsers() {
   window.USR_aturAkses = (id) => {
     const target = allUsers.find(x => x.id === id);
     if (target) openAksesModal(target);
+  };
+
+  window.USR_resetPassword = (id, nama) => {
+    let el = document.getElementById('resetPwModal');
+    if (!el) { el = document.createElement('div'); el.id = 'resetPwModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Reset Password — ${escHtml(nama)}</h3><button class="modal-close" onclick="closeModal('resetPwModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Password baru langsung aktif. Infokan ke user yang bersangkutan.</div>
+        <div class="form-group"><label>Password Baru</label><input type="password" id="rpNew" placeholder="minimal 6 karakter"></div>
+        <div class="form-group"><label>Konfirmasi Password Baru</label><input type="password" id="rpConfirm"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('resetPwModal')">Batal</button>
+        <button class="btn btn-green" id="rpSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('rpSaveBtn').onclick = async () => {
+      const newPw = document.getElementById('rpNew').value;
+      const confirmPw = document.getElementById('rpConfirm').value;
+      if (!newPw || newPw.length < 6) { showToast('Password minimal 6 karakter', true); return; }
+      if (newPw !== confirmPw) { showToast('Konfirmasi password tidak cocok', true); return; }
+      try {
+        const newHash = await hashPassword(newPw);
+        await SB.anggota.update(id, { password_hash: newHash });
+        showToast('Password berhasil di-reset');
+        closeModal('resetPwModal');
+      } catch(e) { showToast('Gagal: ' + e.message, true); }
+    };
+
+    openModal('resetPwModal');
   };
 
   function openAksesModal(target) {
@@ -7317,6 +7351,23 @@ async function renderSettings() {
       <h1 class="page-title">Pengaturan</h1>
     </div>
 
+    <div class="card" style="border:1.5px solid var(--green);">
+      <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">🔑 Ganti Password</div>
+      <div class="form-group" style="max-width:360px; margin-bottom:10px;">
+        <label>Password Lama</label>
+        <input type="password" id="pwOld" autocomplete="current-password">
+      </div>
+      <div class="form-group" style="max-width:360px; margin-bottom:10px;">
+        <label>Password Baru</label>
+        <input type="password" id="pwNew" autocomplete="new-password" placeholder="minimal 6 karakter">
+      </div>
+      <div class="form-group" style="max-width:360px; margin-bottom:14px;">
+        <label>Konfirmasi Password Baru</label>
+        <input type="password" id="pwConfirm" autocomplete="new-password">
+      </div>
+      <button class="btn btn-green" id="pwSaveBtn" onclick="SET_gantiPassword()">Simpan Password Baru</button>
+    </div>
+
     ${u.role === 'admin' ? `
     <div class="card">
       <div class="fw-bold color-green" style="margin-bottom:16px; font-size:15px;">📱 Nomor WhatsApp Admin</div>
@@ -7403,6 +7454,36 @@ async function renderSettings() {
       </button>
     </div>` : ''}
   `;
+
+  window.SET_gantiPassword = async () => {
+    const oldPw = document.getElementById('pwOld').value;
+    const newPw = document.getElementById('pwNew').value;
+    const confirmPw = document.getElementById('pwConfirm').value;
+
+    if (!oldPw || !newPw || !confirmPw) { showToast('Semua kolom wajib diisi', true); return; }
+    if (newPw.length < 6) { showToast('Password baru minimal 6 karakter', true); return; }
+    if (newPw !== confirmPw) { showToast('Konfirmasi password tidak cocok', true); return; }
+
+    const btn = document.getElementById('pwSaveBtn');
+    btn.disabled = true; btn.textContent = 'Memproses...';
+    try {
+      const ok = await verifyPassword(oldPw, u.password_hash);
+      if (!ok) { showToast('Password lama salah', true); return; }
+      const newHash = await hashPassword(newPw);
+      await SB.anggota.update(u.id, { password_hash: newHash });
+      u.password_hash = newHash;
+      App.user.password_hash = newHash;
+      saveSession(App.user);
+      document.getElementById('pwOld').value = '';
+      document.getElementById('pwNew').value = '';
+      document.getElementById('pwConfirm').value = '';
+      showToast('Password berhasil diganti');
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Simpan Password Baru';
+    }
+  };
 
   window.SET_saveWa = async () => {
     const v = document.getElementById('waInput').value.trim();
