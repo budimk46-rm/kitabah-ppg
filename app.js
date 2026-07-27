@@ -9458,6 +9458,7 @@ function openAddKelasModal(kelompokId, onSaved) {
 
   // Default jenjang per tipe
   const TIPE_JENJANG = {
+    'PAUD': 'PAUD TK',
     'CABERAWIT': 'SD 3',
     'PRA REMAJA': 'SMP 1',
     'REMAJA': 'SMA 1',
@@ -9475,7 +9476,8 @@ function openAddKelasModal(kelompokId, onSaved) {
       <div class="form-group" style="margin-bottom:14px;">
         <label>Kelas Usia *</label>
         <select id="kelasTipe" onchange="KLS_updatePreview()" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:14px; font-weight:700;">
-          <option value="CABERAWIT">CABERAWIT</option>
+          <option value="PAUD">PAUD</option>
+          <option value="CABERAWIT" selected>CABERAWIT</option>
           <option value="PRA REMAJA">PRA REMAJA</option>
           <option value="REMAJA">REMAJA</option>
           <option value="PRA NIKAH">PRA NIKAH</option>
