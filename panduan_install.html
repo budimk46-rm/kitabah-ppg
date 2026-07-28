@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Cara Install Aplikasi Kitabah — PPG Sidoarjo Utara</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#1B3A2C; --green-mid:#28503F; --green-soft:#E7EFE9;
+    --cream:#FAF6EC; --cream-2:#F2ECDD; --gold:#C19A4B; --gold-soft:#F6EFDD;
+    --ink:#2B2420; --ink-soft:#6B6055; --line:#E3D9C4; --white:#FFFFFF;
+    --radius:12px; --radius-lg:18px;
+    --shadow:0 4px 16px -4px rgba(27,36,32,.14);
+    --font-body:'Plus Jakarta Sans',sans-serif; --font-display:'Fraunces',serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:var(--font-body); background:var(--cream); color:var(--ink);
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:0 0 60px;}
+
+  header{
+    background:linear-gradient(160deg, var(--green) 0%, var(--green-mid) 100%);
+    color:var(--white); padding:36px 22px 30px; text-align:center;
+    border-bottom:4px solid var(--gold);
+  }
+  header .eyebrow{
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--gold); font-weight:700; margin-bottom:10px;
+  }
+  header h1{
+    font-family:var(--font-display); font-weight:700; font-size:26px;
+    line-height:1.25; margin-bottom:8px;
+  }
+  header p{font-size:14px; color:rgba(255,255,255,.82); max-width:420px; margin:0 auto;}
+
+  .why{
+    margin:-22px 16px 0; background:var(--white); border-radius:var(--radius-lg);
+    box-shadow:var(--shadow); padding:18px 20px; position:relative; z-index:2;
+    display:flex; gap:12px; align-items:flex-start; border:1px solid var(--line);
+  }
+  .why .ic{font-size:22px; line-height:1; flex-shrink:0;}
+  .why p{font-size:13px; color:var(--ink-soft); line-height:1.55;}
+  .why strong{color:var(--ink);}
+
+  .tabs{
+    display:flex; gap:8px; margin:26px 16px 0; background:var(--cream-2);
+    padding:5px; border-radius:999px; border:1px solid var(--line);
+  }
+  .tab{
+    flex:1; text-align:center; padding:10px 12px; border-radius:999px;
+    font-weight:700; font-size:13.5px; color:var(--ink-soft); cursor:pointer;
+    transition:.15s; user-select:none; display:flex; align-items:center;
+    justify-content:center; gap:6px;
+  }
+  .tab.active{background:var(--green); color:var(--white); box-shadow:var(--shadow);}
+
+  .panel{display:none; margin:20px 16px 0; animation:fade .25s ease;}
+  .panel.active{display:block;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  .step{
+    display:flex; gap:14px; background:var(--white); border:1px solid var(--line);
+    border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow);
+  }
+  .step .num{
+    flex-shrink:0; width:30px; height:30px; border-radius:50%;
+    background:var(--green-soft); color:var(--green); font-family:var(--font-display);
+    font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;
+  }
+  .step .body{flex:1; min-width:0;}
+  .step .body h3{font-size:14.5px; font-weight:800; margin-bottom:4px; color:var(--ink);}
+  .step .body p{font-size:13px; color:var(--ink-soft); line-height:1.6;}
+  .step .body p + p{margin-top:6px;}
+  .step .chip{
+    display:inline-block; margin-top:8px; font-size:11.5px; font-weight:700;
+    background:var(--gold-soft); color:#8a6a26; padding:4px 10px; border-radius:6px;
+  }
+
+  .note{
+    margin:18px 16px 0; background:var(--green-soft); border-left:3px solid var(--green);
+    border-radius:8px; padding:14px 16px; font-size:12.5px; color:var(--green-mid); line-height:1.6;
+  }
+  .note b{color:var(--green);}
+
+  .divider{
+    margin:30px 16px 6px; display:flex; align-items:center; gap:10px;
+    color:var(--ink-soft); font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:700;
+  }
+  .divider::before, .divider::after{content:''; flex:1; height:1px; background:var(--line);}
+
+  .faq{margin:0 16px;}
+  .faq details{
+    background:var(--white); border:1px solid var(--line); border-radius:var(--radius);
+    margin-bottom:8px; overflow:hidden;
+  }
+  .faq summary{
+    padding:13px 16px; font-weight:700; font-size:13.5px; cursor:pointer;
+    display:flex; justify-content:space-between; align-items:center; list-style:none;
+  }
+  .faq summary::-webkit-details-marker{display:none;}
+  .faq summary::after{content:'+'; color:var(--gold); font-size:18px; font-weight:400;}
+  .faq details[open] summary::after{content:'–';}
+  .faq .a{padding:0 16px 15px; font-size:12.5px; color:var(--ink-soft); line-height:1.6;}
+
+  footer{text-align:center; padding:28px 20px 0; font-size:11.5px; color:var(--ink-soft);}
+  footer .brand{font-family:var(--font-display); font-weight:700; color:var(--green); font-size:13px; margin-bottom:3px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">PPG Sidoarjo Utara</div>
+    <h1>Pasang Kitabah di HP-mu</h1>
+    <p>Panduan singkat supaya aplikasi Kitabah muncul jadi ikon di layar utama HP — tinggal tap, tidak perlu buka browser dan ketik alamat lagi.</p>
+  </header>
+
+  <div class="why">
+    <div class="ic">💡</div>
+    <p><strong>Tidak wajib, tapi disarankan.</strong> Tanpa dipasang pun aplikasi tetap bisa dibuka lewat browser seperti biasa. Bedanya, kalau dipasang: buka lebih cepat, ada ikon sendiri, dan terasa seperti aplikasi biasa — bukan situs web.</p>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-target="android" onclick="showTab('android')">🤖 Android</div>
+    <div class="tab" data-target="ios" onclick="showTab('ios')">🍎 iPhone</div>
+  </div>
+
+  <!-- ANDROID -->
+  <div class="panel active" id="panel-android">
+    <div class="step">
+      <div class="num">1</div>
+      <div class="body">
+        <h3>Buka link Kitabah di Chrome</h3>
+        <p>Pastikan pakai browser <b>Chrome</b> (bukan aplikasi WhatsApp/Instagram browser bawaan), supaya tombol install-nya muncul.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div class="body">
+        <h3>Cari pop-up "Install" atau "Tambahkan ke layar utama"</h3>
+        <p>Biasanya muncul otomatis di bagian bawah layar begitu halaman selesai dimuat. Kalau muncul, langsung tap <span class="chip">Install</span>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div class="body">
+        <h3>Tidak muncul otomatis? Pasang manual</h3>
+        <p>Tap ikon titik tiga <b>⋮</b> di pojok kanan atas Chrome → pilih <b>"Tambahkan ke Layar Utama"</b> atau <b>"Install app"</b>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <div class="body">
+        <h3>Tap "Install" atau "Tambahkan"</h3>
+        <p>Muncul konfirmasi nama aplikasi "PPG SIDUTA" — tap sekali lagi untuk menyelesaikan.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">5</div>
+      <div class="body">
+        <h3>Selesai — cek layar utama</h3>
+        <p>Ikon hijau Kitabah akan muncul di layar utama HP, sejajar dengan aplikasi lain. Tinggal tap untuk buka kapan saja.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- IOS -->
+  <div class="panel" id="panel-ios">
+    <div class="step">
+      <div class="num">1</div>
+      <div class="body">
+        <h3>Buka link Kitabah di Safari</h3>
+        <p>Khusus iPhone, <b>wajib pakai Safari</b> — install tidak bisa lewat Chrome atau browser lain di iPhone.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div class="body">
+        <h3>Tap ikon Share (kotak dengan panah ke atas)</h3>
+        <p>Letaknya di bagian bawah layar (atau atas, tergantung model iPhone), di deretan ikon Safari.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div class="body">
+        <h3>Scroll dan pilih "Add to Home Screen"</h3>
+        <p>Di daftar menu yang muncul, cari dan tap <span class="chip">Add to Home Screen</span> (Tambah ke Layar Utama).</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <div class="body">
+        <h3>Tap "Add" di pojok kanan atas</h3>
+        <p>Nama aplikasi sudah otomatis terisi "PPG SIDUTA" — langsung tap Add, tidak perlu diubah.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">5</div>
+      <div class="body">
+        <h3>Selesai — cek layar utama</h3>
+        <p>Ikon hijau Kitabah akan muncul di layar utama iPhone. Tinggal tap untuk buka kapan saja.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Catatan:</b> Setelah dipasang, aplikasi tetap butuh koneksi internet untuk login dan mengambil data terbaru — hanya tampilannya saja yang lebih cepat dimuat.
+  </div>
+
+  <div class="divider">Pertanyaan Umum</div>
+  <div class="faq">
+    <details>
+      <summary>Apakah wajib install?</summary>
+      <div class="a">Tidak. Aplikasi tetap bisa dipakai penuh lewat browser tanpa install. Install cuma bikin lebih cepat dibuka dan terasa seperti aplikasi biasa.</div>
+    </details>
+    <details>
+      <summary>Pop-up install-nya tidak muncul sama sekali, kenapa?</summary>
+      <div class="a">Beberapa kemungkinan: (1) sudah pernah ditutup/diabaikan sebelumnya — coba cara manual lewat menu titik tiga, (2) memori HP penuh, atau (3) versi browser terlalu lama — coba update Chrome/Safari dulu.</div>
+    </details>
+    <details>
+      <summary>Setelah install, apakah perlu login ulang?</summary>
+      <div class="a">Ya, login pertama kali setelah install tetap perlu username & password seperti biasa. Setelah itu sesi login akan tersimpan.</div>
+    </details>
+    <details>
+      <summary>Bagaimana cara uninstall kalau tidak jadi dipakai?</summary>
+      <div class="a">Sama seperti hapus aplikasi biasa — tekan lama ikonnya di layar utama, lalu pilih Hapus/Uninstall. Data di server tidak akan hilang, cuma ikonnya saja yang dihapus dari HP.</div>
+    </details>
+  </div>
+
+  <footer>
+    <div class="brand">Kitabah — PPG Sidoarjo Utara</div>
+    Ada kendala saat install? Hubungi admin kelompok/desa masing-masing.
+  </footer>
+
+</div>
+
+<script>
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.target === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+</script>
+</body>
+</html>
