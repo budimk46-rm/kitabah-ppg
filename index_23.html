@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PPG SIDUTA">
+<meta name="theme-color" content="#1B3A2C">
+<title>PPG SIDUTA — Sidoarjo Utara</title>
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+/* ===== DESIGN TOKENS ===== */
+:root {
+  --green:       #1B3A2C;
+  --green-mid:   #28503F;
+  --green-soft:  #E7EFE9;
+  --cream:       #FAF6EC;
+  --cream-2:     #F2ECDD;
+  --gold:        #C19A4B;
+  --gold-soft:   #F6EFDD;
+  --ink:         #2B2420;
+  --ink-soft:    #6B6055;
+  --line:        #E3D9C4;
+  --white:       #FFFFFF;
+  --rose:        #A6483B;
+  --rose-soft:   #FBEAE7;
+
+  --radius-sm:   8px;
+  --radius:      12px;
+  --radius-lg:   18px;
+  --shadow:      0 4px 16px -4px rgba(27,36,32,.14);
+  --shadow-lg:   0 16px 40px -12px rgba(27,36,32,.22);
+
+  --font-body:    'Plus Jakarta Sans', sans-serif;
+  --font-display: 'Fraunces', serif;
+
+  --nav-h:       60px;
+  --sidebar-w:   270px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: var(--font-body);
+  background: var(--cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+button { font-family: var(--font-body); cursor: pointer; border: none; }
+input, select, textarea { font-family: var(--font-body); }
+a { text-decoration: none; color: inherit; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+
+/* ===== UTILITY ===== */
+.hidden { display: none !important; }
+.sr-only { position: absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.flex-1 { flex: 1; min-width: 0; }
+.text-sm { font-size: 13px; }
+.text-xs { font-size: 11.5px; }
+.fw-bold { font-weight: 700; }
+.fw-800 { font-weight: 800; }
+.color-soft { color: var(--ink-soft); }
+.color-green { color: var(--green); }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== LAYOUT ===== */
+#app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ===== LOGIN SCREEN ===== */
+.login-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse at 15% 20%, #2d5a47 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, #1a3828 0%, transparent 55%),
+    var(--green);
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--cream);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px 28px;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp .5s cubic-bezier(.16,1,.3,1) both;
+}
+.login-logo {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  display: block;
+  border: 3px solid var(--gold-soft);
+  object-fit: cover;
+}
+.login-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--green);
+  margin: 0 0 4px;
+}
+.login-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+.tab-row {
+  display: flex;
+  gap: 6px;
+  background: var(--cream-2);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  margin-bottom: 20px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 9px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  transition: all .15s;
+}
+.tab-btn.active { background: var(--green); color: #fff; }
+
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--green);
+  margin-bottom: 6px;
+}
+.field input, .field select {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--white);
+  color: var(--ink);
+  transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus, .field select:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  background: var(--green);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 800;
+  transition: background .15s, transform .1s;
+  margin-top: 4px;
+}
+.btn-primary:hover { background: #142e22; }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { background: #999; cursor: not-allowed; }
+.alert {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 12px;
+  display: none;
+}
+.alert.error { background: var(--rose-soft); color: var(--rose); border: 1px solid #f0c9c1; display: block; }
+.alert.success { background: var(--green-soft); color: var(--green); border: 1px solid #bfd8c8; display: block; }
+.alert.warning { background: var(--gold-soft); color: #8a6a24; border: 1px solid #e0c88a; display: block; }
+.wiz-card {
+  border: 2px solid #e0d9c4;
+  border-radius: 10px;
+  padding: 14px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  color: var(--ink);
+  background: #fff;
+}
+.wiz-card:hover { border-color: var(--green); background: #f0f7f2; }
+.wiz-card.selected { border-color: var(--green); background: var(--green); color: #fff; }
+.wiz-card-sm {
+  border: 2px solid #e0d9c4;
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .15s;
+  background: #fff;
+}
+.wiz-card-sm:hover { border-color: var(--green); background: #f0f7f2; }
+.wiz-card-sm.selected { border-color: var(--green); background: var(--green); color: #fff; }
+.jabatan-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid #e0d9c4;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  background: #fff;
+}
+.jabatan-item:hover { border-color: var(--green); background: #f0f7f2; }
+.jabatan-item.selected { border-color: var(--green); background: var(--green); color: #fff; }
+.jabatan-item .jab-icon { font-size: 20px; flex-shrink: 0; }
+.jabatan-item .jab-label { font-size: 13px; font-weight: 700; }
+.jabatan-item .jab-sub { font-size: 11px; opacity: .75; }
+.login-hint {
+  margin-top: 20px;
+  padding: 10px 12px;
+  background: var(--cream-2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* PENDING screen */
+.pending-screen {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+  background: radial-gradient(ellipse at 50% 40%, #2d5a47 0%, transparent 60%), var(--green);
+}
+.pending-card {
+  max-width: 420px; width: 100%;
+  background: var(--cream);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+.pending-icon {
+  width: 60px; height: 60px; border-radius: 50%;
+  background: var(--gold-soft);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+  font-size: 28px;
+}
+
+/* ===== SHELL (authenticated) ===== */
+.shell { flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* Top Nav */
+.topnav {
+  height: var(--nav-h);
+  background: var(--green);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex-shrink: 0;
+}
+.topnav-brand {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  flex: 1;
+}
+.topnav-brand span { color: var(--gold); }
+.menu-toggle {
+  width: 38px; height: 38px;
+  background: rgba(255,255,255,.12);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.topnav-user {
+  display: flex; align-items: center; gap: 8px;
+}
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; color: var(--green);
+  flex-shrink: 0;
+}
+.topnav-user-info { line-height: 1.2; }
+.topnav-user-name { font-size: 13px; font-weight: 700; color: #fff; }
+.topnav-user-role { font-size: 11px; color: #B9C9BD; }
+
+/* Layout */
+.shell-body { display: flex; flex: 1; min-height: 0; }
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--green);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+  transition: transform .25s;
+}
+.sidebar-nav { padding: 12px 10px; flex: 1; }
+.nav-section { margin-bottom: 4px; }
+.nav-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.4);
+  padding: 10px 12px 4px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  color: rgba(255,255,255,.75);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  margin-bottom: 2px;
+}
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { background: var(--gold); color: var(--green); }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--rose);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.sidebar-footer {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.logout-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgba(255,255,255,.6);
+  font-size: 13px; font-weight: 700;
+  transition: all .15s;
+}
+.logout-btn:hover { background: rgba(166,72,59,.4); color: #fff; }
+
+/* Main content */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  min-width: 0;
+}
+
+/* Page header */
+.page-header {
+  margin-bottom: 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--green);
+  margin: 0 0 3px;
+}
+.page-subtitle { font-size: 13px; color: var(--ink-soft); margin: 0; }
+
+/* Cards & panels */
+.card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+@media (min-width: 480px) {
+  .stat-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
+}
+.stat-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 8px;
+  box-shadow: var(--shadow);
+}
+.stat-num {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--green);
+  line-height: 1;
+  margin-bottom: 3px;
+}
+@media (min-width: 480px) {
+  .stat-num { font-size: 28px; }
+  .stat-card { padding: 16px; }
+}
+.stat-label { font-size: 10px; color: var(--ink-soft); font-weight: 600; }
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--green);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-label { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px; font-weight: 700;
+  transition: all .15s;
+}
+.btn svg { width: 15px; height: 15px; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { background: #142e22; }
+.btn-gold { background: var(--gold); color: var(--green); }
+.btn-gold:hover { background: #a8853f; }
+.btn-outline { background: var(--white); color: var(--ink); border: 1.5px solid var(--line); }
+.btn-outline:hover { border-color: var(--green); color: var(--green); }
+.btn-danger { background: var(--rose); color: #fff; }
+.btn-danger:hover { background: #8b3930; }
+.btn-sm { padding: 7px 12px; font-size: 12.5px; }
+.btn-icon {
+  width: 34px; height: 34px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--cream-2);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+}
+.btn-icon:hover { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+.btn-icon.danger:hover { background: var(--rose-soft); color: var(--rose); border-color: var(--rose); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th {
+  background: var(--green);
+  color: #fff;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:nth-child(even) td { background: var(--cream); }
+tr:hover td { background: var(--green-soft); }
+
+/* Badge */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase;
+}
+.badge-green { background: var(--green-soft); color: var(--green); }
+.badge-gold { background: var(--gold-soft); color: #8a6a24; }
+.badge-rose { background: var(--rose-soft); color: var(--rose); }
+.badge-gray { background: var(--cream-2); color: var(--ink-soft); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(27,30,26,.55);
+  backdrop-filter: blur(2px);
+  display: none; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: var(--cream);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp .3s cubic-bezier(.16,1,.3,1) both;
+}
+.modal.modal-lg { max-width: 720px; }
+.modal.modal-full { max-width: none; width: 100%; height: 94vh; max-height: 94vh; }
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 700;
+  color: var(--green); margin: 0;
+}
+.modal-close {
+  width: 32px; height: 32px;
+  background: var(--cream-2);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-soft);
+}
+.modal-close:hover { background: var(--line); }
+.modal-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+.modal-foot {
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  display: flex; justify-content: flex-end; gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Form elements in modal */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.form-row.single { grid-template-columns: 1fr; }
+.form-group label {
+  display: block;
+  font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--green); margin-bottom: 6px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 10px 12px;
+  border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 13.5px;
+  background: var(--white); color: var(--ink);
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none; border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft);
+}
+.form-group textarea { min-height: 80px; resize: vertical; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 200;
+  background: var(--green);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-size: 13.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(20px); opacity: 0;
+  transition: all .25s;
+  pointer-events: none;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { background: var(--rose); }
+
+/* Loading */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2.5px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: inline-block;
+}
+.spinner.dark {
+  border-color: rgba(27,58,44,.2);
+  border-top-color: var(--green);
+}
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: var(--cream);
+  display: none; align-items: center; justify-content: center;
+  z-index: 300; flex-direction: column; gap: 14px;
+}
+.loading-overlay.show { display: flex; }
+
+/* Empty state */
+.empty-state {
+  text-align: center; padding: 48px 20px;
+  color: var(--ink-soft);
+}
+.empty-state svg { width: 48px; height: 48px; color: var(--line); margin-bottom: 12px; }
+.empty-title { font-family: var(--font-display); font-size: 17px; color: var(--green); margin: 0 0 6px; }
+.empty-desc { font-size: 13px; margin: 0; }
+
+/* WA button */
+.btn-wa {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #25D366; color: #fff;
+  padding: 11px 18px; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 700;
+  transition: background .15s;
+}
+.btn-wa:hover { background: #1ebf5a; }
+
+/* Absensi buttons */
+.absen-btn {
+  width: 44px; height: 36px;
+  border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 800;
+  border: 2px solid transparent;
+  transition: all .15s;
+}
+.absen-btn.H { background: var(--green-soft); color: var(--green); border-color: var(--green-soft); }
+.absen-btn.H.active { background: var(--green); color: #fff; border-color: var(--green); }
+.absen-btn.I { background: #FFF3CD; color: #856404; border-color: #FFF3CD; }
+.absen-btn.I.active { background: #FFC107; color: #fff; border-color: #FFC107; }
+.absen-btn.S { background: #D1ECF1; color: #0C5460; border-color: #D1ECF1; }
+.absen-btn.S.active { background: #17A2B8; color: #fff; border-color: #17A2B8; }
+.absen-btn.A { background: var(--rose-soft); color: var(--rose); border-color: var(--rose-soft); }
+.absen-btn.A.active { background: var(--rose); color: #fff; border-color: var(--rose); }
+
+/* Mobile */
+.sidebar-overlay { display: none; }
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed; left: -100%; top: var(--nav-h);
+    height: calc(100vh - var(--nav-h));
+    z-index: 40; box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open { left: 0; }
+  .sidebar-overlay {
+    display: none; position: fixed;
+    inset: 0; top: var(--nav-h);
+    background: rgba(0,0,0,.4); z-index: 39;
+  }
+  .sidebar-overlay.show { display: block; }
+  .main-content { padding: 16px 14px 80px; }
+  .form-row { grid-template-columns: 1fr; }
+  .modal { margin: 10px; max-height: 95vh; }
+}
+@media (min-width: 901px) {
+  .menu-toggle { display: none; }
+}
+
+/* Animations */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* PWA safe area */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .main-content { padding-bottom: max(80px, calc(20px + env(safe-area-inset-bottom))); }
+}
+
+/* Print */
+@media print {
+  .topnav, .sidebar, .btn, .modal-overlay { display: none !important; }
+  .main-content { padding: 0; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- LOGIN -->
+  <div class="login-screen" id="loginScreen" style="display:none;">
+    <div class="login-card">
+      <img class="login-logo" id="loginLogo" src="" alt="Logo PPG">
+      <h1 class="login-title">PPG SIDUTA</h1>
+      <p class="login-subtitle">Aplikasi Pendidikan Generus<br>PPG Sidoarjo Utara</p>
+      <div class="tab-row">
+        <button class="tab-btn active" data-tab="masuk">Masuk</button>
+        <button class="tab-btn" data-tab="daftar">Daftar Akun</button>
+      </div>
+      <div id="loginAlert"></div>
+
+      <!-- Form Masuk -->
+      <div id="panelMasuk">
+        <div class="field"><label>Nama Pengguna</label>
+          <input type="text" id="loginUser" placeholder="contoh: budi.santoso" autocomplete="username">
+        </div>
+        <div class="field"><label>Kata Sandi</label>
+          <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn-primary" id="loginBtn">Masuk</button>
+      </div>
+
+      <!-- Form Daftar - Wizard 3 Langkah -->
+      <div id="panelDaftar" style="display:none;">
+
+        <!-- Progress bar -->
+        <div style="margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <span id="wizStep1Label" style="font-size:11px; font-weight:700; color:var(--green);">1. Level & Dapukan</span>
+            <span id="wizStep2Label" style="font-size:11px; font-weight:700; color:#ccc;">2. Konteks</span>
+            <span id="wizStep3Label" style="font-size:11px; font-weight:700; color:#ccc;">3. Data Diri</span>
+          </div>
+          <div style="height:4px; background:#e0e0e0; border-radius:2px; overflow:hidden;">
+            <div id="wizProgressBar" style="height:100%; background:var(--green); border-radius:2px; width:33%; transition:width .3s;"></div>
+          </div>
+        </div>
+
+        <!-- STEP 1: Level & Dapukan -->
+        <div id="wizStep1">
+          <div style="font-weight:700; font-size:14px; color:var(--ink); margin-bottom:14px;">Saya pengurus di level:</div>
+
+          <!-- Pilih Level -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:18px;" id="levelGrid">
+            <div class="wiz-card" data-val="daerah" onclick="WIZ_setLevel('daerah',this)">
+              <div style="font-size:22px;">🏛️</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">Daerah</div>
+            </div>
+            <div class="wiz-card" data-val="desa" onclick="WIZ_setLevel('desa',this)">
+              <div style="font-size:22px;">🏘️</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">Desa</div>
+            </div>
+            <div class="wiz-card" data-val="kelompok" onclick="WIZ_setLevel('kelompok',this)">
+              <div style="font-size:22px;">👨‍👩‍👧</div>
+              <div style="font-weight:700; font-size:13px; margin-top:4px;">Kelompok</div>
+            </div>
+          </div>
+
+          <!-- Pilih Dapukan -->
+          <div id="jabatanGrid" style="display:none;">
+            <div style="font-weight:700; font-size:14px; color:var(--ink); margin-bottom:12px;">Dapukan saya:</div>
+            <div id="jabatanOptions" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+            <!-- Pilihan Bidang (untuk Bidang PPG) -->
+            <div id="bidangField" style="display:none; margin-top:12px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Pilih Bidang PPG</label>
+              <select id="regBidang" style="width:100%; padding:10px 12px; border:1.5px solid #e0d9c4; border-radius:8px; font-size:13px;">
+                <option value="">Pilih bidang...</option>
+                <option value="Bidang Kurikulum">Bidang Kurikulum</option>
+                <option value="Bidang Tenaga Pendidik">Bidang Tenaga Pendidik</option>
+                <option value="Bidang Seni &amp; Olahraga">Bidang Seni &amp; Olahraga</option>
+                <option value="Bidang Kemandirian">Bidang Kemandirian</option>
+                <option value="Bidang Keputrian">Bidang Keputrian</option>
+                <option value="Bidang KMM Daerah">Bidang KMM Daerah</option>
+                <option value="Bidang Tahfidz">Bidang Tahfidz</option>
+                <option value="Bidang Sarana dan Prasarana">Bidang Sarana dan Prasarana</option>
+                <option value="Bidang Penggalang Dana">Bidang Penggalang Dana</option>
+                <option value="Bidang Bimbingan Konseling">Bidang Bimbingan Konseling</option>
+              </select>
+            </div>
+
+            <!-- Pilihan Kelas Usia (untuk Wali KBM) -->
+            <div id="kelasUsiaField" style="display:none; margin-top:12px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Kelas Usia</label>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;" id="kelasUsiaGrid">
+                <div class="wiz-card-sm" data-val="Caberawit" onclick="WIZ_setKelasUsia('Caberawit',this)">Caberawit</div>
+                <div class="wiz-card-sm" data-val="Pra Remaja" onclick="WIZ_setKelasUsia('Pra Remaja',this)">Pra Remaja</div>
+                <div class="wiz-card-sm" data-val="Remaja" onclick="WIZ_setKelasUsia('Remaja',this)">Remaja</div>
+                <div class="wiz-card-sm" data-val="Pra Nikah" onclick="WIZ_setKelasUsia('Pra Nikah',this)">Pra Nikah</div>
+              </div>
+            </div>
+
+            <button class="btn-primary" style="margin-top:16px; opacity:.5;" id="wizNext1" onclick="WIZ_next1()" disabled>Lanjut →</button>
+          </div>
+        </div>
+
+        <!-- STEP 2: Konteks (Desa / Kelompok) -->
+        <div id="wizStep2" style="display:none;">
+          <div id="desaField" style="display:none; margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Pilih Desa</label>
+            <select id="regDesa" style="width:100%; padding:10px 12px; border:1.5px solid #e0d9c4; border-radius:8px; font-size:13px;" onchange="WIZ_onDesaChange(this.value)">
+              <option value="">Pilih desa...</option>
+              <option value="Desa Barat 1">Desa Barat 1</option>
+              <option value="Desa Barat 2">Desa Barat 2</option>
+              <option value="Desa Tengah 1">Desa Tengah 1</option>
+              <option value="Desa Tengah 2">Desa Tengah 2</option>
+              <option value="Desa Timur 1">Desa Timur 1</option>
+              <option value="Desa Timur 2">Desa Timur 2</option>
+            </select>
+          </div>
+          <div id="kelompokField" style="display:none; margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:6px;">Pilih Kelompok</label>
+            <select id="regKelompok" style="width:100%; padding:10px 12px; border:1.5px solid #e0d9c4; border-radius:8px; font-size:13px;" onchange="WIZ_checkStep2()">
+              <option value="">Pilih kelompok...</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="btn-outline" style="flex:1;" onclick="WIZ_back(1)">← Kembali</button>
+            <button class="btn-primary" style="flex:2; opacity:.5;" id="wizNext2" onclick="WIZ_next2()" disabled>Lanjut →</button>
+          </div>
+        </div>
+
+        <!-- STEP 3: Data Diri -->
+        <div id="wizStep3" style="display:none;">
+          <div id="wizSummary" style="background:#f0f7f2; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#1B3A2C;"></div>
+          <div id="wizAlert"></div>
+          <div class="field">
+            <label>Nama Lengkap</label>
+            <input type="text" id="regNama" placeholder="Nama Anda sesuai data">
+          </div>
+          <div class="field">
+            <label>Nama Pengguna</label>
+            <input type="text" id="regUser" placeholder="contoh: budi.santoso" autocomplete="username">
+          </div>
+          <div class="field">
+            <label>Kata Sandi</label>
+            <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
+          </div>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button class="btn-outline" style="flex:1;" onclick="WIZ_back(2)">← Kembali</button>
+            <button class="btn-primary" style="flex:2;" id="regBtn" onclick="doRegister()">Daftar Sekarang</button>
+          </div>
+          <div class="login-hint" style="margin-top:12px;">Setelah mendaftar, akun perlu disetujui admin sebelum dapat masuk.</div>
+        </div>
+
+      </div>
+
+    </div>  <!-- /login-card -->
+  </div>  <!-- /loginScreen -->
+
+
+  <!-- PENDING -->
+  <div class="pending-screen" id="pendingScreen" style="display:none;">
+    <div class="pending-card">
+      <div class="pending-icon">⏳</div>
+      <h2 class="login-title">Menunggu Persetujuan</h2>
+      <p class="login-subtitle">Akun <b id="pendingUsername"></b> sudah terdaftar. Admin perlu menyetujui sebelum Anda dapat masuk.</p>
+      <button class="btn-wa" id="pendingWaBtn" style="display:none; width:100%; justify-content:center; margin-bottom:10px;">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.85.5 3.58 1.4 5.07L2 22l5.25-1.38c1.43.78 3.06 1.22 4.79 1.22 5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.61 14.1c-.24.66-1.39 1.26-1.92 1.34-.49.07-1.11.1-1.79-.11-.41-.13-.94-.3-1.61-.59-2.84-1.23-4.69-4.09-4.83-4.28-.14-.19-1.15-1.53-1.15-2.91 0-1.38.72-2.06.98-2.34.26-.28.56-.35.75-.35h.54c.17.01.41-.07.64.49.24.58.81 2 .88 2.15.07.15.12.33.02.53-.1.2-.16.32-.31.49-.15.17-.32.38-.46.51-.15.14-.31.29-.13.61.18.32.8 1.32 1.72 2.14 1.18 1.05 2.18 1.37 2.5 1.52.32.15.51.13.7-.08.19-.21.81-.94 1.03-1.27.22-.32.43-.27.73-.16.3.11 1.9.9 2.23 1.06.32.16.54.24.62.38.08.13.08.78-.16 1.44z"/></svg>
+        Info WhatsApp ke Admin
+      </button>
+      <button class="btn-outline btn" style="width:100%; justify-content:center;" onclick="showLogin()">Kembali ke Halaman Masuk</button>
+    </div>
+  </div>
+
+  <!-- MAIN SHELL -->
+  <div class="shell" id="appShell" style="display:none;">
+    <!-- Top Nav -->
+    <nav class="topnav">
+      <button class="menu-toggle" id="menuToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="topnav-brand">PPG <span>SIDUTA</span></div>
+      <div class="topnav-user">
+        <div class="topnav-user-info" style="text-align:right;">
+          <div class="topnav-user-name" id="navUserName">—</div>
+          <div class="topnav-user-role" id="navUserRole">—</div>
+        </div>
+        <div class="avatar" id="navAvatar">?</div>
+        <button id="logoutBtn" title="Keluar" style="background:none; border:none; cursor:pointer; padding:6px; margin-left:4px; color:rgba(255,255,255,.7); display:flex; align-items:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <div class="shell-body">
+      <!-- Sidebar Overlay (mobile) -->
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <nav class="sidebar-nav" id="sidebarNav">
+          <!-- diisi oleh JS berdasarkan role -->
+        </nav>
+        <div class="sidebar-footer">
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="main-content" id="mainContent">
+        <!-- diisi oleh router JS -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner dark"></div>
+    <div style="font-size:13px; color:var(--ink-soft);">Memuat...</div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+</div>
+
+<!-- bcryptjs for password verification -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<!-- Supabase client (minified — source: supabase.js, build with: npx terser supabase.js -c -m -o supabase.min.js) -->
+<script defer src="supabase.min.js?v=20260728"></script>
+<!-- Main App (minified — source: app.js, build with: npx terser app.js -c -m -o app.min.js) -->
+<script defer src="app.min.js?v=20260728"></script>
+</body>
+</html>
