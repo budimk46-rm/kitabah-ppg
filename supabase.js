@@ -195,8 +195,9 @@ const sbJurnal = {
     headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},
     body: JSON.stringify(data)
   }),
-  insertMateri: (jurnalId, materiIds, bulanTarget) => {
-    const rows = materiIds.map(mid => ({ jurnal_id: jurnalId, materi_id: mid, bulan_target: bulanTarget }));
+  insertMateri: (jurnalId, materiEntries, bulanTarget) => {
+    // materiEntries: [{id, status}] — status 'tuntas' | 'belum_tuntas'
+    const rows = materiEntries.map(m => ({ jurnal_id: jurnalId, materi_id: m.id, status: m.status || 'tuntas', bulan_target: bulanTarget }));
     return sbFetch('jurnal_materi', {
       method: 'POST',
       headers: {'Prefer': 'resolution=ignore-duplicates'},

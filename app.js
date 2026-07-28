@@ -2937,6 +2937,7 @@ async function renderAbsensi() {
       App.cache.materi = await SB.materi.getAll();
     }
     let selectedMateriIds = new Set();
+    let materiStatus = {}; // materiId -> 'tuntas' | 'belum_tuntas'
   let kelasKlp = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
   // Juga load kelas gabungan desa
   const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
@@ -2975,6 +2976,7 @@ async function renderAbsensi() {
     absensiData = {};
     jurnalData = null;
     selectedMateriIds = new Set();
+    materiStatus = {};
     renderMain();
   }
 
@@ -2989,6 +2991,7 @@ async function renderAbsensi() {
     // Load materi yang sudah dipilih di jurnal ini
     const jurnalMateri = jurnalData ? (jurnalData.jurnal_materi || []) : [];
     selectedMateriIds = new Set(jurnalMateri.map(jm => jm.materi_id));
+    materiStatus = Object.fromEntries(jurnalMateri.map(jm => [jm.materi_id, jm.status || 'tuntas']));
     renderMain();
   }
 
@@ -3116,15 +3119,17 @@ async function renderAbsensi() {
         const itemsHtml = g.items.map(r => {
           const dipilihHariIni = selectedMateriIds.has(r.id);
           const sudahPernah = !dipilihHariIni && progressSet.has(r.id + '|' + bulanToShow);
+          const statusMateri = materiStatus[r.id] || 'tuntas';
+          const belumTuntas = dipilihHariIni && statusMateri === 'belum_tuntas';
 
           // Gunakan data-id untuk onclick agar aman dari karakter khusus
           return `<div data-materi-id="${r.id}" onclick="ABS_toggleMateri(this.dataset.materiId)"
             style="display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
               border-bottom:1px solid var(--line); cursor:pointer; transition:background .15s;
-              background:${dipilihHariIni ? 'var(--green-soft)' : sudahPernah ? '#f0f7f2' : ''};">
+              background:${belumTuntas ? '#fff8ea' : dipilihHariIni ? 'var(--green-soft)' : sudahPernah ? '#f0f7f2' : ''};">
             <div style="width:22px; height:22px; border-radius:6px; flex-shrink:0; margin-top:2px;
-              border:2px solid ${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#7ab896' : 'var(--line)'};
-              background:${dipilihHariIni ? 'var(--green)' : 'transparent'};
+              border:2px solid ${belumTuntas ? '#e6a817' : dipilihHariIni ? 'var(--green)' : sudahPernah ? '#7ab896' : 'var(--line)'};
+              background:${belumTuntas ? '#e6a817' : dipilihHariIni ? 'var(--green)' : 'transparent'};
               display:flex; align-items:center; justify-content:center;">
               ${dipilihHariIni
                 ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg>'
@@ -3134,7 +3139,7 @@ async function renderAbsensi() {
             </div>
             <div style="flex:1; min-width:0;">
               <!-- Baris 1: nomor + topik (judul bab/sub) -->
-              <div style="font-weight:800; font-size:13px; color:${dipilihHariIni ? 'var(--green)' : sudahPernah ? '#2d6a4f' : '#111'}; margin-bottom:${r.poin ? '4px' : '2px'};">
+              <div style="font-weight:800; font-size:13px; color:${belumTuntas ? '#a67c00' : dipilihHariIni ? 'var(--green)' : sudahPernah ? '#2d6a4f' : '#111'}; margin-bottom:${r.poin ? '4px' : '2px'};">
                 ${r.no ? escHtml(r.no) + '.' : ''} ${escHtml(r.topik || '')}
                 ${sudahPernah ? '<span style="font-size:10px; font-weight:600; color:#7ab896; margin-left:6px; vertical-align:middle;">&#10003; pernah</span>' : ''}
               </div>
@@ -3149,6 +3154,19 @@ async function renderAbsensi() {
               <div style="padding-left:${r.poin ? '14px' : '0'}; font-size:12px; color:#333; margin-top:1px; line-height:1.4;">
                 ${escHtml(r[col] || '')}
               </div>
+              ${dipilihHariIni ? `
+              <div style="display:flex; gap:6px; margin-top:8px;" onclick="event.stopPropagation()">
+                <button type="button" onclick="ABS_setMateriStatus('${r.id}','tuntas')"
+                  style="padding:4px 10px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;
+                    border:1.5px solid ${statusMateri==='tuntas'?'var(--green)':'var(--line)'};
+                    background:${statusMateri==='tuntas'?'var(--green)':'#fff'};
+                    color:${statusMateri==='tuntas'?'#fff':'var(--ink-soft)'};">✓ Tuntas</button>
+                <button type="button" onclick="ABS_setMateriStatus('${r.id}','belum_tuntas')"
+                  style="padding:4px 10px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;
+                    border:1.5px solid ${statusMateri==='belum_tuntas'?'#e6a817':'var(--line)'};
+                    background:${statusMateri==='belum_tuntas'?'#e6a817':'#fff'};
+                    color:${statusMateri==='belum_tuntas'?'#fff':'var(--ink-soft)'};">◐ Belum Tuntas, Lanjut Lagi</button>
+              </div>` : ''}
             </div>
           </div>`;
         }).join('');
@@ -3162,6 +3180,7 @@ async function renderAbsensi() {
       }).join('');
 
       const selectedCount = selectedMateriIds.size;
+      const belumTuntasCount = Array.from(selectedMateriIds).filter(id => materiStatus[id] === 'belum_tuntas').length;
       const pernahCount = materiList
         .filter(r => progressSet.has(r.id + '|' + bulanToShow) && !selectedMateriIds.has(r.id)).length;
 
@@ -3174,6 +3193,7 @@ async function renderAbsensi() {
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               ${selectedCount ? `<span class="badge badge-green">✓ ${selectedCount} dipilih hari ini</span>` : ''}
+              ${belumTuntasCount ? `<span class="badge" style="background:#fff3d6; color:#a67c00;">◐ ${belumTuntasCount} belum tuntas</span>` : ''}
               ${pernahCount ? `<span class="badge" style="background:#e8f5ef; color:#3a7a58;">✓ ${pernahCount} pernah disampaikan</span>` : ''}
             </div>
           </div>
@@ -3300,6 +3320,7 @@ async function renderAbsensi() {
     const newKelompokId = opt.dataset.kelompokId || myKelompokId;
     activeKelompokId = newKelompokId;
     selectedMateriIds = new Set();
+    materiStatus = {};
     cachedProgressSet = new Set();
     await loadPertemuan();
   };
@@ -3311,6 +3332,7 @@ async function renderAbsensi() {
       absensiData = {};
       jurnalData = null;
       selectedMateriIds = new Set();
+      materiStatus = {};
       renderMain();
     } else {
       await loadDetail(id);
@@ -3334,9 +3356,18 @@ async function renderAbsensi() {
 
     if (selectedMateriIds.has(materiId)) {
       selectedMateriIds.delete(materiId);
+      delete materiStatus[materiId];
     } else {
       selectedMateriIds.add(materiId);
+      materiStatus[materiId] = 'tuntas'; // default saat pertama dicentang
     }
+    renderMain();
+  };
+
+  window.ABS_setMateriStatus = (materiId, status) => {
+    const textarea = document.getElementById('jurnalCatatan');
+    if (textarea) _savedJurnalText = textarea.value;
+    materiStatus[materiId] = status;
     renderMain();
   };
 
@@ -3421,7 +3452,7 @@ async function renderAbsensi() {
     // 2. Simpan jurnal — upsert dulu untuk dapat id-nya
     await SB.jurnal.upsert({ pertemuan_id: pId, guru_id: u.id, catatan });
 
-    // 3. Simpan materi dipilih ke jurnal_materi
+    // 3. Simpan materi dipilih ke jurnal_materi (dengan status tuntas/belum_tuntas)
     if (selectedMateriIds.size > 0) {
       // Ambil jurnal_id yang baru saja disimpan
       const jurnalRows = await SB.jurnal.getByPertemuan(pId);
@@ -3429,14 +3460,18 @@ async function renderAbsensi() {
       if (jurnalId) {
         // Hapus jurnal_materi lama berdasarkan jurnal_id (bukan pertemuan_id)
         await SB.jurnal.deleteMateri(jurnalId);
-        // Insert yang baru
-        await SB.jurnal.insertMateri(jurnalId, Array.from(selectedMateriIds), bulan);
+        // Insert yang baru, sertakan status per materi
+        const materiEntries = Array.from(selectedMateriIds).map(id => ({ id, status: materiStatus[id] || 'tuntas' }));
+        await SB.jurnal.insertMateri(jurnalId, materiEntries, bulan);
       }
     }
 
-    // 4. Otomatis update progress kelompok
+    // 4. Otomatis update progress kurikulum — HANYA untuk materi yang sudah Tuntas.
+    // Materi Belum Tuntas tetap tercatat di jurnal (riwayat dibahas), tapi belum
+    // terhitung selesai di progress kurikulum sampai suatu saat ditandai Tuntas.
     if (kelompokId && selectedMateriIds.size > 0) {
       for (const materiId of selectedMateriIds) {
+        if ((materiStatus[materiId] || 'tuntas') !== 'tuntas') continue;
         try {
           await SB.progress.toggle_add(kelompokId, materiId, bulan, u.id, getTahunAjaran());
         } catch(e) { /* abaikan error per-item */ }
