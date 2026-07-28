@@ -5434,6 +5434,7 @@ async function renderLogAktivitas() {
           <h1 class="page-title">Log Aktivitas</h1>
           <p id="logCount" style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${count} dari ${allLogs.length} catatan (300 terbaru)</p>
         </div>
+        <button class="btn btn-danger" onclick="LOG_hapusModal()">🗑️ Hapus Log</button>
       </div>
 
       <div class="card" style="margin-bottom:14px;">
@@ -5478,6 +5479,66 @@ async function renderLogAktivitas() {
     document.getElementById('logModul').onchange = (e) => { filterModul = e.target.value; updateTable(); };
     document.getElementById('logAksi').onchange = (e) => { filterAksi = e.target.value; updateTable(); };
   }
+
+  window.LOG_hapusModal = () => {
+    let el = document.getElementById('logHapusModal');
+    if (!el) { el = document.createElement('div'); el.id = 'logHapusModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    const today = new Date().toISOString().slice(0,10);
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Hapus Log Aktivitas</h3><button class="modal-close" onclick="closeModal('logHapusModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">Pilih rentang tanggal yang ingin dihapus. Data yang dihapus tidak bisa dikembalikan.</div>
+        <div class="form-row">
+          <div class="form-group"><label>Dari Tanggal</label><input type="date" id="logHapusDari" value="${today}"></div>
+          <div class="form-group"><label>Sampai Tanggal</label><input type="date" id="logHapusSampai" value="${today}"></div>
+        </div>
+        <div style="border-top:1px solid var(--line); margin-top:8px; padding-top:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--rose); font-weight:600;">
+            <input type="checkbox" id="logHapusSemua"> Hapus SEMUA log (abaikan rentang tanggal di atas)
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('logHapusModal')">Batal</button>
+        <button class="btn btn-danger" id="logHapusBtn">Hapus</button>
+      </div>
+    </div>`;
+
+    document.getElementById('logHapusBtn').onclick = async () => {
+      const hapusSemua = document.getElementById('logHapusSemua').checked;
+      const dari = document.getElementById('logHapusDari').value;
+      const sampai = document.getElementById('logHapusSampai').value;
+
+      if (!hapusSemua && (!dari || !sampai)) { showToast('Pilih tanggal dari dan sampai', true); return; }
+      if (!hapusSemua && dari > sampai) { showToast('Tanggal "Dari" harus sebelum "Sampai"', true); return; }
+
+      const confirmMsg = hapusSemua
+        ? 'Yakin hapus SEMUA log aktivitas? Tindakan ini tidak bisa dibatalkan.'
+        : `Yakin hapus log dari ${fmtDateShort(dari)} sampai ${fmtDateShort(sampai)}? Tindakan ini tidak bisa dibatalkan.`;
+      if (!confirm(confirmMsg)) return;
+
+      const btn = document.getElementById('logHapusBtn');
+      btn.disabled = true; btn.textContent = 'Menghapus...';
+      try {
+        if (hapusSemua) {
+          await SB.activityLog.deleteAll();
+        } else {
+          await SB.activityLog.deleteRange(`${dari}T00:00:00`, `${sampai}T23:59:59`);
+        }
+        logActivity('hapus', 'Log Aktivitas', hapusSemua ? 'Menghapus semua log aktivitas' : `Menghapus log ${dari} s/d ${sampai}`);
+        showToast('Log berhasil dihapus');
+        closeModal('logHapusModal');
+        allLogs = await SB.activityLog.getAll(300) || [];
+        render();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Hapus';
+      }
+    };
+
+    openModal('logHapusModal');
+  };
 
   render();
 }

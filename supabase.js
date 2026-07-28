@@ -450,6 +450,8 @@ const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
   getByUser: (userId, limit=300) => sbFetch(`activity_log?user_id=eq.${userId}&select=*&order=created_at.desc&limit=${limit}`),
+  deleteRange: (fromIso, toIso) => sbFetch(`activity_log?created_at=gte.${fromIso}&created_at=lte.${toIso}`, { method:'DELETE' }),
+  deleteAll: () => sbFetch(`activity_log?id=not.is.null`, { method:'DELETE' }),
 };
 
 // Export semua
