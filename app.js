@@ -7031,8 +7031,7 @@ async function renderMusyawarah() {
       musInlinePeserta = allPeserta;
     }
 
-    // Default semua hadir
-    musInlinePeserta.forEach(p => { musInlineAbsensi[p.id] = 'H'; });
+    // Belum dipilih statusnya — user wajib isi manual per peserta
 
     MUS_renderAbsensiInline();
     absensiArea.style.display = 'block';
