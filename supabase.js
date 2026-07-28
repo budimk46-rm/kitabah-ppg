@@ -307,6 +307,7 @@ const sbMusAbsensi = {
     }
   },
   delete: (id) => sbFetch(`musyawarah_absensi?id=eq.${id}`, { method:'DELETE' }),
+  update: (id, data) => sbFetch(`musyawarah_absensi?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
   deleteByMusyawarah: (musId) => sbFetch(`musyawarah_absensi?musyawarah_id=eq.${musId}`, { method:'DELETE' }),
 };
 

@@ -4273,7 +4273,7 @@ async function renderMonitorMus() {
   const nowMonth = currentMonthName();
   let selectedBulan = nowMonth;
 
-  function render() {
+  async function render() {
     // Filter musyawarah by bulan DAN tahun (dari tanggal)
     const tahunFilter = getTahunAjaran(); // misal "2026/2027"
     const musBulan = allMus.filter(m => {
@@ -4289,13 +4289,23 @@ async function renderMonitorMus() {
       return bulanOk && tahunOk;
     });
 
-    // Map: kelompok_id → { guru_generus: tanggal, unsur_5: tanggal }
+    // Ambil data kehadiran (musyawarah_absensi) untuk musyawarah bulan ini
+    const absensiMap = {}; // musyawarah_id -> { hadir, total, pct }
+    await Promise.all(musBulan.map(async m => {
+      try {
+        const rows = await SB.musAbsensi.getByMusyawarah(m.id) || [];
+        const hadir = rows.filter(r => r.status === 'H').length;
+        absensiMap[m.id] = { hadir, total: rows.length, pct: rows.length ? Math.round(hadir/rows.length*100) : null };
+      } catch(e) { absensiMap[m.id] = { hadir:0, total:0, pct:null }; }
+    }));
+
+    // Map: kelompok_id → { guru_generus: {tanggal,id}, unsur_5: {tanggal,id} }
     const statusMap = {};
     kelompokList.forEach(k => { statusMap[k.id] = { guru_generus: null, unsur_5: null }; });
     musBulan.forEach(m => {
       if (m.kelompok_id && statusMap[m.kelompok_id]) {
-        if (m.level === 'guru_generus') statusMap[m.kelompok_id].guru_generus = m.tanggal;
-        if (m.level === 'unsur_5') statusMap[m.kelompok_id].unsur_5 = m.tanggal;
+        if (m.level === 'guru_generus') statusMap[m.kelompok_id].guru_generus = { tanggal: m.tanggal, id: m.id };
+        if (m.level === 'unsur_5') statusMap[m.kelompok_id].unsur_5 = { tanggal: m.tanggal, id: m.id };
       }
     });
 
@@ -4350,13 +4360,15 @@ async function renderMonitorMus() {
         const st = statusMap[k.id];
         const guruOk = !!st.guru_generus;
         const unsurOk = !!st.unsur_5;
+        const guruPct = guruOk ? absensiMap[st.guru_generus.id] : null;
+        const unsurPct = unsurOk ? absensiMap[st.unsur_5.id] : null;
         return `<tr style="border-bottom:1px solid var(--line);">
           <td style="padding:7px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(k.nama)}</td>
           <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${guruOk?'var(--green)':'var(--rose)'};">
-            ${guruOk ? '✅ '+fmtDateShort(st.guru_generus) : '❌ Belum'}
+            ${guruOk ? '✅ '+fmtDateShort(st.guru_generus.tanggal) + (guruPct && guruPct.pct!==null ? `<br><span style="font-size:10px; font-weight:600; color:var(--ink-soft);">👤 ${guruPct.hadir}/${guruPct.total} hadir (${guruPct.pct}%)</span>` : '') : '❌ Belum'}
           </td>
           <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${unsurOk?'var(--green)':'var(--rose)'};">
-            ${unsurOk ? '✅ '+fmtDateShort(st.unsur_5) : '❌ Belum'}
+            ${unsurOk ? '✅ '+fmtDateShort(st.unsur_5.tanggal) + (unsurPct && unsurPct.pct!==null ? `<br><span style="font-size:10px; font-weight:600; color:var(--ink-soft);">👤 ${unsurPct.hadir}/${unsurPct.total} hadir (${unsurPct.pct}%)</span>` : '') : '❌ Belum'}
           </td>
         </tr>`;
       }).join('');
@@ -4401,7 +4413,7 @@ async function renderMonitorMus() {
       const desaStatus = DESA_IDS.map(did => {
         const desaNama = DESA_NAMA_MAP[did] || did;
         const found = musPjpDesa.find(m => m.desa_id === did || m.desa_id === desaNama);
-        return { id: did, nama: desaNama, tanggal: found?.tanggal || null };
+        return { id: did, nama: desaNama, tanggal: found?.tanggal || null, musId: found?.id || null };
       });
       pjpDesaDone = desaStatus.filter(d => d.tanggal).length;
       const pctPD = Math.round(pjpDesaDone/totalDesa*100);
@@ -4418,12 +4430,15 @@ async function renderMonitorMus() {
               <th style="padding:7px 8px; text-align:center; font-size:11px; color:#fff;">Mus. PJP Desa</th>
             </tr></thead>
             <tbody>
-              ${desaStatus.map(d => `<tr style="border-bottom:1px solid var(--line);">
+              ${desaStatus.map(d => {
+                const pctInfo = d.musId ? absensiMap[d.musId] : null;
+                return `<tr style="border-bottom:1px solid var(--line);">
                 <td style="padding:7px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(d.nama)}</td>
                 <td style="padding:7px 8px; text-align:center; font-size:12px; font-weight:700; color:${d.tanggal?'var(--green)':'var(--rose)'};">
-                  ${d.tanggal ? '✅ '+fmtDateShort(d.tanggal) : '❌ Belum'}
+                  ${d.tanggal ? '✅ '+fmtDateShort(d.tanggal) + (pctInfo && pctInfo.pct!==null ? `<br><span style="font-size:10px; font-weight:600; color:var(--ink-soft);">👤 ${pctInfo.hadir}/${pctInfo.total} hadir (${pctInfo.pct}%)</span>` : '') : '❌ Belum'}
                 </td>
-              </tr>`).join('')}
+              </tr>`;
+              }).join('')}
             </tbody>
           </table></div>
         </div>`;
@@ -4470,9 +4485,9 @@ async function renderMonitorMus() {
 
   const BULAN_NAMES_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
-  window.MM_setBulan = (b) => { selectedBulan = b; render(); };
+  window.MM_setBulan = async (b) => { selectedBulan = b; await render(); };
 
-  render();
+  await render();
 }
 
 /* ===== PAGE: DATA SARPRAS ===== */
@@ -7030,16 +7045,18 @@ async function renderMusyawarah() {
     const statsEl = document.getElementById('musAbsensiStats');
     if (!listEl) return;
 
-    const totalH = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'H').length + musInlineTamu.length;
-    const totalI = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'I').length;
-    const totalS = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'S').length;
-    const totalA = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'A').length;
+    const totalH = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'H').length + musInlineTamu.filter(t => t.status === 'H').length;
+    const totalI = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'I').length + musInlineTamu.filter(t => t.status === 'I').length;
+    const totalS = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'S').length + musInlineTamu.filter(t => t.status === 'S').length;
+    const totalA = musInlinePeserta.filter(p => musInlineAbsensi[p.id] === 'A').length + musInlineTamu.filter(t => t.status === 'A').length;
+    const totalBelum = musInlinePeserta.filter(p => !musInlineAbsensi[p.id]).length + musInlineTamu.filter(t => !t.status).length;
 
     statsEl.innerHTML = `
       <span class="badge badge-green">Hadir: ${totalH}</span>
       <span class="badge badge-gold">Izin: ${totalI}</span>
       <span class="badge" style="background:#e3f0f7; color:#4da6c9;">Sakit: ${totalS}</span>
       <span class="badge badge-rose">Alpha: ${totalA}</span>
+      ${totalBelum ? `<span class="badge" style="background:#f2f2f2; color:#888;">Belum Diisi: ${totalBelum}</span>` : ''}
       <span class="badge badge-gray">Total: ${musInlinePeserta.length + musInlineTamu.length}</span>`;
 
     // Kelompokkan peserta berdasarkan kelompok_id / desa_id / daerah
@@ -7063,7 +7080,7 @@ async function renderMusyawarah() {
         html += `<div style="font-size:12px; font-weight:700; color:var(--green); padding:8px 0 4px; border-bottom:2px solid var(--green); margin-top:8px;">${escHtml(group)} (${members.length})</div>`;
       }
       members.forEach(p => {
-        const st = musInlineAbsensi[p.id] || 'H';
+        const st = musInlineAbsensi[p.id] || null;
         const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
         html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
           <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
@@ -7089,6 +7106,7 @@ async function renderMusyawarah() {
     // Tamu
     musInlineTamu.forEach((t, i) => {
       const waLink = t.no_hp ? 'https://wa.me/62'+t.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '';
+      const tSt = t.status || null;
       html += `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:6px;">
         <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
           <div style="flex:1; min-width:0;">
@@ -7099,8 +7117,12 @@ async function renderMusyawarah() {
             <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
           </a>` : ''}
         </div>
-        <div style="display:flex; gap:4px; align-items:center;">
-          <span class="badge badge-green">H</span>
+        <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
+          ${['H','I','S','A'].map(s => `
+            <button onclick="MUS_setTamuAbsInline(${i},'${s}')"
+              style="width:28px; height:28px; border:2px solid ${tSt===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${tSt===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'transparent'}; color:${tSt===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)')}; font-weight:800; font-size:10px; cursor:pointer;">
+              ${s}
+            </button>`).join('')}
           <button class="btn-icon danger" onclick="MUS_removeTamuInline(${i})" title="Hapus">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
           </button>
@@ -7115,6 +7137,11 @@ async function renderMusyawarah() {
 
   window.MUS_setAbsInline = (pid, status) => {
     musInlineAbsensi[pid] = status;
+    MUS_renderAbsensiInline();
+  };
+
+  window.MUS_setTamuAbsInline = (idx, status) => {
+    if (musInlineTamu[idx]) musInlineTamu[idx].status = status;
     MUS_renderAbsensiInline();
   };
 
@@ -7145,6 +7172,13 @@ async function renderMusyawarah() {
     if (!level) { showToast('Pilih jenis musyawarah', true); return; }
     if (!tanggal) { showToast('Pilih tanggal', true); return; }
 
+    const belumPeserta = musInlinePeserta.filter(p => !musInlineAbsensi[p.id]);
+    const belumTamu = musInlineTamu.filter(t => !t.status);
+    if (belumPeserta.length || belumTamu.length) {
+      showToast(`Masih ada ${belumPeserta.length + belumTamu.length} peserta yang belum diisi kehadirannya`, true);
+      return;
+    }
+
     const btn = document.getElementById('musSaveInline');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
 
@@ -7169,7 +7203,7 @@ async function renderMusyawarah() {
         const absRows = musInlinePeserta.map(p => ({
           musyawarah_id: musId,
           peserta_id: p.id,
-          status: musInlineAbsensi[p.id] || 'H',
+          status: musInlineAbsensi[p.id],
         }));
         await SB.musAbsensi.upsertPeserta(absRows);
       }
@@ -7182,7 +7216,7 @@ async function renderMusyawarah() {
             nama_tamu: t.nama,
             jabatan_tamu: t.jabatan,
             no_hp_tamu: t.no_hp,
-            status: 'H',
+            status: t.status,
           });
         }
       }
@@ -7195,7 +7229,7 @@ async function renderMusyawarah() {
       document.getElementById('musSolusiInline').value = '';
       document.getElementById('musTindakLanjutInline').value = '';
       musInlineTamu = [];
-      musInlinePeserta.forEach(p => { musInlineAbsensi[p.id] = 'H'; });
+      musInlinePeserta.forEach(p => { delete musInlineAbsensi[p.id]; });
       MUS_renderAbsensiInline();
 
       // Refresh daftar
@@ -7273,7 +7307,7 @@ async function renderMusyawarah() {
           checkY(14);
           const nama = a.peserta_id ? (a.musyawarah_peserta?.nama||'-') : (a.nama_tamu||'Tamu');
           const jab = a.peserta_id ? (a.musyawarah_peserta?.jabatan||'') : (a.jabatan_tamu||'Tamu');
-          const st = a.status||'H';
+          const st = a.status || '-';
           page.drawText((i+1)+'. '+nama+' ('+jab+') - '+st, {x:ML+4,y,font:fReg,size:9,color:rgb(0.1,0.1,0.1)});
           y-=13;
         });
@@ -7500,7 +7534,7 @@ async function openMusAbsensiModal(musId, level, u) {
 
   function renderAbsensiModal() {
     const pesertaRows = pesertaTetap.map(p => {
-      const status = absensiState[p.id] || 'H';
+      const status = absensiState[p.id] || null;
       return `<tr>
         <td>
           <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
@@ -7519,7 +7553,9 @@ async function openMusAbsensiModal(musId, level, u) {
       </tr>`;
     }).join('');
 
-    const tamuRows = tamuList.map((t,i) => `
+    const tamuRows = tamuList.map((t,i) => {
+      const tSt = t.status || null;
+      return `
       <tr>
         <td>
           <div style="font-weight:700; font-size:13px;">${escHtml(t.nama_tamu||'')}</div>
@@ -7528,17 +7564,23 @@ async function openMusAbsensiModal(musId, level, u) {
         <td>${t.no_hp_tamu || '—'}</td>
         <td>
           <div style="display:flex; gap:5px; align-items:center;">
-            <span class="badge badge-green">H</span>
+            ${['H','I','A'].map(st => `
+              <button onclick="MABS_setTamuStatus('${t.id}','${st}')"
+                style="width:30px; height:30px; border:2px solid ${tSt===st?(st==='H'?'var(--green)':st==='I'?'var(--gold)':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${tSt===st?(st==='H'?'var(--green)':st==='I'?'var(--gold)':'var(--rose)'):'transparent'}; color:${tSt===st?'#fff':(st==='H'?'var(--green)':st==='I'?'var(--gold)':'var(--rose)')}; font-weight:800; font-size:11px; cursor:pointer;">
+                ${st}
+              </button>`).join('')}
             <button class="btn-icon danger" onclick="MABS_hapusTamu('${t.id}')" title="Hapus tamu">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
             </button>
           </div>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
 
-    const totalH = pesertaTetap.filter(p => (absensiState[p.id]||'H')==='H').length + tamuList.length;
-    const totalI = pesertaTetap.filter(p => (absensiState[p.id]||'H')==='I').length;
-    const totalA = pesertaTetap.filter(p => (absensiState[p.id]||'H')==='A').length;
+    const totalH = pesertaTetap.filter(p => absensiState[p.id]==='H').length + tamuList.filter(t=>t.status==='H').length;
+    const totalI = pesertaTetap.filter(p => absensiState[p.id]==='I').length + tamuList.filter(t=>t.status==='I').length;
+    const totalA = pesertaTetap.filter(p => absensiState[p.id]==='A').length + tamuList.filter(t=>t.status==='A').length;
+    const totalBelum = pesertaTetap.filter(p => !absensiState[p.id]).length + tamuList.filter(t=>!t.status).length;
 
     el.innerHTML = `<div class="modal modal-lg" style="max-height:90vh;">
       <div class="modal-head">
@@ -7550,6 +7592,7 @@ async function openMusAbsensiModal(musId, level, u) {
           <span class="badge badge-green">Hadir: ${totalH}</span>
           <span class="badge badge-gold">Ijin: ${totalI}</span>
           <span class="badge badge-rose">Alpha: ${totalA}</span>
+          ${totalBelum ? `<span class="badge" style="background:#f2f2f2; color:#888;">Belum Diisi: ${totalBelum}</span>` : ''}
           <span class="badge badge-gray">Total: ${pesertaTetap.length + tamuList.length}</span>
         </div>
         ${pesertaTetap.length ? `
@@ -7596,6 +7639,13 @@ async function openMusAbsensiModal(musId, level, u) {
     renderAbsensiModal();
   };
 
+  window.MABS_setTamuStatus = async (id, status) => {
+    const t = tamuList.find(x => x.id === id);
+    if (t) t.status = status;
+    renderAbsensiModal();
+    try { await SB.musAbsensi.update(id, { status }); } catch(e) { showToast('Gagal simpan status tamu: ' + e.message, true); }
+  };
+
   window.MABS_hapusTamu = async (id) => {
     await SB.musAbsensi.delete(id);
     tamuList = tamuList.filter(t => t.id !== id);
@@ -7613,7 +7663,7 @@ async function openMusAbsensiModal(musId, level, u) {
         nama_tamu: toTitleCase(nama),
         jabatan_tamu: jabatan || null,
         no_hp_tamu: hp || null,
-        status: 'H',
+        status: null,
       });
       if (res?.[0]) tamuList.push(res[0]);
       showToast('Tamu ditambahkan');
@@ -7622,13 +7672,19 @@ async function openMusAbsensiModal(musId, level, u) {
   };
 
   window.MABS_simpan = async () => {
+    const belumPeserta = pesertaTetap.filter(p => !absensiState[p.id]);
+    const belumTamu = tamuList.filter(t => !t.status);
+    if (belumPeserta.length || belumTamu.length) {
+      showToast(`Masih ada ${belumPeserta.length + belumTamu.length} peserta yang belum diisi kehadirannya`, true);
+      return;
+    }
     try {
       // Upsert absensi peserta tetap
       if (pesertaTetap.length) {
         const rows = pesertaTetap.map(p => ({
           musyawarah_id: musId,
           peserta_id: p.id,
-          status: absensiState[p.id] || 'H',
+          status: absensiState[p.id],
         }));
         await SB.musAbsensi.upsertPeserta(rows);
       }
