@@ -235,6 +235,21 @@ async function loadPendingWaBtn(username, namaLengkap) {
 }
 
 /* ===== AUTH ===== */
+// Catat aktivitas ke activity_log — best-effort, tidak pernah menghentikan alur UI kalau gagal.
+function logActivity(action, modul, keterangan) {
+  const u = App.user;
+  if (!u) return;
+  SB.activityLog.insert({
+    user_id: u.id,
+    nama_lengkap: u.nama_lengkap,
+    role: u.role,
+    kelompok_id: u.kelompok_id || null,
+    action,
+    modul,
+    keterangan: keterangan || null,
+  });
+}
+
 async function doLogin() {
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
@@ -249,6 +264,7 @@ async function doLogin() {
   try {
     const user = await SB.login(username, password);
     saveSession(user);
+    logActivity('login', 'Login', `${user.nama_lengkap} (${ROLE_LABELS[user.role]||user.role}) login`);
     showShell();
   } catch(e) {
     if (e.message === 'PENDING') {
@@ -657,6 +673,7 @@ async function doRegister() {
 
 
 function doLogout() {
+  if (App.user) logActivity('logout', 'Login', `${App.user.nama_lengkap} logout`);
   clearSession();
   showLogin();
 }
@@ -681,6 +698,7 @@ function checkIcon() { return SVG('<polyline points="9 11 12 14 22 4"/><path d="
 function chartIcon() { return SVG('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'); }
 function cogIcon() { return SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>'); }
 function gradCapIcon() { return SVG('<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-4.5"/><path d="M22 10v6"/>'); }
+function logIcon() { return SVG('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>'); }
 
 const NAV_ITEMS = {
   admin: [
@@ -700,6 +718,7 @@ const NAV_ITEMS = {
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'log_aktivitas', icon: logIcon(), label: 'Log Aktivitas', section: 'SISTEM' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   daerah: [
@@ -918,6 +937,7 @@ async function renderPage(page) {
       case 'sarpras':     await renderSarpras(); break;
       case 'mtms':        await renderMtMs(); break;
       case 'guru_sekolah': await renderGuruSekolah(); break;
+      case 'log_aktivitas': await renderLogAktivitas(); break;
       case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
@@ -2775,6 +2795,7 @@ async function renderKelolaKelas() {
   window.STR_delete = async (id, nama) => {
     if (!confirm(`Keluarkan "${nama}" dari kelas ini?\nSantri akan dipindah ke daftar belum masuk kelas.`)) return;
     await SB.santri.update(id, { kelas_id: null });
+    logActivity('ubah', 'Santri', `Mengeluarkan "${nama}" dari kelas`);
     showToast('Santri dikeluarkan dari kelas');
     await loadSantri(selectedKelasId);
   };
@@ -3370,6 +3391,8 @@ async function renderAbsensi() {
     try {
       await doSimpanAll(currentPertemuanId);
       await refreshProgress(); // update cache setelah simpan
+      const p = pertemuanList.find(x => x.id === currentPertemuanId);
+      logActivity('ubah', 'Absensi', `Simpan absensi & jurnal — pertemuan ke-${p?.pertemuan_ke||'?'} (${p?fmtDateShort(p.tanggal):'-'})`);
       showToast('Absensi & jurnal disimpan ✓');
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
@@ -3818,6 +3841,9 @@ async function renderPenilaian() {
         }
       }
       unsavedChanges.clear();
+      if (saved > 0) {
+        logActivity('ubah', 'Penilaian', `Menilai ${saved} data — kelas ${kls?.nama_kelas||'-'}, bulan ${selectedBulan} TA ${ta}`);
+      }
       showToast(`${saved} penilaian tersimpan${errors ? ', '+errors+' gagal' : ''}`);
       render();
     };
@@ -5344,6 +5370,113 @@ async function renderGuruSekolah() {
     };
 
     openModal('gsModal');
+  }
+
+  render();
+}
+
+/* ===== PAGE: LOG AKTIVITAS (admin only) ===== */
+async function renderLogAktivitas() {
+  const main = document.getElementById('mainContent');
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  let allLogs = await SB.activityLog.getAll(300) || [];
+  let filterModul = '';
+  let filterAksi = '';
+  let searchQ = '';
+
+  const ACTION_META = {
+    login:  { icon: '🔓', color: 'var(--green)', label: 'Login' },
+    logout: { icon: '🔒', color: 'var(--ink-soft)', label: 'Logout' },
+    tambah: { icon: '➕', color: 'var(--green)', label: 'Tambah' },
+    ubah:   { icon: '✏️', color: '#e6a817', label: 'Ubah' },
+    hapus:  { icon: '🗑️', color: 'var(--rose)', label: 'Hapus' },
+  };
+
+  function buildRows() {
+    let filtered = allLogs;
+    if (filterModul) filtered = filtered.filter(l => l.modul === filterModul);
+    if (filterAksi) filtered = filtered.filter(l => l.action === filterAksi);
+    if (searchQ) {
+      const q = searchQ.toLowerCase();
+      filtered = filtered.filter(l =>
+        (l.nama_lengkap||'').toLowerCase().includes(q) ||
+        (l.keterangan||'').toLowerCase().includes(q)
+      );
+    }
+    const rows = filtered.map(l => {
+      const meta = ACTION_META[l.action] || { icon:'•', color:'var(--ink-soft)', label: l.action };
+      return `<tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:6px 8px; font-size:11px; color:var(--ink-soft); white-space:nowrap;">${fmtDateShort(l.created_at)} ${new Date(l.created_at).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</td>
+        <td style="padding:6px 8px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(l.nama_lengkap||'-')}</td>
+        <td style="padding:6px 8px; font-size:11px; color:var(--ink-soft);">${escHtml(ROLE_LABELS[l.role]||l.role||'-')}</td>
+        <td style="padding:6px 8px; font-size:12px;">${escHtml(l.modul||'-')}</td>
+        <td style="padding:6px 8px; font-size:12px; font-weight:700; color:${meta.color};">${meta.icon} ${meta.label}</td>
+        <td style="padding:6px 8px; font-size:12px; color:#111;">${escHtml(l.keterangan||'')}</td>
+      </tr>`;
+    }).join('');
+    return { rows: rows || '<tr><td colspan="6" style="text-align:center; color:var(--ink-soft); padding:24px;">Tidak ada data</td></tr>', count: filtered.length };
+  }
+
+  function updateTable() {
+    const { rows, count } = buildRows();
+    document.getElementById('logTbody').innerHTML = rows;
+    document.getElementById('logCount').textContent = `${count} dari ${allLogs.length} catatan (300 terbaru)`;
+  }
+
+  function render() {
+    const modulList = [...new Set(allLogs.map(l => l.modul))].sort();
+    const { rows, count } = buildRows();
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Log Aktivitas</h1>
+          <p id="logCount" style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">${count} dari ${allLogs.length} catatan (300 terbaru)</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cari (nama / keterangan)</label>
+            <input id="logSearch" value="${escHtml(searchQ)}" placeholder="ketik untuk mencari...">
+          </div>
+          <div class="form-group">
+            <label>Modul</label>
+            <select id="logModul">
+              <option value="">Semua Modul</option>
+              ${modulList.map(m => `<option value="${escHtml(m)}" ${filterModul===m?'selected':''}>${escHtml(m)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Aksi</label>
+            <select id="logAksi">
+              <option value="">Semua Aksi</option>
+              ${Object.entries(ACTION_META).map(([k,v]) => `<option value="${k}" ${filterAksi===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:700px;">
+          <thead><tr style="background:var(--green);">
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Waktu</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Nama</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Level</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Modul</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Aksi</th>
+            <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Keterangan</th>
+          </tr></thead>
+          <tbody id="logTbody">${rows}</tbody>
+        </table></div>
+      </div>
+    `;
+
+    document.getElementById('logSearch').oninput = (e) => { searchQ = e.target.value; updateTable(); };
+    document.getElementById('logModul').onchange = (e) => { filterModul = e.target.value; updateTable(); };
+    document.getElementById('logAksi').onchange = (e) => { filterAksi = e.target.value; updateTable(); };
   }
 
   render();
@@ -10313,11 +10446,13 @@ function openAddSantriModal(kelasId, existingSantri, onSaved, kelompokAsalId) {
     try {
       if (s) {
         await SB.santri.update(s.id, data);
+        logActivity('ubah', 'Santri', `Mengubah data generus: ${data.nama}`);
         showToast('Data generus diperbarui');
       } else {
         const insertData = { ...data, kelas_id: kelasId, aktif: true };
         if (kelompokAsalId) insertData.kelompok_asal_id = kelompokAsalId;
         await SB.santri.insert(insertData);
+        logActivity('tambah', 'Santri', `Menambah generus baru: ${data.nama}`);
         showToast('Generus berhasil ditambahkan');
       }
       closeModal('santriModal');
