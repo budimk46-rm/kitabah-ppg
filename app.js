@@ -5745,13 +5745,13 @@ async function renderRaportCaberawit() {
         const rows = g.items.map((m, i) => {
           const nilai = nilaiMap[m.id];
           const predikat = hitungPredikat(nilai, m.skala);
-          return `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line);">
+          return `<div style="display:flex; align-items:center; gap:10px; padding:6px 14px 6px 4px; border-bottom:1px solid var(--line);">
             <div style="width:22px; flex-shrink:0; font-size:12px; color:var(--ink-soft); text-align:center;">${i+1}</div>
             <div style="flex:1; min-width:0; font-size:12.5px; color:#111;">${escHtml(m.teks)}</div>
             <input type="number" min="0" max="100" data-mid="${m.id}" data-skala="${m.skala}" value="${nilai??''}"
               oninput="RC_onNilaiInput(this)"
               style="width:56px; flex-shrink:0; padding:5px 6px; border:1.5px solid var(--line); border-radius:6px; font-size:12px; text-align:center;">
-            <div id="predikat-${m.id}" style="width:36px; flex-shrink:0; text-align:center; font-weight:800; font-size:12px; color:var(--gold);">${predikat}</div>
+            <div id="predikat-${m.id}" style="width:40px; flex-shrink:0; text-align:center; font-weight:800; font-size:12px; color:var(--gold);">${predikat}</div>
           </div>`;
         }).join('');
         return sectionHeader + subHeader + rows;
@@ -5759,8 +5759,8 @@ async function renderRaportCaberawit() {
 
       bodyHtml = `
         <div class="card" style="margin-bottom:14px;">
-          <div style="display:flex; gap:8px; padding:8px 4px; border-bottom:2px solid var(--green); font-weight:700; font-size:11px; color:var(--ink-soft); text-transform:uppercase;">
-            <div style="width:22px;">No</div><div style="flex:1;">Materi Pembinaan</div><div style="width:56px; text-align:center;">Nilai</div><div style="width:36px; text-align:center;">Predikat</div>
+          <div style="display:flex; gap:10px; padding:8px 14px 8px 4px; border-bottom:2px solid var(--green); font-weight:700; font-size:11px; color:var(--ink-soft); text-transform:uppercase;">
+            <div style="width:22px;">No</div><div style="flex:1;">Materi Pembinaan</div><div style="width:56px; text-align:center;">Nilai</div><div style="width:40px; text-align:center;">Predikat</div>
           </div>
           ${groupsHtml}
         </div>
