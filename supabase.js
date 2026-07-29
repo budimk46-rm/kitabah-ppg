@@ -142,6 +142,12 @@ const sbMateri = {
 const sbKelas = {
   getByKelompok: (kelompokId) =>
     sbFetch(`kelas?kelompok_id=eq.${kelompokId}&select=id,kelompok_id,desa_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
+  // Ambil kelas untuk BANYAK kelompok sekaligus dalam satu request
+  getByKelompokIds: (kelompokIds) => {
+    const ids = [...new Set(kelompokIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`kelas?kelompok_id=in.(${ids.join(',')})&select=id,kelompok_id,desa_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`);
+  },
   getByDesa: (desaId) =>
     sbFetch(`kelas?desa_id=eq.${desaId}&select=id,kelompok_id,desa_id,nama_kelas,jenjang,semester&order=nama_kelas,jenjang,semester`),
   insert: async (data) => {
@@ -160,6 +166,12 @@ const sbKelas = {
 const sbSantri = {
   getByKelas: (kelasId) =>
     sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=*&order=nama`),
+  // Ambil santri untuk BANYAK kelas sekaligus dalam satu request
+  getByKelasIds: (kelasIds) => {
+    const ids = [...new Set(kelasIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`santri?kelas_id=in.(${ids.join(',')})&aktif=eq.true&select=*&order=nama`);
+  },
   getUnassigned: (kelompokIds) =>
     sbFetch(`santri?aktif=eq.true&kelas_id=is.null&select=*&order=nama`),
   getByKelompok: (kelompokId) =>
@@ -179,6 +191,12 @@ const sbSantri = {
 const sbPertemuan = {
   getByKelas: (kelasId, ta) =>
     sbFetch(`pertemuan?kelas_id=eq.${kelasId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*&order=tanggal.desc`),
+  // Ambil pertemuan untuk BANYAK kelas sekaligus dalam satu request
+  getByKelasIds: (kelasIds, ta) => {
+    const ids = [...new Set(kelasIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`pertemuan?kelas_id=in.(${ids.join(',')})${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*&order=tanggal.desc`);
+  },
   insert: (data) => sbFetch('pertemuan', {
     method: 'POST',
     headers: {'Prefer':'return=representation'},
@@ -235,6 +253,12 @@ const sbAbsensi = {
 const sbProgress = {
   getByKelompok: (kelompokId, ta) =>
     sbFetch(`progress?kelompok_id=eq.${kelompokId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*`),
+  // Ambil progress untuk BANYAK kelompok sekaligus dalam satu request
+  getByKelompokIds: (kelompokIds, ta) => {
+    const ids = [...new Set(kelompokIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`progress?kelompok_id=in.(${ids.join(',')})${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*`);
+  },
   toggle: async (kelompokId, materiId, bulan, userId, ta) => {
     const existing = await sbFetch(
       `progress?kelompok_id=eq.${kelompokId}&materi_id=eq.${encodeURIComponent(materiId)}&bulan=eq.${bulan}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}`
