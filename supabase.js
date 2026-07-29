@@ -211,6 +211,19 @@ const sbJurnal = {
 const sbAbsensi = {
   getByPertemuan: (pertemuanId) =>
     sbFetch(`absensi?pertemuan_id=eq.${pertemuanId}&select=*,santri(nama)&order=santri(nama)`),
+  // Ambil absensi untuk BANYAK pertemuan sekaligus dalam sedikit request (bukan satu per satu).
+  // Dipecah per 150 id supaya URL tidak kepanjangan, tiap chunk jalan paralel.
+  getByPertemuanIds: async (ids) => {
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    if (!uniqueIds.length) return [];
+    const CHUNK = 150;
+    const chunks = [];
+    for (let i = 0; i < uniqueIds.length; i += CHUNK) chunks.push(uniqueIds.slice(i, i + CHUNK));
+    const results = await Promise.all(chunks.map(c =>
+      sbFetch(`absensi?pertemuan_id=in.(${c.join(',')})&select=*,santri(nama)&order=santri(nama)`)
+    ));
+    return results.flat();
+  },
   upsertBulk: (rows) => sbFetch('absensi?on_conflict=pertemuan_id,santri_id', {
     method: 'POST',
     headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},

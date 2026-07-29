@@ -4055,29 +4055,38 @@ async function renderDataBK() {
   // Load data per kelompok
   const bkData = {}; // klpId → [{santri, kelas, pct, h, total}]
   async function loadBKData(bulan) {
-    // Parallel load semua kelompok sekaligus
-    await Promise.all(kelompokList.map(async klp => {
-      bkData[klp.id] = [];
+    // Fase 1: kumpulkan kelas + pertemuan + santri per kelompok (paralel, belum ambil absensi)
+    const klpMeta = await Promise.all(kelompokList.map(async klp => {
       let kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
       if (klp.desa_id) {
         const gabungan = await SB.kelas.getByDesa(klp.desa_id) || [];
         kelasList = [...kelasList, ...gabungan.map(g => ({...g, _isGab: true}))];
       }
-
-      await Promise.all(kelasList.map(async kls => {
+      const kelasMeta = await Promise.all(kelasList.map(async kls => {
         const ptList = (await SB.pertemuan.getByKelas(kls.id, getTahunAjaran())).filter(p => p.bulan === bulan);
-        if (!ptList.length) return;
+        if (!ptList.length) return null;
         let santriList = await SB.santri.getByKelas(kls.id);
         if (kls._isGab) santriList = santriList.filter(s => s.kelompok_asal_id === klp.id);
-        if (!santriList.length) return;
+        if (!santriList.length) return null;
+        return { kls, ptList, santriList };
+      }));
+      return { klp, kelasMeta: kelasMeta.filter(Boolean) };
+    }));
 
-        const absensiAll = {};
-        await Promise.all(ptList.map(async p => { absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id); }));
+    // Fase 2: satu kali fetch absensi untuk SEMUA pertemuan sekaligus
+    const allPtIds = klpMeta.flatMap(km => km.kelasMeta.flatMap(m => m.ptList.map(p => p.id)));
+    const allAbs = await SB.absensi.getByPertemuanIds(allPtIds);
+    const absByPt = {};
+    allAbs.forEach(a => { (absByPt[a.pertemuan_id] ||= []).push(a); });
 
+    // Fase 3: hitung dari data yang sudah ada di memori — tidak ada fetch lagi
+    klpMeta.forEach(({ klp, kelasMeta }) => {
+      bkData[klp.id] = [];
+      kelasMeta.forEach(({ kls, ptList, santriList }) => {
         santriList.forEach(s => {
           let h = 0;
           ptList.forEach(p => {
-            const a = (absensiAll[p.id]||[]).find(x => x.santri_id === s.id);
+            const a = (absByPt[p.id]||[]).find(x => x.santri_id === s.id);
             if (a?.status === 'H') h++;
           });
           const pct = Math.round(h / ptList.length * 100);
@@ -4088,8 +4097,8 @@ async function renderDataBK() {
             });
           }
         });
-      }));
-    }));
+      });
+    });
   }
 
   await loadBKData(selectedBulan);
@@ -6585,16 +6594,22 @@ async function renderMusyawarah() {
       const progData = await SB.progress.getByKelompok(klpId, getTahunAjaran());
       const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
       const results = [];
-      await Promise.all(kelasList.map(async k => {
+      const kelasMeta = await Promise.all(kelasList.map(async k => {
         const [ptList, sList] = await Promise.all([
           SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
           SB.santri.getByKelas(k.id),
         ]);
-        const ptBulan = ptList.filter(p => p.bulan === bulan);
+        return { k, ptBulan: ptList.filter(p => p.bulan === bulan), sList };
+      }));
+      const allPtIds = kelasMeta.flatMap(m => m.ptBulan.map(p => p.id));
+      const allAbs = await SB.absensi.getByPertemuanIds(allPtIds);
+      const absByPt = {};
+      allAbs.forEach(a => { (absByPt[a.pertemuan_id] ||= []).push(a); });
+
+      await Promise.all(kelasMeta.map(async ({ k, ptBulan, sList }) => {
         let H=0,I=0,S=0,A=0,slot=0;
-        const absResults = await Promise.all(ptBulan.map(p => SB.absensi.getByPertemuan(p.id)));
-        ptBulan.forEach((p, pi) => {
-          const abs = absResults[pi];
+        ptBulan.forEach(p => {
+          const abs = absByPt[p.id] || [];
           sList.forEach(s => {
             const a = abs.find(x => x.santri_id === s.id);
             const st = a?.status || 'A';
@@ -6839,50 +6854,59 @@ async function renderMusyawarah() {
         if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
         const tampilBulan = window._musRekapBulan;
 
-        // Fetch progress + kehadiran per kelompok (paralel)
-        const klpData = {};
-        await Promise.all(allKlp.map(async klp => {
+        // Fetch progress + kelas per kelompok (paralel)
+        const klpMeta = await Promise.all(allKlp.map(async klp => {
           try {
             const [prog, kelasList] = await Promise.all([
               SB.progress.getByKelompok(klp.id, getTahunAjaran()),
               SB.kelas.getByKelompok(klp.id),
             ]);
             const materiCount = prog.filter(p => p.bulan === tampilBulan).length;
-
-            // Hitung kehadiran per kelas
-            let totalH=0, totalSlot=0;
-            const kelasStats = [];
-            await Promise.all(kelasList.map(async k => {
+            const kelasMeta = await Promise.all(kelasList.map(async k => {
               const [ptList, sList] = await Promise.all([
                 SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
                 SB.santri.getByKelas(k.id),
               ]);
-              const ptBulan = ptList.filter(p => p.bulan === tampilBulan);
-              let kH=0, kSlot=0;
-              for (const p of ptBulan) {
-                const abs = await SB.absensi.getByPertemuan(p.id);
-                sList.forEach(s => {
-                  const a = abs.find(x => x.santri_id === s.id);
-                  const st = a?.status || 'A';
-                  if (st==='H') { kH++; totalH++; }
-                  kSlot++; totalSlot++;
-                });
-              }
-              kelasStats.push({
-                nama: k.nama_kelas || k.jenjang,
-                pctHadir: kSlot > 0 ? Math.round(kH/kSlot*100) : null,
-                santri: sList.length,
-                pertemuan: ptBulan.length,
-              });
+              return { k, ptBulan: ptList.filter(p => p.bulan === tampilBulan), sList };
             }));
-
-            klpData[klp.id] = {
-              materi: materiCount,
-              pctHadir: totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null,
-              kelasStats,
-            };
-          } catch(e) { klpData[klp.id] = { materi: 0, pctHadir: null, kelasStats: [] }; }
+            return { klp, materiCount, kelasMeta, ok: true };
+          } catch(e) { return { klp, materiCount: 0, kelasMeta: [], ok: false }; }
         }));
+
+        // Satu kali fetch absensi untuk SEMUA pertemuan se-daerah (bukan per kelas per kelompok)
+        const allPtIdsMus = klpMeta.flatMap(m => m.kelasMeta.flatMap(km => km.ptBulan.map(p => p.id)));
+        const allAbsMus = await SB.absensi.getByPertemuanIds(allPtIdsMus);
+        const absByPtMus = {};
+        allAbsMus.forEach(a => { (absByPtMus[a.pertemuan_id] ||= []).push(a); });
+
+        const klpData = {};
+        klpMeta.forEach(({ klp, materiCount, kelasMeta, ok }) => {
+          if (!ok) { klpData[klp.id] = { materi: 0, pctHadir: null, kelasStats: [] }; return; }
+          let totalH=0, totalSlot=0;
+          const kelasStats = kelasMeta.map(({ k, ptBulan, sList }) => {
+            let kH=0, kSlot=0;
+            ptBulan.forEach(p => {
+              const abs = absByPtMus[p.id] || [];
+              sList.forEach(s => {
+                const a = abs.find(x => x.santri_id === s.id);
+                const st = a?.status || 'A';
+                if (st==='H') { kH++; totalH++; }
+                kSlot++; totalSlot++;
+              });
+            });
+            return {
+              nama: k.nama_kelas || k.jenjang,
+              pctHadir: kSlot > 0 ? Math.round(kH/kSlot*100) : null,
+              santri: sList.length,
+              pertemuan: ptBulan.length,
+            };
+          });
+          klpData[klp.id] = {
+            materi: materiCount,
+            pctHadir: totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null,
+            kelasStats,
+          };
+        });
 
         let daerahHtml = '';
         for (const [desaNama, klpList] of Object.entries(desaMap)) {
@@ -8632,9 +8656,8 @@ async function renderRekap() {
 
   const kelasList = sortKelas([...kelasListRaw, ...kelasGabungan]);
 
-  // Load pertemuan, santri, absensi untuk semua kelas
-  const kelasData = {};
-  await Promise.all(kelasList.map(async k => {
+  // Load pertemuan, santri untuk semua kelas (masih ringan, 1 request per kelas)
+  const kelasMeta = await Promise.all(kelasList.map(async k => {
     const [pertemuanList, santriListAll] = await Promise.all([
       SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
       SB.santri.getByKelas(k.id),
@@ -8643,16 +8666,29 @@ async function renderRekap() {
     const santriList = k.desa_id
       ? santriListAll.filter(s => s.kelompok_asal_id === myKelompokId)
       : santriListAll;
-    const santriIds = new Set(santriList.map(s => s.id));
-    // Load absensi untuk semua pertemuan
-    const absensiAll = {};
-    await Promise.all(pertemuanList.map(async p => {
-      const absenAll = await SB.absensi.getByPertemuan(p.id);
-      // Untuk kelas gabungan: filter absensi hanya santri kelompok ini
-      absensiAll[p.id] = k.desa_id ? absenAll.filter(a => santriIds.has(a.santri_id)) : absenAll;
-    }));
-    kelasData[k.id] = { kelas: k, pertemuanList, santriList: santriList, absensiAll, _isGabungan: !!k.desa_id };
+    return { k, pertemuanList, santriList };
   }));
+
+  // Satu kali fetch absensi untuk SEMUA pertemuan sekaligus (bukan satu per satu per pertemuan)
+  const allPertemuanIds = kelasMeta.flatMap(m => m.pertemuanList.map(p => p.id));
+  const allAbsensi = await SB.absensi.getByPertemuanIds(allPertemuanIds);
+  const absensiByPertemuan = {};
+  allAbsensi.forEach(a => {
+    if (!absensiByPertemuan[a.pertemuan_id]) absensiByPertemuan[a.pertemuan_id] = [];
+    absensiByPertemuan[a.pertemuan_id].push(a);
+  });
+
+  // Susun kelasData dari data yang sudah ada di memori — tidak ada fetch lagi di sini
+  const kelasData = {};
+  kelasMeta.forEach(({ k, pertemuanList, santriList }) => {
+    const santriIds = new Set(santriList.map(s => s.id));
+    const absensiAll = {};
+    pertemuanList.forEach(p => {
+      const absenAll = absensiByPertemuan[p.id] || [];
+      absensiAll[p.id] = k.desa_id ? absenAll.filter(a => santriIds.has(a.santri_id)) : absenAll;
+    });
+    kelasData[k.id] = { kelas: k, pertemuanList, santriList, absensiAll, _isGabungan: !!k.desa_id };
+  });
 
   const allProgData = [...progData, ...progDataGabungan];
   const progressSet = new Set(allProgData.map(p => p.materi_id + '|' + p.bulan));
@@ -9258,28 +9294,41 @@ async function renderRekapDesa() {
   const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
   let selectedBulan = nowMonth;
 
-  // Load kelas, pertemuan, absensi, progress untuk setiap kelompok
-  const kelompokData = {};
-  await Promise.all(kelompokDesa.map(async klp => {
+  // Load kelas, pertemuan, santri, progress untuk setiap kelompok (belum ambil absensi)
+  const kelompokMeta = await Promise.all(kelompokDesa.map(async klp => {
     const kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
     const progData = await SB.progress.getByKelompok(klp.id, getTahunAjaran());
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
-
-    const kelasData = {};
-    await Promise.all(kelasList.map(async k => {
+    const kelasMeta = await Promise.all(kelasList.map(async k => {
       const [pertemuanList, santriKelas] = await Promise.all([
         SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
         SB.santri.getByKelas(k.id),
       ]);
-      const absensiAll = {};
-      await Promise.all(pertemuanList.map(async p => {
-        absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id);
-      }));
-      kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
+      return { k, pertemuanList, santriKelas };
     }));
-
-    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+    return { klp, kelasList, kelasMeta, progressSet };
   }));
+
+  // Satu kali fetch absensi untuk SEMUA pertemuan se-desa (bukan per pertemuan per kelompok)
+  const allPertemuanIdsDesa = kelompokMeta.flatMap(km => km.kelasMeta.flatMap(m => m.pertemuanList.map(p => p.id)));
+  const allAbsensiDesa = await SB.absensi.getByPertemuanIds(allPertemuanIdsDesa);
+  const absensiByPertemuanDesa = {};
+  allAbsensiDesa.forEach(a => {
+    if (!absensiByPertemuanDesa[a.pertemuan_id]) absensiByPertemuanDesa[a.pertemuan_id] = [];
+    absensiByPertemuanDesa[a.pertemuan_id].push(a);
+  });
+
+  // Susun kelompokData dari data yang sudah ada di memori
+  const kelompokData = {};
+  kelompokMeta.forEach(({ klp, kelasList, kelasMeta, progressSet }) => {
+    const kelasData = {};
+    kelasMeta.forEach(({ k, pertemuanList, santriKelas }) => {
+      const absensiAll = {};
+      pertemuanList.forEach(p => { absensiAll[p.id] = absensiByPertemuanDesa[p.id] || []; });
+      kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
+    });
+    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+  });
 
   // Load kelas gabungan desa
   const desaIdForGabungan = myDesaId || Object.keys({'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'}).find(k => DESA_NAMA_MAP[k] === desaFilterNama);
@@ -9287,15 +9336,23 @@ async function renderRekapDesa() {
   const gabunganData = {};
   if (desaIdForGabungan) {
     kelasGabunganDesa = sortKelas(await SB.kelas.getByDesa(desaIdForGabungan) || []);
-    await Promise.all(kelasGabunganDesa.map(async k => {
+    const gabunganMeta = await Promise.all(kelasGabunganDesa.map(async k => {
       const [pertemuanList, santriAll] = await Promise.all([
         SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
         SB.santri.getByKelas(k.id),
       ]);
+      return { k, pertemuanList, santriAll };
+    }));
+    const allPertemuanIdsGabungan = gabunganMeta.flatMap(m => m.pertemuanList.map(p => p.id));
+    const allAbsensiGabungan = await SB.absensi.getByPertemuanIds(allPertemuanIdsGabungan);
+    const absensiByPertemuanGabungan = {};
+    allAbsensiGabungan.forEach(a => {
+      if (!absensiByPertemuanGabungan[a.pertemuan_id]) absensiByPertemuanGabungan[a.pertemuan_id] = [];
+      absensiByPertemuanGabungan[a.pertemuan_id].push(a);
+    });
+    gabunganMeta.forEach(({ k, pertemuanList, santriAll }) => {
       const absensiAll = {};
-      await Promise.all(pertemuanList.map(async p => {
-        absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id);
-      }));
+      pertemuanList.forEach(p => { absensiAll[p.id] = absensiByPertemuanGabungan[p.id] || []; });
       // Group santri by kelompok_asal_id
       const santriByKlp = {};
       santriAll.forEach(s => {
@@ -9304,7 +9361,7 @@ async function renderRekapDesa() {
         santriByKlp[kid].push(s);
       });
       gabunganData[k.id] = { kelas: k, pertemuanList, santriAll, santriByKlp, absensiAll };
-    }));
+    });
   }
 
   function hitungStatsKlp(klpId, bulan) {
@@ -9818,25 +9875,39 @@ async function renderRekapDaerah() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data ' + kelompokList.length + ' kelompok...</div></div>';
 
   const allSantri = await SB.santri.getAll();
-  const kelompokData = {};
-  await Promise.all(kelompokList.map(async klp => {
+  const kelompokMeta = await Promise.all(kelompokList.map(async klp => {
     const kelasList = sortKelas(await SB.kelas.getByKelompok(klp.id));
     const progData = await SB.progress.getByKelompok(klp.id, getTahunAjaran());
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
-    const kelasData = {};
-    await Promise.all(kelasList.map(async k => {
+    const kelasMeta = await Promise.all(kelasList.map(async k => {
       const [pertemuanList, santriKelas] = await Promise.all([
         SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
         SB.santri.getByKelas(k.id),
       ]);
-      const absensiAll = {};
-      await Promise.all(pertemuanList.map(async p => {
-        absensiAll[p.id] = await SB.absensi.getByPertemuan(p.id);
-      }));
-      kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
+      return { k, pertemuanList, santriKelas };
     }));
-    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+    return { klp, kelasList, kelasMeta, progressSet };
   }));
+
+  // Satu kali fetch absensi untuk SEMUA pertemuan se-daerah (bukan 1000+ request terpisah)
+  const allPertemuanIdsDaerah = kelompokMeta.flatMap(km => km.kelasMeta.flatMap(m => m.pertemuanList.map(p => p.id)));
+  const allAbsensiDaerah = await SB.absensi.getByPertemuanIds(allPertemuanIdsDaerah);
+  const absensiByPertemuanDaerah = {};
+  allAbsensiDaerah.forEach(a => {
+    if (!absensiByPertemuanDaerah[a.pertemuan_id]) absensiByPertemuanDaerah[a.pertemuan_id] = [];
+    absensiByPertemuanDaerah[a.pertemuan_id].push(a);
+  });
+
+  const kelompokData = {};
+  kelompokMeta.forEach(({ klp, kelasList, kelasMeta, progressSet }) => {
+    const kelasData = {};
+    kelasMeta.forEach(({ k, pertemuanList, santriKelas }) => {
+      const absensiAll = {};
+      pertemuanList.forEach(p => { absensiAll[p.id] = absensiByPertemuanDaerah[p.id] || []; });
+      kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
+    });
+    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+  });
 
   const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
 
