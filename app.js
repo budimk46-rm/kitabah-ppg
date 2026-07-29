@@ -144,7 +144,7 @@ function loadSession() {
 function clearSession() {
   try { localStorage.removeItem('kitabah_session'); } catch(e) {}
   App.user = null;
-  App.cache = { materi: null, kelompok: null, desa: null, myProgress: null };
+  App.cache = { materi: null, kelompok: null, desa: null, myProgress: null, allSantri: null };
 }
 
 /* ===== UTILITIES ===== */
@@ -1827,7 +1827,7 @@ async function renderSantri() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data generus...</div></div>';
 
   // Load semua santri sekaligus
-  const allSantri = await SB.santri.getAll();
+  const allSantri = App.cache.allSantri || (App.cache.allSantri = await SB.santri.getAll());
 
   // Filter sesuai role
   const kelompokList = App.cache.kelompok || [];
@@ -2798,6 +2798,7 @@ async function renderKelolaKelas() {
   window.STR_delete = async (id, nama) => {
     if (!confirm(`Keluarkan "${nama}" dari kelas ini?\nSantri akan dipindah ke daftar belum masuk kelas.`)) return;
     await SB.santri.update(id, { kelas_id: null });
+    App.cache.allSantri = null;
     logActivity('ubah', 'Santri', `Mengeluarkan "${nama}" dari kelas`);
     showToast('Santri dikeluarkan dari kelas');
     await loadSantri(selectedKelasId);
@@ -9289,7 +9290,7 @@ async function renderRekapDesa() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data rekap desa...</div></div>';
 
   // Load semua data paralel
-  const allSantri = await SB.santri.getAll();
+  const allSantri = App.cache.allSantri || (App.cache.allSantri = await SB.santri.getAll());
   const nowMonth = currentMonthName();
   const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
   let selectedBulan = nowMonth;
@@ -9890,7 +9891,7 @@ async function renderRekapDaerah() {
   // Load semua data paralel per kelompok
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat data ' + kelompokList.length + ' kelompok...</div></div>';
 
-  const allSantri = await SB.santri.getAll();
+  const allSantri = App.cache.allSantri || (App.cache.allSantri = await SB.santri.getAll());
 
   // Tahap 1: satu kali fetch KELAS + PROGRESS untuk SEMUA 31 kelompok sekaligus
   const allKlpIds = kelompokList.map(k => k.id);
@@ -10705,12 +10706,14 @@ function openAddSantriModal(kelasId, existingSantri, onSaved, kelompokAsalId) {
     try {
       if (s) {
         await SB.santri.update(s.id, data);
+        App.cache.allSantri = null;
         logActivity('ubah', 'Santri', `Mengubah data generus: ${data.nama}`);
         showToast('Data generus diperbarui');
       } else {
         const insertData = { ...data, kelas_id: kelasId, aktif: true };
         if (kelompokAsalId) insertData.kelompok_asal_id = kelompokAsalId;
         await SB.santri.insert(insertData);
+        App.cache.allSantri = null;
         logActivity('tambah', 'Santri', `Menambah generus baru: ${data.nama}`);
         showToast('Generus berhasil ditambahkan');
       }
@@ -10956,6 +10959,7 @@ async function openImportExcelModal(kelasId, kelompokId, onDone) {
       catch(e) { gagal += batch.length; console.error(e); }
     }
     showToast(`Import selesai: ${berhasil} berhasil${gagal?', '+gagal+' gagal':''}`);
+    App.cache.allSantri = null;
     closeModal('importExcelModal');
     onDone();
   };
