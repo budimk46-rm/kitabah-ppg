@@ -699,6 +699,7 @@ function chartIcon() { return SVG('<line x1="18" y1="20" x2="18" y2="10"/><line 
 function cogIcon() { return SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>'); }
 function gradCapIcon() { return SVG('<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-4.5"/><path d="M22 10v6"/>'); }
 function logIcon() { return SVG('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>'); }
+function raportIcon() { return SVG('<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/>'); }
 
 const NAV_ITEMS = {
   admin: [
@@ -713,6 +714,7 @@ const NAV_ITEMS = {
     { id: 'daftar_kelas', icon: listIcon(), label: 'Kelas Tiap Kelompok' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
+    { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
@@ -762,6 +764,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
+    { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -778,6 +781,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
+    { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -793,6 +797,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
+    { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -941,6 +946,7 @@ async function renderPage(page) {
       case 'mtms':        await renderMtMs(); break;
       case 'guru_sekolah': await renderGuruSekolah(); break;
       case 'log_aktivitas': await renderLogAktivitas(); break;
+      case 'raport_caberawit': await renderRaportCaberawit(); break;
       case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
@@ -5601,6 +5607,483 @@ async function renderLogAktivitas() {
     };
 
     openModal('logHapusModal');
+  };
+
+  render();
+}
+
+/* ===== PAGE: RAPORT CABERAWIT ===== */
+async function renderRaportCaberawit() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+
+  const SECTION_LABEL = { A: 'A. Akhlaqul Karimah', B: 'B. Alim Faqih', C: 'C. Kemandirian' };
+  const JENJANG_LIST_RAPORT = ['PAUD TK','SD 1','SD 2','SD 3','SD 4','SD 5','SD 6'];
+
+  function hitungPredikat(nilai, skala) {
+    if (nilai === null || nilai === undefined || nilai === '') return '';
+    const n = Number(nilai);
+    if (isNaN(n)) return '';
+    if (skala === 'alim_faqih') {
+      if (n > 96) return 'A+';
+      if (n >= 90) return 'A';
+      if (n >= 86) return 'B+';
+      if (n >= 80) return 'B';
+      if (n >= 76) return 'C+';
+      return 'C'; // termasuk di bawah 70 — tetap predikat terendah
+    } else {
+      if (n > 96) return 'A+';
+      if (n >= 90) return 'A';
+      if (n >= 86) return 'B+';
+      if (n >= 80) return 'B';
+      if (n >= 70) return 'C';
+      return 'D'; // termasuk di bawah 60 — tetap predikat terendah
+    }
+  }
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // === Penentuan kelompok scope (admin perlu pilih dulu, mirip halaman Rekap) ===
+  let myKelompokId = u.kelompok_id || null;
+  if (isAdmin && !App.cache.raportKelompokId) {
+    main.innerHTML = `
+      <div class="page-header"><h1 class="page-title">Raport Caberawit</h1></div>
+      <div class="card">
+        <p style="margin:0 0 14px; font-size:13.5px; color:var(--ink-soft);">Pilih kelompok untuk mengisi/lihat raport.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="flex:1; min-width:200px;">
+            <label style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); display:block; margin-bottom:5px;">Kelompok</label>
+            <select id="rcKelompokSel" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <option value="">Pilih kelompok...</option>
+              ${(App.cache.kelompok||[]).map(k => `<option value="${k.id}">${escHtml(k.nama)} · ${escHtml(k.desa?.nama||k.desa_id)}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-green" onclick="RC_pilihKelompok()">Lanjut →</button>
+        </div>
+      </div>`;
+    window.RC_pilihKelompok = () => {
+      const id = document.getElementById('rcKelompokSel').value;
+      if (!id) { showToast('Pilih kelompok dulu', true); return; }
+      App.cache.raportKelompokId = id;
+      renderRaportCaberawit();
+    };
+    return;
+  }
+  myKelompokId = myKelompokId || App.cache.raportKelompokId;
+
+  const kelasList = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
+  const nowMonth = currentMonthName();
+  let semester = SEM1_MONTHS.includes(nowMonth) ? 1 : 2;
+  const ta = getTahunAjaran();
+
+  let selectedKelasId = kelasList.length ? kelasList[0].id : null;
+  let santriList = [];
+  let selectedSantriId = null;
+  let materiList = [];
+  let nilaiMap = {};   // materi_raport_id -> nilai
+  let catatanText = '';
+  let hasUnsaved = false;
+
+  async function loadSantri() {
+    santriList = selectedKelasId ? await SB.santri.getByKelas(selectedKelasId) : [];
+    selectedSantriId = santriList.length ? santriList[0].id : null;
+  }
+  await loadSantri();
+
+  async function loadRaportData() {
+    materiList = []; nilaiMap = {}; catatanText = '';
+    if (!selectedSantriId) return;
+    const kls = kelasList.find(k => k.id === selectedKelasId);
+    const jenjang = kls?.jenjang || '';
+    if (!JENJANG_LIST_RAPORT.includes(jenjang)) return; // bukan jenjang caberawit
+
+    const [materi, nilaiRows, catatanRows] = await Promise.all([
+      SB.materiRaport.getByJenjangSemester(jenjang, semester),
+      SB.raportNilai.getBySantri(selectedSantriId, semester, ta),
+      SB.raportCatatan.get(selectedSantriId, semester, ta),
+    ]);
+    materiList = materi || [];
+    (nilaiRows||[]).forEach(r => { nilaiMap[r.materi_raport_id] = r.nilai; });
+    catatanText = catatanRows?.[0]?.catatan || '';
+    hasUnsaved = false;
+  }
+  await loadRaportData();
+
+  function render() {
+    const kls = kelasList.find(k => k.id === selectedKelasId);
+    const jenjang = kls?.jenjang || '-';
+    const jenjangValid = JENJANG_LIST_RAPORT.includes(jenjang);
+    const santri = santriList.find(s => s.id === selectedSantriId);
+
+    let bodyHtml = '';
+    if (!jenjangValid) {
+      bodyHtml = `<div class="card" style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">
+        Raport ini khusus untuk jenjang Caberawit (PAUD TK – SD 6). Kelas "${escHtml(kls?.nama_kelas||'-')}" jenjangnya "${escHtml(jenjang)}", belum ada template raport untuk jenjang ini.
+      </div>`;
+    } else if (!materiList.length) {
+      bodyHtml = `<div class="card" style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data materi raport untuk jenjang ${escHtml(jenjang)} semester ${semester}.</div>`;
+    } else {
+      // Group by section + subsection
+      const groups = [];
+      let lastKey = null;
+      materiList.forEach(m => {
+        const key = m.section + '|' + (m.subsection||'');
+        if (key !== lastKey) { groups.push({ section: m.section, subsection: m.subsection, items: [] }); lastKey = key; }
+        groups[groups.length-1].items.push(m);
+      });
+
+      let lastSection = null;
+      const groupsHtml = groups.map(g => {
+        let sectionHeader = '';
+        if (g.section !== lastSection) {
+          sectionHeader = `<div style="background:var(--green); color:#fff; font-weight:800; font-size:13px; padding:8px 12px; margin-top:14px; border-radius:6px;">${escHtml(SECTION_LABEL[g.section]||g.section)}</div>`;
+          lastSection = g.section;
+        }
+        const subHeader = g.subsection ? `<div style="font-weight:700; font-size:12.5px; color:var(--green); padding:8px 4px 4px;">${escHtml(g.subsection)}</div>` : '';
+        const rows = g.items.map((m, i) => {
+          const nilai = nilaiMap[m.id];
+          const predikat = hitungPredikat(nilai, m.skala);
+          return `<div style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid var(--line);">
+            <div style="width:22px; flex-shrink:0; font-size:12px; color:var(--ink-soft); text-align:center;">${i+1}</div>
+            <div style="flex:1; min-width:0; font-size:12.5px; color:#111;">${escHtml(m.teks)}</div>
+            <input type="number" min="0" max="100" data-mid="${m.id}" data-skala="${m.skala}" value="${nilai??''}"
+              oninput="RC_onNilaiInput(this)"
+              style="width:56px; flex-shrink:0; padding:5px 6px; border:1.5px solid var(--line); border-radius:6px; font-size:12px; text-align:center;">
+            <div id="predikat-${m.id}" style="width:36px; flex-shrink:0; text-align:center; font-weight:800; font-size:12px; color:var(--gold);">${predikat}</div>
+          </div>`;
+        }).join('');
+        return sectionHeader + subHeader + rows;
+      }).join('');
+
+      bodyHtml = `
+        <div class="card" style="margin-bottom:14px;">
+          <div style="display:flex; gap:8px; padding:8px 4px; border-bottom:2px solid var(--green); font-weight:700; font-size:11px; color:var(--ink-soft); text-transform:uppercase;">
+            <div style="width:22px;">No</div><div style="flex:1;">Materi Pembinaan</div><div style="width:56px; text-align:center;">Nilai</div><div style="width:36px; text-align:center;">Predikat</div>
+          </div>
+          ${groupsHtml}
+        </div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="fw-bold" style="color:var(--green); font-size:13px; margin-bottom:8px;">D. Catatan Perkembangan Akhlaqul Karimah</div>
+          <textarea id="rcCatatan" rows="3" placeholder="Catatan dari guru pengajar..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; font-family:inherit;" oninput="RC_onCatatanInput(this.value)">${escHtml(catatanText)}</textarea>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-green" id="rcSaveBtn" onclick="RC_simpan()">💾 Simpan Nilai</button>
+          <button class="btn btn-outline" onclick="RC_downloadPDF()">📄 Download PDF (F5)</button>
+        </div>`;
+    }
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Raport Caberawit</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Tahun Ajaran ${escHtml(ta)}</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Kelas</label>
+            <select id="rcKelasSel" onchange="RC_setKelas(this.value)">
+              ${kelasList.map(k => `<option value="${k.id}" ${k.id===selectedKelasId?'selected':''}>${escHtml(k.nama_kelas)} (${escHtml(k.jenjang)})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Santri</label>
+            <select id="rcSantriSel" onchange="RC_setSantri(this.value)">
+              ${santriList.length ? santriList.map(s => `<option value="${s.id}" ${s.id===selectedSantriId?'selected':''}>${escHtml(s.nama)}</option>`).join('') : '<option value="">Belum ada santri</option>'}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Semester</label>
+            <select id="rcSemesterSel" onchange="RC_setSemester(this.value)">
+              <option value="1" ${semester===1?'selected':''}>Semester 1</option>
+              <option value="2" ${semester===2?'selected':''}>Semester 2</option>
+            </select>
+          </div>
+        </div>
+        ${santri ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Mengisi raport untuk: <b style="color:#111;">${escHtml(santri.nama)}</b> · ${escHtml(jenjang)} · Semester ${semester}</div>` : ''}
+      </div>
+
+      ${bodyHtml}
+    `;
+  }
+
+  window.RC_setKelas = async (id) => {
+    selectedKelasId = id;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadSantri();
+    await loadRaportData();
+    render();
+  };
+  window.RC_setSantri = async (id) => {
+    selectedSantriId = id;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadRaportData();
+    render();
+  };
+  window.RC_setSemester = async (val) => {
+    semester = Number(val);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadRaportData();
+    render();
+  };
+  window.RC_onNilaiInput = (el) => {
+    const mid = el.dataset.mid;
+    const skala = el.dataset.skala;
+    const val = el.value === '' ? null : Number(el.value);
+    nilaiMap[mid] = val;
+    hasUnsaved = true;
+    const pEl = document.getElementById('predikat-' + mid);
+    if (pEl) pEl.textContent = hitungPredikat(val, skala);
+  };
+  window.RC_onCatatanInput = (val) => { catatanText = val; hasUnsaved = true; };
+
+  window.RC_simpan = async () => {
+    if (!selectedSantriId) return;
+    const btn = document.getElementById('rcSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      const rows = materiList
+        .filter(m => nilaiMap[m.id] !== null && nilaiMap[m.id] !== undefined && nilaiMap[m.id] !== '')
+        .map(m => ({
+          santri_id: selectedSantriId,
+          materi_raport_id: m.id,
+          kelompok_id: myKelompokId,
+          semester, tahun_ajaran: ta,
+          nilai: nilaiMap[m.id],
+          dibuat_oleh: u.id,
+        }));
+      if (rows.length) await SB.raportNilai.upsertBulk(rows);
+      await SB.raportCatatan.upsert({
+        santri_id: selectedSantriId, semester, tahun_ajaran: ta,
+        kelompok_id: myKelompokId, catatan: catatanText || null, dibuat_oleh: u.id,
+      });
+      const santriNama = santriList.find(s=>s.id===selectedSantriId)?.nama || '';
+      logActivity('ubah', 'Raport Caberawit', `Simpan nilai raport: ${santriNama} — Semester ${semester}`);
+      hasUnsaved = false;
+      showToast('Nilai raport tersimpan ✓');
+    } catch(e) { showToast('Gagal: ' + e.message, true); }
+    finally { btn.disabled = false; btn.textContent = '💾 Simpan Nilai'; }
+  };
+
+  window.RC_downloadPDF = async () => {
+    const kls = kelasList.find(k => k.id === selectedKelasId);
+    const santri = santriList.find(s => s.id === selectedSantriId);
+    const klp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
+    if (!santri || !materiList.length) { showToast('Data belum lengkap', true); return; }
+
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = resolve;
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s2.onload = resolve; s2.onerror = reject;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      });
+    }
+
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg  = await doc.embedFont(StandardFonts.Helvetica);
+      const fItal = await doc.embedFont(StandardFonts.HelveticaOblique);
+
+      // F5 = 148mm x 210mm, potrait
+      const PW = 419.5, PH = 595.3;
+      const ML = 30, MR = 30, MT = 34, MB = 30;
+      const GREEN = rgb(0.106, 0.227, 0.173);
+      const GOLD  = rgb(0.757, 0.604, 0.294);
+      const GRAY  = rgb(0.45, 0.42, 0.38);
+      const WHITE = rgb(1,1,1);
+      const LIGHT = rgb(0.91, 0.95, 0.91);
+      const contentW = PW - ML - MR;
+
+      let page, y;
+      const addPage = () => { page = doc.addPage([PW, PH]); y = PH - MT; };
+      addPage();
+
+      const wrap = (text, maxW, size, font) => {
+        const words = String(text||'').split(' ');
+        const lines = []; let cur = '';
+        for (const w of words) {
+          const test = cur ? cur + ' ' + w : w;
+          if (font.widthOfTextAtSize(test, size) > maxW) { if (cur) lines.push(cur); cur = w; }
+          else cur = test;
+        }
+        if (cur) lines.push(cur);
+        return lines.length ? lines : [''];
+      };
+      const checkSpace = (need) => {
+        if (y - need < MB) { addPage(); }
+      };
+
+      // Header
+      page.drawText('RAPORT GENERUS SIDOARJO UTARA', { x: ML, y, font: fBold, size: 11, color: GREEN });
+      y -= 8;
+      page.drawLine({ start:{x:ML,y}, end:{x:PW-MR,y}, thickness:1.2, color: GOLD });
+      y -= 16;
+
+      const infoRow = (label1, val1, label2, val2) => {
+        page.drawText(label1, { x: ML, y, font: fReg, size: 8.5, color: rgb(0.15,0.15,0.15) });
+        page.drawText(':', { x: ML+62, y, font: fReg, size: 8.5, color: rgb(0.15,0.15,0.15) });
+        page.drawText(String(val1||'-'), { x: ML+70, y, font: fBold, size: 8.5, color: GREEN });
+        if (label2) {
+          const x2 = ML + 230;
+          page.drawText(label2, { x: x2, y, font: fReg, size: 8.5, color: rgb(0.15,0.15,0.15) });
+          page.drawText(':', { x: x2+42, y, font: fReg, size: 8.5, color: rgb(0.15,0.15,0.15) });
+          page.drawText(String(val2||'-'), { x: x2+48, y, font: fBold, size: 8.5, color: GREEN });
+        }
+        y -= 13;
+      };
+      infoRow('Nama Generus', santri.nama, 'Kelompok', klp?.nama);
+      infoRow('Kelas', kls?.jenjang, 'Desa', klp?.desa?.nama || klp?.desa_id);
+      infoRow('Semester', semester, '', '');
+      y -= 6;
+
+      // Table header
+      const COL_NO = 18, COL_NILAI = 34, COL_PRED = 34;
+      const COL_TEKS = contentW - COL_NO - COL_NILAI - COL_PRED;
+      const drawTableHeader = () => {
+        page.drawRectangle({ x: ML, y: y-13, width: contentW, height: 15, color: GREEN });
+        page.drawText('No', { x: ML+3, y: y-10, font: fBold, size: 7.5, color: WHITE });
+        page.drawText('Materi Pembinaan', { x: ML+COL_NO+3, y: y-10, font: fBold, size: 7.5, color: WHITE });
+        page.drawText('Nilai', { x: ML+COL_NO+COL_TEKS+3, y: y-10, font: fBold, size: 7.5, color: WHITE });
+        page.drawText('Predikat', { x: ML+COL_NO+COL_TEKS+COL_NILAI+3, y: y-10, font: fBold, size: 7.5, color: WHITE });
+        y -= 17;
+      };
+      drawTableHeader();
+
+      // Group + rows
+      const groups = [];
+      let lastKey = null;
+      materiList.forEach(m => {
+        const key = m.section + '|' + (m.subsection||'');
+        if (key !== lastKey) { groups.push({ section: m.section, subsection: m.subsection, items: [] }); lastKey = key; }
+        groups[groups.length-1].items.push(m);
+      });
+
+      let lastSection = null;
+      groups.forEach(g => {
+        if (g.section !== lastSection) {
+          checkSpace(16);
+          page.drawRectangle({ x: ML, y: y-11, width: contentW, height: 13, color: LIGHT });
+          page.drawText(SECTION_LABEL[g.section]||g.section, { x: ML+3, y: y-9, font: fBold, size: 8, color: GREEN });
+          y -= 15;
+          lastSection = g.section;
+        }
+        if (g.subsection) {
+          checkSpace(12);
+          page.drawText(g.subsection, { x: ML+2, y: y-8, font: fBold, size: 7.5, color: GREEN });
+          y -= 12;
+        }
+        g.items.forEach((m, i) => {
+          const nilai = nilaiMap[m.id];
+          const predikat = hitungPredikat(nilai, m.skala);
+          const lines = wrap(`${i+1}. ${m.teks}`, COL_TEKS - 4, 7, fReg);
+          const rowH = Math.max(10, lines.length * 8.5);
+          checkSpace(rowH + 2);
+          lines.forEach((ln, li) => {
+            page.drawText(ln, { x: ML+COL_NO+2, y: y - (li*8.5) - 7, font: fReg, size: 7, color: rgb(0.1,0.1,0.1) });
+          });
+          page.drawText(nilai!=null ? String(nilai) : '-', { x: ML+COL_NO+COL_TEKS+8, y: y-7, font: fReg, size: 7.5, color: rgb(0.1,0.1,0.1) });
+          page.drawText(predikat||'-', { x: ML+COL_NO+COL_TEKS+COL_NILAI+8, y: y-7, font: fBold, size: 7.5, color: GOLD });
+          page.drawLine({ start:{x:ML,y:y-rowH-1}, end:{x:PW-MR,y:y-rowH-1}, thickness:0.4, color: rgb(0.85,0.85,0.85) });
+          y -= rowH + 2;
+        });
+      });
+
+      // Catatan D
+      checkSpace(50);
+      y -= 6;
+      page.drawText('D. Catatan Perkembangan Akhlaqul Karimah', { x: ML, y, font: fBold, size: 8.5, color: GREEN });
+      y -= 12;
+      const catatanLines = wrap(catatanText || '-', contentW - 4, 8, fReg);
+      catatanLines.slice(0, 4).forEach(ln => { page.drawText(ln, { x: ML, y, font: fReg, size: 8, color: rgb(0.1,0.1,0.1) }); y -= 11; });
+
+      // Tanda tangan
+      checkSpace(90);
+      y -= 10;
+      const today = new Date();
+      page.drawText(`Sidoarjo, ${today.getDate()} - ${today.getMonth()+1} - ${today.getFullYear()}`, { x: PW-MR-140, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+      y -= 30;
+      const sigColW = contentW / 3;
+      ['PJP Kelompok','Wali KBM','Guru Kelas'].forEach((lbl, i) => {
+        page.drawText(lbl, { x: ML + i*sigColW, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+      });
+      y -= 35;
+      ['.......................','.......................','.......................'].forEach((lbl, i) => {
+        page.drawText(lbl, { x: ML + i*sigColW, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+      });
+      y -= 18;
+      page.drawText('Mengetahui, Orang Tua/Wali', { x: ML + sigColW, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+      y -= 30;
+      page.drawText('.......................', { x: ML + sigColW, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+
+      // Legenda (halaman baru, ringkas)
+      addPage();
+      page.drawText('Keterangan Penilaian', { x: ML, y, font: fBold, size: 10, color: GREEN });
+      y -= 16;
+      page.drawText('Untuk Alim Faqih:', { x: ML, y, font: fBold, size: 8, color: GREEN });
+      y -= 11;
+      const legendAF = [
+        ['A+','>96','Mampu Membaca/Menulis/Menghafal dengan benar tanpa dibantu'],
+        ['A','90-95','Mampu dengan benar, 1-2 bantuan'],
+        ['B+','86-89','Mampu, 2-3 bantuan, 1-2 kesalahan'],
+        ['B','80-85','Mampu, 2-3 bantuan, beberapa kesalahan'],
+        ['C+','76-79','Mampu, 4-5 bantuan, beberapa kesalahan'],
+        ['C','70-75','Perlu bimbingan & pendampingan'],
+      ];
+      legendAF.forEach(([kode, rentang, ket]) => {
+        page.drawText(kode, { x: ML, y, font: fBold, size: 7.5, color: GOLD });
+        page.drawText(rentang, { x: ML+22, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+        wrap(ket, contentW-95, 7, fReg).forEach((ln,li) => {
+          page.drawText(ln, { x: ML+70, y: y-(li*9), font: fReg, size: 7, color: rgb(0.3,0.3,0.3) });
+        });
+        y -= 9 * Math.max(1, wrap(ket, contentW-95, 7, fReg).length) + 2;
+      });
+      y -= 8;
+      page.drawText('Untuk Akhlaqul Karimah & Kemandirian:', { x: ML, y, font: fBold, size: 8, color: GREEN });
+      y -= 11;
+      const legendAK = [
+        ['A+','>96','Selalu melakukan dengan baik tanpa diingatkan'],
+        ['A','90-95','Selalu melakukan, sesekali diingatkan'],
+        ['B+','86-89','Sering melakukan tanpa diingatkan'],
+        ['B','80-85','Kadang-kadang melakukan jika diingatkan'],
+        ['C','70-79','Mau melakukan jika diingatkan'],
+        ['D','60-69','Belum mau melakukan, perlu bimbingan khusus'],
+      ];
+      legendAK.forEach(([kode, rentang, ket]) => {
+        page.drawText(kode, { x: ML, y, font: fBold, size: 7.5, color: GOLD });
+        page.drawText(rentang, { x: ML+22, y, font: fReg, size: 7.5, color: rgb(0.2,0.2,0.2) });
+        wrap(ket, contentW-95, 7, fReg).forEach((ln,li) => {
+          page.drawText(ln, { x: ML+70, y: y-(li*9), font: fReg, size: 7, color: rgb(0.3,0.3,0.3) });
+        });
+        y -= 9 * Math.max(1, wrap(ket, contentW-95, 7, fReg).length) + 2;
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Raport_${(santri.nama||'').replace(/\s+/g,'_')}_Sem${semester}_${ta.replace('/','-')}.pdf`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('PDF berhasil diunduh');
+    } catch(e) {
+      showToast('Gagal membuat PDF: ' + e.message, true);
+      console.error(e);
+    }
   };
 
   render();

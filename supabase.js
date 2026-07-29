@@ -484,6 +484,30 @@ const sbSettings = {
   }),
 };
 
+// ============ RAPORT CABERAWIT ============
+const sbMateriRaport = {
+  getByJenjangSemester: (jenjang, semester) =>
+    sbFetch(`materi_raport?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=urutan`),
+};
+const sbRaportNilai = {
+  getBySantri: (santriId, semester, ta) =>
+    sbFetch(`raport_nilai?santri_id=eq.${santriId}&semester=eq.${semester}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  upsertBulk: (rows) => sbFetch('raport_nilai?on_conflict=santri_id,materi_raport_id,semester,tahun_ajaran', {
+    method: 'POST',
+    headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify(rows)
+  }),
+};
+const sbRaportCatatan = {
+  get: (santriId, semester, ta) =>
+    sbFetch(`raport_catatan?santri_id=eq.${santriId}&semester=eq.${semester}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  upsert: (data) => sbFetch('raport_catatan?on_conflict=santri_id,semester,tahun_ajaran', {
+    method: 'POST',
+    headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify(data)
+  }),
+};
+
 // ============ ACTIVITY LOG ============
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
@@ -519,4 +543,7 @@ window.SB = {
   sarpras: sbSarpras,
   penilaian: sbPenilaian,
   activityLog: sbActivityLog,
+  materiRaport: sbMateriRaport,
+  raportNilai: sbRaportNilai,
+  raportCatatan: sbRaportCatatan,
 };
