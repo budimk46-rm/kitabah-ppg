@@ -5682,6 +5682,7 @@ async function renderRaportCaberawit() {
   let santriList = [];
   let selectedSantriId = null;
   let materiList = [];
+  let materiLoadedKey = null; // 'jenjang|semester' terakhir yang sudah di-load, biar tidak fetch ulang tiap ganti santri
   let nilaiMap = {};   // materi_raport_id -> nilai
   let catatanText = '';
   let hasUnsaved = false;
@@ -5692,30 +5693,39 @@ async function renderRaportCaberawit() {
   }
   await loadSantri();
 
-  async function loadRaportData() {
-    materiList = []; nilaiMap = {}; catatanText = '';
-    if (!selectedSantriId) return;
+  // Load daftar materi raport HANYA kalau jenjang/semester berubah (bukan tiap ganti santri)
+  async function loadMateriJikaPerlu() {
     const kls = kelasList.find(k => k.id === selectedKelasId);
     const jenjang = kls?.jenjang || '';
-    if (!JENJANG_LIST_RAPORT.includes(jenjang)) return; // bukan jenjang caberawit
+    if (!JENJANG_LIST_RAPORT.includes(jenjang)) { materiList = []; materiLoadedKey = null; return; }
+    const key = jenjang + '|' + semester;
+    if (key === materiLoadedKey) return; // sudah ada, tidak perlu fetch ulang
+    materiList = await SB.materiRaport.getByJenjangSemester(jenjang, semester) || [];
+    materiLoadedKey = key;
+  }
 
-    const [materi, nilaiRows, catatanRows] = await Promise.all([
-      SB.materiRaport.getByJenjangSemester(jenjang, semester),
+  // Load nilai + catatan untuk santri yang sedang aktif saja — ini yang ringan & cepat, dipanggil tiap ganti santri
+  async function loadNilaiCatatan() {
+    nilaiMap = {}; catatanText = '';
+    if (!selectedSantriId || !materiList.length) return;
+    const [nilaiRows, catatanRows] = await Promise.all([
       SB.raportNilai.getBySantri(selectedSantriId, semester, ta),
       SB.raportCatatan.get(selectedSantriId, semester, ta),
     ]);
-    materiList = materi || [];
     (nilaiRows||[]).forEach(r => { nilaiMap[r.materi_raport_id] = r.nilai; });
     catatanText = catatanRows?.[0]?.catatan || '';
     hasUnsaved = false;
   }
-  await loadRaportData();
+
+  await loadMateriJikaPerlu();
+  await loadNilaiCatatan();
 
   function render() {
     const kls = kelasList.find(k => k.id === selectedKelasId);
     const jenjang = kls?.jenjang || '-';
     const jenjangValid = JENJANG_LIST_RAPORT.includes(jenjang);
     const santri = santriList.find(s => s.id === selectedSantriId);
+    const santriIdx = santriList.findIndex(s => s.id === selectedSantriId);
 
     let bodyHtml = '';
     if (!jenjangValid) {
@@ -5791,12 +5801,6 @@ async function renderRaportCaberawit() {
             </select>
           </div>
           <div class="form-group">
-            <label>Santri</label>
-            <select id="rcSantriSel" onchange="RC_setSantri(this.value)">
-              ${santriList.length ? santriList.map(s => `<option value="${s.id}" ${s.id===selectedSantriId?'selected':''}>${escHtml(s.nama)}</option>`).join('') : '<option value="">Belum ada santri</option>'}
-            </select>
-          </div>
-          <div class="form-group">
             <label>Semester</label>
             <select id="rcSemesterSel" onchange="RC_setSemester(this.value)">
               <option value="1" ${semester===1?'selected':''}>Semester 1</option>
@@ -5804,7 +5808,20 @@ async function renderRaportCaberawit() {
             </select>
           </div>
         </div>
-        ${santri ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Mengisi raport untuk: <b style="color:#111;">${escHtml(santri.nama)}</b> · ${escHtml(jenjang)} · Semester ${semester}</div>` : ''}
+
+        ${santriList.length ? `
+        <div style="display:flex; align-items:center; gap:10px; margin-top:10px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap;">
+          <button class="btn-icon" onclick="RC_prevSantri()" title="Generus sebelumnya" ${santriIdx<=0?'disabled':''} style="${santriIdx<=0?'opacity:.35; cursor:not-allowed;':''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div style="flex:1; min-width:140px; text-align:center;">
+            <div style="font-weight:800; font-size:14px; color:#111;">${escHtml(santri?.nama||'-')}</div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-top:1px;">Generus ke-${santriIdx+1} dari ${santriList.length} · ${escHtml(jenjang)} · Semester ${semester}</div>
+          </div>
+          <button class="btn-icon" onclick="RC_nextSantri()" title="Generus berikutnya" ${santriIdx>=santriList.length-1?'disabled':''} style="${santriIdx>=santriList.length-1?'opacity:.35; cursor:not-allowed;':''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>` : `<div style="font-size:12px; color:var(--ink-soft); margin-top:10px;">Belum ada santri di kelas ini.</div>`}
       </div>
 
       ${bodyHtml}
@@ -5815,21 +5832,34 @@ async function renderRaportCaberawit() {
     selectedKelasId = id;
     main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
     await loadSantri();
-    await loadRaportData();
-    render();
-  };
-  window.RC_setSantri = async (id) => {
-    selectedSantriId = id;
-    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
-    await loadRaportData();
+    await loadMateriJikaPerlu();
+    await loadNilaiCatatan();
     render();
   };
   window.RC_setSemester = async (val) => {
     semester = Number(val);
     main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
-    await loadRaportData();
+    await loadMateriJikaPerlu();
+    await loadNilaiCatatan();
     render();
   };
+
+  // Pindah santri: daftar materi sudah ada di memori, cuma nilai+catatan yang diambil ulang (cepat),
+  // jadi tidak perlu tampilan spinner/pindah halaman — cukup terasa seperti form-nya "dikosongkan lalu diisi ulang".
+  async function pindahSantri(newId) {
+    selectedSantriId = newId;
+    await loadNilaiCatatan();
+    render();
+  }
+  window.RC_prevSantri = async () => {
+    const idx = santriList.findIndex(s => s.id === selectedSantriId);
+    if (idx > 0) await pindahSantri(santriList[idx-1].id);
+  };
+  window.RC_nextSantri = async () => {
+    const idx = santriList.findIndex(s => s.id === selectedSantriId);
+    if (idx < santriList.length - 1) await pindahSantri(santriList[idx+1].id);
+  };
+
   window.RC_onNilaiInput = (el) => {
     const mid = el.dataset.mid;
     const skala = el.dataset.skala;
@@ -5864,7 +5894,14 @@ async function renderRaportCaberawit() {
       const santriNama = santriList.find(s=>s.id===selectedSantriId)?.nama || '';
       logActivity('ubah', 'Raport Caberawit', `Simpan nilai raport: ${santriNama} — Semester ${semester}`);
       hasUnsaved = false;
-      showToast('Nilai raport tersimpan ✓');
+
+      const idx = santriList.findIndex(s => s.id === selectedSantriId);
+      if (idx < santriList.length - 1) {
+        await pindahSantri(santriList[idx+1].id);
+        showToast('Tersimpan ✓ — lanjut ke generus berikutnya');
+      } else {
+        showToast('Nilai raport tersimpan ✓ (generus terakhir di kelas ini)');
+      }
     } catch(e) { showToast('Gagal: ' + e.message, true); }
     finally { btn.disabled = false; btn.textContent = '💾 Simpan Nilai'; }
   };
@@ -5924,7 +5961,7 @@ async function renderRaportCaberawit() {
         return lines.length ? lines : [''];
       };
       const checkSpace = (need) => {
-        if (y - need < MB) { addPage(); }
+        if (y - need < MB) { addPage(); drawTableHeader(); }
       };
 
       // Header
@@ -5974,15 +6011,24 @@ async function renderRaportCaberawit() {
 
       let lastSection = null;
       groups.forEach(g => {
-        if (g.section !== lastSection) {
-          checkSpace(16);
+        // Hitung tinggi baris item pertama supaya header (section/subsection) tidak
+        // "kepotong" sendirian di akhir halaman tanpa isinya ikut pindah bareng.
+        const firstItem = g.items[0];
+        const firstLines = firstItem ? wrap(`1. ${firstItem.teks}`, COL_TEKS - 4, 7, fReg) : [''];
+        const firstRowH = Math.max(10, firstLines.length * 8.5) + 2;
+
+        const isNewSection = g.section !== lastSection;
+        const sectionH = isNewSection ? 15 : 0;
+        const subsectionH = g.subsection ? 12 : 0;
+        checkSpace(sectionH + subsectionH + firstRowH);
+
+        if (isNewSection) {
           page.drawRectangle({ x: ML, y: y-11, width: contentW, height: 13, color: LIGHT });
           page.drawText(SECTION_LABEL[g.section]||g.section, { x: ML+3, y: y-9, font: fBold, size: 8, color: GREEN });
           y -= 15;
           lastSection = g.section;
         }
         if (g.subsection) {
-          checkSpace(12);
           page.drawText(g.subsection, { x: ML+2, y: y-8, font: fBold, size: 7.5, color: GREEN });
           y -= 12;
         }
