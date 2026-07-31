@@ -8425,7 +8425,7 @@ async function renderSettings() {
       mtms: 'Data MT/MS',
       sarpras: 'Data Sarpras',
       proker: 'Program Kerja (Program, Laporan, Sumber Dana)',
-      santri: 'Data Santri & Kelas',
+      santri: 'Data Santri & Kelas (termasuk Raport Caberawit)',
     };
 
     const step1 = confirm(
@@ -8472,8 +8472,9 @@ async function renderSettings() {
         count += 3;
       }
       if (checks.santri) {
+        await DEL('raport_nilai'); await DEL('raport_catatan');
         await DEL('santri'); await DEL('kelas');
-        count += 2;
+        count += 4;
       }
 
       App.cache = {};
