@@ -895,6 +895,9 @@ function navigate(page) {
   // Scroll ke atas — supaya halaman baru selalu mulai dari atas, tidak ikut posisi scroll halaman sebelumnya
   const mainEl = document.getElementById('mainContent');
   if (mainEl) mainEl.scrollTop = 0;
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   // Render page
   renderPage(page);
 }
@@ -3967,11 +3970,11 @@ async function renderPenilaian() {
         </div>`).join('');
 
       const desaCards = Object.entries(byDesa).map(([dn, klpList]) => {
-        const rows = klpList.map((k, ki) => {
+        const rows = klpList.map((k) => {
           const d = rekapData[k.id] || { total:0, A:0, B:0, C:0, D:0, byTopik:{} };
           const topikEntries = Object.entries(d.byTopik||{});
           const topikRows = topikEntries.map(([topik, v]) =>
-            `<tr class="pnl-detail-${ki}" style="display:none; background:#f9f9f6;">
+            `<tr class="pnl-detail-${k.id}" style="display:none; background:#f9f9f6;">
               <td style="padding:3px 10px 3px 28px; font-size:11px; color:var(--ink-soft);">↳ ${escHtml(topik)}</td>
               <td style="text-align:center; font-size:11px;">${v.A+v.B+v.C+v.D}</td>
               <td style="text-align:center; font-size:11px; color:#1a6b3a;">${v.A||'—'}</td>
@@ -3980,7 +3983,7 @@ async function renderPenilaian() {
               <td style="text-align:center; font-size:11px; color:#c0392b;">${v.D||'—'}</td>
             </tr>`
           ).join('');
-          return `<tr style="border-bottom:1px solid var(--line);${topikEntries.length?' cursor:pointer;':''}" ${topikEntries.length?`onclick="document.querySelectorAll('.pnl-detail-${ki}').forEach(r=>r.style.display=r.style.display==='none'?'':'none')"`:''}>
+          return `<tr style="border-bottom:1px solid var(--line);${topikEntries.length?' cursor:pointer;':''}" ${topikEntries.length?`onclick="document.querySelectorAll('.pnl-detail-${k.id}').forEach(r=>r.style.display=r.style.display==='none'?'':'none')"`:''}>
             <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)} ${topikEntries.length ? '<span style="font-size:10px;color:var(--ink-soft);">▼</span>' : ''}</td>
             <td style="text-align:center; font-size:12px; font-weight:700;">${d.total||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#1a6b3a;">${d.A||'—'}</td>
