@@ -250,6 +250,276 @@ function logActivity(action, modul, keterangan) {
   });
 }
 
+/* ===== FORM PUBLIK (link berbagi, tanpa login) ===== */
+const FORM_CONFIGS = {
+  santri: {
+    judul: 'Form Pendataan Santri Baru',
+    fields: [
+      { key:'nama', label:'Nama Lengkap', type:'text', required:true },
+      { key:'jenis_kel', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
+      { key:'tgl_lahir', label:'Tanggal Lahir', type:'date', required:true },
+      { key:'nama_ortu', label:'Nama Orang Tua / Wali', type:'text' },
+      { key:'no_hp_ortu', label:'No. HP Orang Tua / Wali', type:'text' },
+    ],
+  },
+  mtms: {
+    judul: 'Form Pendataan MT/MS Baru',
+    fields: [
+      { key:'nama_lengkap', label:'Nama Lengkap', type:'text', required:true },
+      { key:'gender', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
+      { key:'tgl_lahir', label:'Tanggal Lahir', type:'date' },
+      { key:'dapukan', label:'Dapukan', type:'select', options:[['MT','MT'],['MS','MS']], required:true },
+      { key:'no_hp', label:'No. HP / WhatsApp', type:'text' },
+    ],
+  },
+  pengurus: {
+    judul: 'Form Pendataan Pengurus Baru',
+    fields: [
+      { key:'nama_lengkap', label:'Nama Lengkap', type:'text', required:true },
+      { key:'jabatan', label:'Jabatan', type:'text' },
+      { key:'dapukan', label:'Dapukan', type:'text' },
+    ],
+  },
+  guru_sekolah: {
+    judul: 'Form Pendataan Guru Sekolah Baru',
+    fields: [
+      { key:'nama_lengkap', label:'Nama Lengkap', type:'text', required:true },
+      { key:'gender', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
+      { key:'tgl_lahir', label:'Tanggal Lahir', type:'date' },
+      { key:'status_kepegawaian', label:'Status Kepegawaian', type:'select', options:[['PNS','PNS (Pegawai Negeri Sipil)'],['PPPK','PPPK'],['GTT','GTT (Guru Tidak Tetap)'],['GTY','GTY (Guru Tetap Yayasan)']] },
+      { key:'pendidikan_terakhir', label:'Pendidikan Terakhir', type:'select', options:[['SMA/SMK','SMA/SMK'],['D1','D1'],['D2','D2'],['D3','D3'],['D4','D4'],['S1','S1'],['S2','S2'],['S3','S3']] },
+      { key:'program_studi', label:'Program Studi', type:'text' },
+      { key:'kompetensi_mengajar', label:'Kompetensi Mengajar', type:'checkbox-group', options:['SD','SMP','SMK'] },
+      { key:'penugasan_saat_ini', label:'Penugasan Saat Ini', type:'text' },
+      { key:'no_wa', label:'No. WhatsApp', type:'text' },
+    ],
+  },
+};
+
+function formFieldHtml(f) {
+  if (f.type === 'select') {
+    return `<select id="pf_${f.key}"><option value="">Pilih...</option>${f.options.map(([v,l])=>`<option value="${escHtml(v)}">${escHtml(l)}</option>`).join('')}</select>`;
+  }
+  if (f.type === 'checkbox-group') {
+    return `<div style="display:flex; gap:14px; flex-wrap:wrap; padding:6px 0;">${f.options.map(o=>`
+      <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:500;">
+        <input type="checkbox" class="pf_cb_${f.key}" value="${o}"> ${o}
+      </label>`).join('')}</div>`;
+  }
+  return `<input type="${f.type}" id="pf_${f.key}">`;
+}
+
+async function renderPublicForm(jenis, klpId) {
+  const screen = document.getElementById('publicFormScreen');
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('pendingScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = 'none';
+  screen.style.display = 'flex';
+  screen.style.cssText = 'display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; background:var(--cream);';
+
+  const config = FORM_CONFIGS[jenis];
+  if (!config) {
+    screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Link form tidak dikenali.</p></div>`;
+    return;
+  }
+
+  let klpNama = klpId;
+  try {
+    const klpList = await SB.kelompok.getAll();
+    const klp = klpList.find(k => k.id === klpId);
+    if (klp) klpNama = klp.nama + (klp.desa?.nama ? ' · ' + klp.desa.nama : '');
+    else {
+      screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Kelompok tidak ditemukan. Pastikan link yang dipakai benar.</p></div>`;
+      return;
+    }
+  } catch(e) {
+    screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Gagal memuat halaman. Cek koneksi internet lalu coba lagi.</p></div>`;
+    return;
+  }
+
+  function renderFormBody() {
+    screen.innerHTML = `
+      <div class="login-card" style="max-width:440px;">
+        <h1 class="login-title" style="font-size:19px;">${escHtml(config.judul)}</h1>
+        <p class="login-subtitle">Untuk: <b>${escHtml(klpNama)}</b></p>
+        <div id="pfAlert"></div>
+        <div style="margin-top:16px;">
+          ${config.fields.map(f => `
+            <div class="form-group" style="margin-bottom:12px;">
+              <label>${escHtml(f.label)}${f.required?' *':''}</label>
+              ${formFieldHtml(f)}
+            </div>`).join('')}
+        </div>
+        <button class="btn-primary" style="width:100%; margin-top:6px;" id="pfSubmitBtn" onclick="PF_submit()">Kirim Data</button>
+        <div class="login-hint" style="margin-top:12px;">Data yang dikirim akan diperiksa dulu oleh PJP Kelompok sebelum masuk ke sistem.</div>
+      </div>`;
+  }
+  renderFormBody();
+
+  window.PF_submit = async () => {
+    const data = {};
+    for (const f of config.fields) {
+      if (f.type === 'checkbox-group') {
+        data[f.key] = Array.from(document.querySelectorAll(`.pf_cb_${f.key}:checked`)).map(c=>c.value).join(',');
+      } else {
+        const el = document.getElementById('pf_' + f.key);
+        data[f.key] = el ? el.value.trim() : '';
+      }
+      if (f.required && !data[f.key]) {
+        document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Mohon lengkapi "${escHtml(f.label)}"</div>`;
+        return;
+      }
+    }
+    const btn = document.getElementById('pfSubmitBtn');
+    btn.disabled = true; btn.textContent = 'Mengirim...';
+    try {
+      await SB.formSubmissions.insert({ jenis, kelompok_id: klpId, data: JSON.stringify(data), status: 'pending' });
+      screen.innerHTML = `<div class="login-card" style="max-width:440px; text-align:center;">
+        <div style="font-size:40px; margin-bottom:10px;">✅</div>
+        <h1 class="login-title" style="font-size:18px;">Data Terkirim</h1>
+        <p class="login-subtitle">Terima kasih. Data yang dikirim akan diperiksa oleh PJP Kelompok ${escHtml(klpNama)} sebelum masuk ke sistem.</p>
+      </div>`;
+    } catch(e) {
+      document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Gagal mengirim: ${escHtml(e.message)}</div>`;
+      btn.disabled = false; btn.textContent = 'Kirim Data';
+    }
+  };
+}
+
+/* ===== Komponen bersama: tombol share link + antrian persetujuan (dipakai di 4 menu) ===== */
+function shareLinkButtonHtml(jenis, kelompokId) {
+  return `<button class="btn btn-outline" onclick="SHARE_openLink('${jenis}','${kelompokId}')">🔗 Bagikan Link Form</button>`;
+}
+
+window.SHARE_openLink = (jenis, kelompokId) => {
+  const url = `${location.origin}${location.pathname}?isi=${jenis}&klp=${kelompokId}`;
+  let el = document.getElementById('shareLinkModal');
+  if (!el) { el = document.createElement('div'); el.id = 'shareLinkModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="modal">
+    <div class="modal-head"><h3 class="modal-title">Bagikan Link Form</h3><button class="modal-close" onclick="closeModal('shareLinkModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">Link ini bisa dipakai berkali-kali oleh siapa saja untuk mengisi data sendiri. Data yang masuk akan menunggu persetujuanmu dulu sebelum resmi tersimpan.</div>
+      <input id="shareLinkInput" value="${escHtml(url)}" readonly style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:12px; margin-bottom:10px;">
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-green" style="flex:1;" onclick="SHARE_copy()">📋 Salin Link</button>
+        <a class="btn btn-outline" style="flex:1; text-align:center;" href="https://wa.me/?text=${encodeURIComponent(url)}" target="_blank">Kirim via WA</a>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('shareLinkModal')">Tutup</button></div>
+  </div>`;
+  openModal('shareLinkModal');
+};
+window.SHARE_copy = () => {
+  const input = document.getElementById('shareLinkInput');
+  input.select();
+  navigator.clipboard?.writeText(input.value).then(() => showToast('Link disalin ✓')).catch(() => showToast('Gagal menyalin, salin manual', true));
+};
+
+// Render bagian "Menunggu Persetujuan" — dipakai di renderSantri, renderMtMs, renderPengurus, renderGuruSekolah.
+// approveFn: async (submission) => { ...insert ke tabel asli... } — return true kalau berhasil.
+async function renderPendingSection(jenis, kelompokId, config, approveFn) {
+  const pending = await SB.formSubmissions.getPending(jenis, kelompokId) || [];
+  if (!pending.length) return '';
+
+  const rows = pending.map(p => {
+    const data = JSON.parse(p.data || '{}');
+    const ringkas = config.fields.slice(0,3).map(f => data[f.key]).filter(Boolean).join(' · ');
+    return `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px;">
+        <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(data[config.fields[0].key]||'-')}</div>
+        <div style="font-size:11px; color:var(--ink-soft);">${escHtml(ringkas)} · dikirim ${fmtDateShort(p.created_at)}</div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-green btn-sm" onclick="PEND_approve('${p.id}','${jenis}')">Setujui</button>
+        <button class="btn btn-danger btn-sm" onclick="PEND_reject('${p.id}')">Tolak</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  window.PEND_approve = async (id, jns) => {
+    const sub = pending.find(p => p.id === id);
+    if (!sub) return;
+    const data = JSON.parse(sub.data || '{}');
+    try {
+      const ok = await approveFn(data, sub);
+      if (ok === false) return; // approveFn sendiri yang urus alur (mis. butuh pilih kelas dulu)
+      await SB.formSubmissions.updateStatus(id, { status:'approved', reviewed_at: new Date().toISOString(), reviewed_by: App.user.id });
+      logActivity('tambah', 'Persetujuan Data', `Menyetujui data ${jns}: ${data[Object.keys(data)[0]]||''}`);
+      showToast('Data disetujui & tersimpan ✓');
+      renderPage(App.currentPage);
+    } catch(e) { showToast('Gagal: ' + e.message, true); }
+  };
+  window.PEND_reject = async (id) => {
+    if (!confirm('Tolak data ini? Data tidak akan masuk ke sistem.')) return;
+    try {
+      await SB.formSubmissions.updateStatus(id, { status:'rejected', reviewed_at: new Date().toISOString(), reviewed_by: App.user.id });
+      showToast('Data ditolak');
+      renderPage(App.currentPage);
+    } catch(e) { showToast('Gagal: ' + e.message, true); }
+  };
+
+  return `<div class="card" style="margin-bottom:14px; border:1.5px solid #e6a817; padding:0; overflow:hidden;">
+    <div style="background:#fff3d6; padding:10px 16px;">
+      <div style="font-weight:800; font-size:13.5px; color:#a67c00;">📋 Menunggu Persetujuan (${pending.length})</div>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+async function openSantriApprovalModal(data, sub, kelompokId) {
+  const kelasList = sortKelas(await SB.kelas.getByKelompok(kelompokId) || []);
+
+  let el = document.getElementById('santriApprovalModal');
+  if (!el) { el = document.createElement('div'); el.id = 'santriApprovalModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="modal">
+    <div class="modal-head"><h3 class="modal-title">Setujui Data Santri</h3><button class="modal-close" onclick="closeModal('santriApprovalModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="background:var(--green-soft); border-radius:8px; padding:12px; margin-bottom:14px; font-size:12.5px; line-height:1.7;">
+        <b>${escHtml(data.nama||'-')}</b><br>
+        ${data.jenis_kel==='L'?'Laki-laki':'Perempuan'} · Lahir ${data.tgl_lahir ? fmtDateShort(data.tgl_lahir) : '-'}<br>
+        Ortu/Wali: ${escHtml(data.nama_ortu||'-')} ${data.no_hp_ortu ? '('+escHtml(data.no_hp_ortu)+')' : ''}
+      </div>
+      <div class="form-group">
+        <label>Masukkan ke Kelas *</label>
+        <select id="sapKelas">
+          <option value="">Pilih kelas...</option>
+          ${kelasList.map(k => `<option value="${k.id}">${escHtml(k.nama_kelas)} (${escHtml(k.jenjang)})</option>`).join('')}
+        </select>
+      </div>
+      ${!kelasList.length ? '<div style="font-size:12px; color:var(--rose);">Belum ada kelas di kelompok ini. Buat kelas dulu lewat menu Kelola Kelas Generus.</div>' : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('santriApprovalModal')">Batal</button>
+      <button class="btn btn-green" id="sapSaveBtn">Setujui & Simpan</button>
+    </div>
+  </div>`;
+
+  document.getElementById('sapSaveBtn').onclick = async () => {
+    const kelasId = document.getElementById('sapKelas').value;
+    if (!kelasId) { showToast('Pilih kelas dulu', true); return; }
+    const btn = document.getElementById('sapSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      await SB.santri.insert({
+        nama: toTitleCase(data.nama||''), jenis_kel: data.jenis_kel || null,
+        tgl_lahir: data.tgl_lahir || null, nama_ortu: data.nama_ortu ? toTitleCase(data.nama_ortu) : null,
+        no_hp_ortu: data.no_hp_ortu || null, kelas_id: kelasId, aktif: true,
+      });
+      App.cache.allSantri = null;
+      await SB.formSubmissions.updateStatus(sub.id, { status:'approved', reviewed_at: new Date().toISOString(), reviewed_by: App.user.id });
+      logActivity('tambah', 'Persetujuan Data', `Menyetujui data santri: ${data.nama}`);
+      showToast('Santri disetujui & tersimpan ✓');
+      closeModal('santriApprovalModal');
+      renderPage(App.currentPage);
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      btn.disabled = false; btn.textContent = 'Setujui & Simpan';
+    }
+  };
+
+  openModal('santriApprovalModal');
+}
+
 async function doLogin() {
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
@@ -700,10 +970,12 @@ function cogIcon() { return SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 1
 function gradCapIcon() { return SVG('<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-4.5"/><path d="M22 10v6"/>'); }
 function logIcon() { return SVG('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>'); }
 function raportIcon() { return SVG('<path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/>'); }
+function chatIcon() { return SVG('<path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>'); }
 
 const NAV_ITEMS = {
   admin: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum & Materi', section: 'KONTEN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
@@ -728,6 +1000,7 @@ const NAV_ITEMS = {
   ],
   daerah: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Daerah' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
@@ -743,6 +1016,7 @@ const NAV_ITEMS = {
   ],
   desa: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
@@ -758,6 +1032,7 @@ const NAV_ITEMS = {
   ],
   pjp_kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
@@ -775,6 +1050,7 @@ const NAV_ITEMS = {
   ],
   wali_kbm: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'KELOLA' },
@@ -792,6 +1068,7 @@ const NAV_ITEMS = {
   ],
   guru: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum Kelas Saya' },
     { id: 'absensi', icon: calIcon(), label: 'Input Absensi & Jurnal' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
@@ -804,6 +1081,7 @@ const NAV_ITEMS = {
   ],
   kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
@@ -828,6 +1106,7 @@ function getAllowedMenuIds(u) {
     allowed = new Set(roleIds);
   }
   allowed.add('dashboard');
+  allowed.add('profil_saya');
   if (roleIds.includes('settings')) allowed.add('settings');
   // Akses lintas peran: mis. Wali KBM yang juga Pengurus Bidang Sarpras level Daerah.
   // Disimpan sebagai id sintetis "menu:level" atau "menu:desa:desaId", langsung dipakai apa adanya.
@@ -885,6 +1164,8 @@ function renderNav() {
 
 function navigate(page) {
   App.currentPage = page;
+  // Hentikan polling Live Chat kalau sedang pindah dari halaman itu — supaya tidak jalan terus di background
+  if (App.chatInterval) { clearInterval(App.chatInterval); App.chatInterval = null; }
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
@@ -953,6 +1234,8 @@ async function renderPage(page) {
       case 'guru_sekolah': await renderGuruSekolah(); break;
       case 'log_aktivitas': await renderLogAktivitas(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
+      case 'profil_saya': await renderProfilSaya(); break;
+      case 'live_chat': await renderLiveChat(); break;
       case 'proker':      await renderProker(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
@@ -1629,6 +1912,10 @@ async function renderUsers() {
             ${u.status === 'pending' ? `
               <button class="btn btn-green btn-sm" onclick="USR_approve('${u.id}')">Setujui</button>
               <button class="btn btn-danger btn-sm" onclick="USR_reject('${u.id}')">Tolak</button>` : ''}
+            ${u.status !== 'pending' ? `
+              <button class="btn-icon" onclick="USR_editData('${u.id}')" title="Edit Data">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+              </button>` : ''}
             ${u.status !== 'pending' && u.username !== 'admin' ? `
               <button class="btn-icon" onclick="USR_aturAkses('${u.id}')" title="Atur Akses Fitur">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -1692,6 +1979,52 @@ async function renderUsers() {
     await SB.anggota.delete(id);
     showToast('Pengguna dihapus');
     await renderUsers();
+  };
+
+  window.USR_editData = (id) => {
+    const target = allUsers.find(x => x.id === id);
+    if (!target) return;
+
+    let el = document.getElementById('editUserModal');
+    if (!el) { el = document.createElement('div'); el.id = 'editUserModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Edit Data — ${escHtml(target.nama_lengkap)}</h3><button class="modal-close" onclick="closeModal('editUserModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Nama Lengkap</label><input id="eudNama" value="${escHtml(target.nama_lengkap||'')}"></div>
+        <div class="form-group"><label>Username</label><input id="eudUsername" value="${escHtml(target.username||'')}"></div>
+        <div class="form-group"><label>Dapukan / Jabatan</label><input id="eudJabatan" value="${escHtml(target.jabatan||'')}"></div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Ganti username berarti user harus login pakai username baru mulai sekarang. Pastikan sudah diinfokan ke yang bersangkutan.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('editUserModal')">Batal</button>
+        <button class="btn btn-green" id="eudSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('eudSaveBtn').onclick = async () => {
+      const nama = document.getElementById('eudNama').value.trim();
+      const username = document.getElementById('eudUsername').value.trim();
+      const jabatan = document.getElementById('eudJabatan').value.trim();
+      if (!nama || !username) { showToast('Nama dan Username wajib diisi', true); return; }
+
+      const btn = document.getElementById('eudSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      try {
+        await SB.anggota.update(target.id, { nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null });
+        target.nama_lengkap = toTitleCase(nama); target.username = username; target.jabatan = jabatan || null;
+        logActivity('ubah', 'Kelola Pengguna', `Edit data user: ${target.nama_lengkap}`);
+        showToast('Data tersimpan');
+        closeModal('editUserModal');
+        await renderUsers();
+      } catch(e) {
+        const msg = e.message?.includes('409') ? 'Username sudah dipakai user lain' : ('Gagal: ' + e.message);
+        showToast(msg, true);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Simpan';
+      }
+    };
+
+    openModal('editUserModal');
   };
 
   window.USR_aturAkses = (id) => {
@@ -2103,11 +2436,20 @@ async function renderSantri() {
       </div>` : ''}
     </div>` : ''}`;
 
+  const pendingHtmlSantri = u.role === 'pjp_kelompok' && u.kelompok_id
+    ? await renderPendingSection('santri', u.kelompok_id, FORM_CONFIGS.santri, async (data, sub) => {
+        openSantriApprovalModal(data, sub, u.kelompok_id);
+        return false; // modal yang urus insert + update status sendiri
+      })
+    : '';
+
   // ── Render awal: dashboard saja, form ada di bawah ──
   main.innerHTML = `
     <div class="page-header">
       <h1 class="page-title">Data Santri / Generus</h1>
+      ${u.role === 'pjp_kelompok' && u.kelompok_id ? shareLinkButtonHtml('santri', u.kelompok_id) : ''}
     </div>
+    ${pendingHtmlSantri}
     ${statCards}
     <div class="card" style="margin-bottom:18px;">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
@@ -4876,6 +5218,17 @@ async function renderMtMs() {
     allData = await SB.mtMs.getByKelompok(u.kelompok_id) || [];
   }
 
+  const pendingHtml = isPjp && u.kelompok_id
+    ? await renderPendingSection('mtms', u.kelompok_id, FORM_CONFIGS.mtms, async (data) => {
+        await SB.mtMs.insert({
+          kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
+          gender: data.gender || null, tgl_lahir: data.tgl_lahir || null,
+          dapukan: data.dapukan || null, no_hp: data.no_hp || null, dibuat_oleh: u.id,
+        });
+        return true;
+      })
+    : '';
+
   function fmtWa(no) {
     if (!no) return '';
     let n = no.replace(/\D/g,'');
@@ -4999,6 +5352,7 @@ async function renderMtMs() {
           <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Total ${allData.length} orang</p>
         </div>
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          ${isPjp && u.kelompok_id ? shareLinkButtonHtml('mtms', u.kelompok_id) : ''}
           <button class="btn btn-outline btn-sm" onclick="MTMS_downloadPdf()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             PDF
@@ -5006,6 +5360,8 @@ async function renderMtMs() {
           ${canEdit ? '<button class="btn btn-green" onclick="MTMS_tambah()">+ Tambah MT/MS</button>' : ''}
         </div>
       </div>
+
+      ${pendingHtml}
 
       <div class="stat-grid" style="margin-bottom:16px;">
         <div class="stat-card"><div class="stat-num">${mtList.length}</div><div class="stat-label">MT</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL(mtList)}L</span> · <span style="color:#a6483b;">${cP(mtList)}P</span></div></div>
@@ -5254,6 +5610,19 @@ async function renderGuruSekolah() {
     allData = await SB.guruSekolah.getByKelompok(u.kelompok_id) || [];
   }
 
+  const pendingHtml = (isPjp || isWaliKbm) && u.kelompok_id
+    ? await renderPendingSection('guru_sekolah', u.kelompok_id, FORM_CONFIGS.guru_sekolah, async (data) => {
+        await SB.guruSekolah.insert({
+          kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
+          gender: data.gender || null, tgl_lahir: data.tgl_lahir || null,
+          status_kepegawaian: data.status_kepegawaian || null, pendidikan_terakhir: data.pendidikan_terakhir || null,
+          program_studi: data.program_studi || null, kompetensi_mengajar: data.kompetensi_mengajar || null,
+          penugasan_saat_ini: data.penugasan_saat_ini || null, no_wa: data.no_wa || null, dibuat_oleh: u.id,
+        });
+        return true;
+      })
+    : '';
+
   function fmtWa(no) {
     if (!no) return '—';
     let n = no.replace(/\D/g,'');
@@ -5347,8 +5716,13 @@ async function renderGuruSekolah() {
           <h1 class="page-title">Data Guru Sekolah</h1>
           <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Total ${allData.length} orang</p>
         </div>
-        ${canEdit ? '<button class="btn btn-green" onclick="GS_tambah()">+ Tambah Guru</button>' : ''}
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${(isPjp || isWaliKbm) && u.kelompok_id ? shareLinkButtonHtml('guru_sekolah', u.kelompok_id) : ''}
+          ${canEdit ? '<button class="btn btn-green" onclick="GS_tambah()">+ Tambah Guru</button>' : ''}
+        </div>
       </div>
+
+      ${pendingHtml}
 
       <div class="stat-grid" style="margin-bottom:16px;">
         <div class="stat-card"><div class="stat-num">${allData.length}</div><div class="stat-label">Total Guru</div><div style="font-size:11px; color:var(--ink-soft);"><span style="color:#1a6b3a;">${cL}L</span> · <span style="color:#a6483b;">${cP}P</span></div></div>
@@ -6585,6 +6959,16 @@ async function renderPengurus() {
     }
   } catch(e) { console.error(e); }
 
+  const pendingHtml = u.role === 'pjp_kelompok' && u.kelompok_id
+    ? await renderPendingSection('pengurus', u.kelompok_id, FORM_CONFIGS.pengurus, async (data) => {
+        await SB.musPeserta.insert({
+          kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
+          jabatan: data.jabatan || null, dapukan: data.dapukan || null, aktif: true,
+        });
+        return true;
+      })
+    : '';
+
   function waBtn(p) {
     const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
     return waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; background:#25d366; border-radius:50%; flex-shrink:0;" title="WhatsApp">
@@ -6663,14 +7047,18 @@ async function renderPengurus() {
   }
 
   // Pengurus Kelompok
+  html += pendingHtml;
   const allKlp = App.cache.kelompok || [];
   for (const [kid, list] of Object.entries(pengurusKlp)) {
     const klp = allKlp.find(k => k.id === kid);
     const canEdit = isAdmin || u.role === 'pjp_kelompok' || u.role === 'kelompok';
     html += `<div class="card" style="margin-bottom:14px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
         <div class="fw-bold color-green" style="font-size:14px;">👥 ${escHtml(klp?.nama||kid)} <span style="font-size:11px; color:var(--ink-soft);">(${escHtml(klp?.desa?.nama||'')})</span></div>
-        ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="PGR_tambah('kelompok','${kid}')">+ Tambah</button>` : ''}
+        <div style="display:flex; gap:6px;">
+          ${u.role === 'pjp_kelompok' && kid === u.kelompok_id ? shareLinkButtonHtml('pengurus', kid) : ''}
+          ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="PGR_tambah('kelompok','${kid}')">+ Tambah</button>` : ''}
+        </div>
       </div>
       ${renderTable(list, klp?.nama||kid, canEdit, 'kelompok')}
     </div>`;
@@ -8261,6 +8649,165 @@ async function openMusAbsensiModal(musId, level, u) {
   openModal('musAbsensiModal');
 }
 
+
+
+/* ===== PAGE: LIVE CHAT ===== */
+async function renderLiveChat() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  let messages = (await SB.chat.getRecent(100) || []).reverse(); // urut lama → baru
+
+  const ROLE_SHORT = { admin:'Admin', daerah:'Daerah', desa:'Desa', pjp_kelompok:'PJP Klp', wali_kbm:'Wali KBM', guru:'Guru', kelompok:'Klp' };
+
+  function fmtJam(iso) {
+    return new Date(iso).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  function bubbleHtml(m) {
+    const mine = m.user_id === u.id;
+    return `<div style="display:flex; flex-direction:column; align-items:${mine?'flex-end':'flex-start'}; margin-bottom:10px;">
+      ${!mine ? `<div style="font-size:11px; font-weight:700; color:var(--green); margin-bottom:2px; margin-left:2px;">${escHtml(m.nama_lengkap)} <span style="font-weight:500; color:var(--ink-soft);">· ${escHtml(ROLE_SHORT[m.role]||m.role)}</span></div>` : ''}
+      <div style="max-width:78%; padding:8px 12px; border-radius:14px; font-size:13.5px; line-height:1.45; word-break:break-word;
+        background:${mine?'var(--green)':'#fff'}; color:${mine?'#fff':'#111'}; border:${mine?'none':'1px solid var(--line)'};
+        border-bottom-right-radius:${mine?'4px':'14px'}; border-bottom-left-radius:${mine?'14px':'4px'};">
+        ${escHtml(m.pesan)}
+      </div>
+      <div style="font-size:10px; color:var(--ink-soft); margin-top:2px; margin-${mine?'right':'left'}:2px;">${fmtJam(m.created_at)}</div>
+    </div>`;
+  }
+
+  function render() {
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Live Chat</h1>
+          <p style="font-size:12.5px; color:var(--ink-soft); margin:2px 0 0;">Ruang obrolan seluruh anggota PPG Sidoarjo Utara</p>
+        </div>
+      </div>
+      <div class="card" style="display:flex; flex-direction:column; height:min(600px, 70vh); padding:0; overflow:hidden;">
+        <div id="chatBox" style="flex:1; overflow-y:auto; padding:14px;">
+          ${messages.length ? messages.map(bubbleHtml).join('') : '<div style="text-align:center; color:var(--ink-soft); font-size:13px; padding:30px;">Belum ada pesan. Jadilah yang pertama menyapa 👋</div>'}
+        </div>
+        <div style="display:flex; gap:8px; padding:12px; border-top:1px solid var(--line);">
+          <input id="chatInput" placeholder="Tulis pesan..." maxlength="500"
+            style="flex:1; padding:10px 14px; border:1.5px solid var(--line); border-radius:24px; font-size:13.5px;"
+            onkeydown="if(event.key==='Enter'){CHAT_kirim();}">
+          <button class="btn btn-green" style="border-radius:24px; padding:10px 20px;" onclick="CHAT_kirim()">Kirim</button>
+        </div>
+      </div>
+    `;
+    scrollBawah();
+  }
+
+  function scrollBawah() {
+    const box = document.getElementById('chatBox');
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+
+  function nearBottom() {
+    const box = document.getElementById('chatBox');
+    if (!box) return true;
+    return box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  }
+
+  window.CHAT_kirim = async () => {
+    const input = document.getElementById('chatInput');
+    const pesan = input.value.trim();
+    if (!pesan) return;
+    input.value = '';
+    input.disabled = true;
+    try {
+      const res = await SB.chat.insert({
+        user_id: u.id, nama_lengkap: u.nama_lengkap, role: u.role, pesan,
+      });
+      if (res?.[0]) messages.push(res[0]);
+      render();
+    } catch(e) {
+      showToast('Gagal kirim: ' + e.message, true);
+    } finally {
+      input.disabled = false;
+      document.getElementById('chatInput')?.focus();
+    }
+  };
+
+  // Polling tiap 8 detik — HANYA selagi halaman ini terbuka. Otomatis berhenti
+  // begitu pindah menu lain (dibersihkan di navigate()), supaya tidak membebani
+  // halaman lain / jalan di background terus-menerus.
+  async function pollBaru() {
+    if (!messages.length) return;
+    const lastTime = messages[messages.length-1].created_at;
+    try {
+      const baru = await SB.chat.getSince(lastTime);
+      if (baru && baru.length) {
+        const idsAda = new Set(messages.map(m=>m.id));
+        const trulyBaru = baru.filter(m => !idsAda.has(m.id));
+        if (trulyBaru.length) {
+          const wasNearBottom = nearBottom();
+          messages.push(...trulyBaru);
+          render();
+          if (wasNearBottom) scrollBawah();
+        }
+      }
+    } catch(e) { /* diam-diam gagal, coba lagi di polling berikutnya */ }
+  }
+
+  render();
+  App.chatInterval = setInterval(pollBaru, 8000);
+}
+
+/* ===== PAGE: PROFIL SAYA ===== */
+async function renderProfilSaya() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const klp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
+  const desaNama = klp?.desa?.nama || u.desa_id || '-';
+
+  const STATUS_LABEL = { approved: 'Aktif', pending: 'Menunggu Persetujuan', rejected: 'Ditolak' };
+  const STATUS_COLOR = { approved: 'var(--green)', pending: '#e6a817', rejected: 'var(--rose)' };
+
+  const row = (label, value) => `
+    <div style="display:flex; padding:11px 0; border-bottom:1px solid var(--line);">
+      <div style="width:150px; flex-shrink:0; font-size:12.5px; color:var(--ink-soft); font-weight:600;">${escHtml(label)}</div>
+      <div style="flex:1; font-size:13.5px; font-weight:700; color:#111;">${value}</div>
+    </div>`;
+
+  main.innerHTML = `
+    <div class="page-header">
+      <h1 class="page-title">Profil Saya</h1>
+    </div>
+
+    <div class="card" style="max-width:520px;">
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid var(--line);">
+        <div style="width:56px; height:56px; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; font-family:var(--font-display); flex-shrink:0;">
+          ${escHtml((u.nama_lengkap||'?').charAt(0).toUpperCase())}
+        </div>
+        <div>
+          <div style="font-size:17px; font-weight:800; color:#111;">${escHtml(u.nama_lengkap)}</div>
+          <div style="font-size:12.5px; color:var(--ink-soft);">${escHtml(ROLE_LABELS[u.role]||u.role)}</div>
+        </div>
+      </div>
+
+      ${row('Username', escHtml(u.username))}
+      ${row('Dapukan / Jabatan', escHtml(u.jabatan||'-'))}
+      ${row('Level', escHtml(ROLE_LABELS[u.role]||u.role))}
+      ${klp ? row('Kelompok', escHtml(klp.nama)) : ''}
+      ${(klp || u.desa_id) ? row('Desa', escHtml(desaNama)) : ''}
+      ${row('Status Akun', `<span style="color:${STATUS_COLOR[u.status]||'var(--ink-soft)'};">${escHtml(STATUS_LABEL[u.status]||u.status||'-')}</span>`)}
+      ${row('Terdaftar Sejak', escHtml(fmtDateShort(u.created_at)))}
+
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-soft);">
+        Mau ganti password? Buka menu <b style="color:var(--green);">Pengaturan</b>.<br>
+        Perlu koreksi data (nama/username/kelompok)? Hubungi admin.
+      </div>
+      <button class="btn btn-outline" style="margin-top:12px;" onclick="navigate('settings')">Buka Pengaturan</button>
+    </div>
+  `;
+}
 
 
 async function renderSettings() {
@@ -11550,8 +12097,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Init — cek session
+  // Init — cek apakah ini link form publik (tanpa login) dulu, baru cek session
   showLoading(true);
+  const urlParams = new URLSearchParams(window.location.search);
+  const formJenis = urlParams.get('isi');
+  const formKlp = urlParams.get('klp');
+  if (formJenis && formKlp) {
+    await renderPublicForm(formJenis, formKlp);
+    showLoading(false);
+    return;
+  }
   const session = loadSession();
   if (session) {
     App.user = session;

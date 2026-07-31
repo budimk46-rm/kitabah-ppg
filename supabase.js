@@ -484,6 +484,21 @@ const sbSettings = {
   }),
 };
 
+// ============ FORM SUBMISSIONS (link publik tanpa login) ============
+const sbFormSubmissions = {
+  insert: (data) => sbFetch('form_submissions', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  getPending: (jenis, kelompokId) =>
+    sbFetch(`form_submissions?jenis=eq.${jenis}&kelompok_id=eq.${kelompokId}&status=eq.pending&select=*&order=created_at.asc`),
+  updateStatus: (id, data) => sbFetch(`form_submissions?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
+};
+
+// ============ LIVE CHAT ============
+const sbChat = {
+  getRecent: (limit=100) => sbFetch(`chat_messages?select=*&order=created_at.desc&limit=${limit}`),
+  getSince: (sinceIso) => sbFetch(`chat_messages?created_at=gt.${encodeURIComponent(sinceIso)}&select=*&order=created_at.asc`),
+  insert: (data) => sbFetch('chat_messages', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+};
+
 // ============ RAPORT CABERAWIT ============
 const sbMateriRaport = {
   getByJenjangSemester: (jenjang, semester) =>
@@ -546,4 +561,6 @@ window.SB = {
   materiRaport: sbMateriRaport,
   raportNilai: sbRaportNilai,
   raportCatatan: sbRaportCatatan,
+  chat: sbChat,
+  formSubmissions: sbFormSubmissions,
 };
