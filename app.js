@@ -3973,7 +3973,7 @@ async function renderPenilaian() {
         const rows = klpList.map((k) => {
           const d = rekapData[k.id] || { total:0, A:0, B:0, C:0, D:0, byTopik:{} };
           const topikEntries = Object.entries(d.byTopik||{});
-          const topikRows = topikEntries.map(([topik, v]) =>
+          const topikRows = topikEntries.length ? topikEntries.map(([topik, v]) =>
             `<tr class="pnl-detail-${k.id}" style="display:none; background:#f9f9f6;">
               <td style="padding:3px 10px 3px 28px; font-size:11px; color:var(--ink-soft);">↳ ${escHtml(topik)}</td>
               <td style="text-align:center; font-size:11px;">${v.A+v.B+v.C+v.D}</td>
@@ -3982,9 +3982,11 @@ async function renderPenilaian() {
               <td style="text-align:center; font-size:11px; color:#ca8a04;">${v.C||'—'}</td>
               <td style="text-align:center; font-size:11px; color:#c0392b;">${v.D||'—'}</td>
             </tr>`
-          ).join('');
-          return `<tr style="border-bottom:1px solid var(--line);${topikEntries.length?' cursor:pointer;':''}" ${topikEntries.length?`onclick="document.querySelectorAll('.pnl-detail-${k.id}').forEach(r=>r.style.display=r.style.display==='none'?'':'none')"`:''}>
-            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)} ${topikEntries.length ? '<span style="font-size:10px;color:var(--ink-soft);">▼</span>' : ''}</td>
+          ).join('') : `<tr class="pnl-detail-${k.id}" style="display:none; background:#f9f9f6;">
+              <td colspan="6" style="padding:6px 10px 6px 28px; font-size:11px; color:var(--ink-soft); font-style:italic;">Belum ada nilai untuk bulan ini</td>
+            </tr>`;
+          return `<tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="document.querySelectorAll('.pnl-detail-${k.id}').forEach(r=>r.style.display=r.style.display==='none'?'':'none')">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)} <span style="font-size:10px;color:var(--ink-soft);">▼</span></td>
             <td style="text-align:center; font-size:12px; font-weight:700;">${d.total||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#1a6b3a;">${d.A||'—'}</td>
             <td style="text-align:center; font-size:12px; font-weight:700; color:#2563eb;">${d.B||'—'}</td>
