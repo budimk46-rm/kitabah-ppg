@@ -892,6 +892,9 @@ function navigate(page) {
   // Close sidebar on mobile
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('show');
+  // Scroll ke atas — supaya halaman baru selalu mulai dari atas, tidak ikut posisi scroll halaman sebelumnya
+  const mainEl = document.getElementById('mainContent');
+  if (mainEl) mainEl.scrollTop = 0;
   // Render page
   renderPage(page);
 }
