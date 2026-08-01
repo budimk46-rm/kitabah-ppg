@@ -3367,6 +3367,7 @@ async function renderAbsensi() {
   await lanjutAbsensi();
 
   async function lanjutAbsensi() {
+    console.log('[ABS-DEBUG] 1. lanjutAbsensi mulai, myKelompokId=', myKelompokId);
     let selectedMateriIds = new Set();
     let materiStatus = {}; // materiId -> 'tuntas' | 'belum_tuntas'
     // Materi diambil per jenjang+semester saat dibutuhkan saja (bukan seluruh 1552 baris
@@ -3374,18 +3375,24 @@ async function renderAbsensi() {
     // di HP karena harus parsing JSON besar sekaligus di 1 request.
     let materiJenjangCache = {}; // key "jenjang|semester" -> materi rows
     async function ensureMateriLoaded(jenjang, semester) {
+      console.log('[ABS-DEBUG] ensureMateriLoaded mulai', jenjang, semester);
       const key = jenjang + '|' + semester;
       if (materiJenjangCache[key]) return;
       materiJenjangCache[key] = await SB.materi.getByJenjang(jenjang, semester) || [];
+      console.log('[ABS-DEBUG] ensureMateriLoaded selesai, dapat', materiJenjangCache[key].length, 'baris');
     }
   let kelasKlp = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
+  console.log('[ABS-DEBUG] 2. kelasKlp didapat, jumlah=', kelasKlp.length);
   // Juga load kelas gabungan desa
   const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
+  console.log('[ABS-DEBUG] 3. myKlp ditemukan?', !!myKlp, 'desa_id=', myKlp?.desa_id, '(App.cache.kelompok terisi?', !!App.cache.kelompok, ')');
   if (myKlp?.desa_id) {
     const gabungan = await SB.kelas.getByDesa(myKlp.desa_id) || [];
+    console.log('[ABS-DEBUG] 4. kelas gabungan desa didapat, jumlah=', gabungan.length);
     gabungan.forEach(g => { g._isGabungan = true; });
     kelasKlp = [...kelasKlp, ...sortKelas(gabungan)];
   }
+  console.log('[ABS-DEBUG] 5. total kelasKlp setelah gabungan=', kelasKlp.length);
   const kelasOptions = kelasKlp;
   let selectedKelasId = kelasOptions.length ? kelasOptions[0].id : null;
   let selectedKelasLabel = kelasOptions.length ? kelasOptions[0].jenjang : '';
@@ -3407,19 +3414,27 @@ async function renderAbsensi() {
   }
 
   async function loadPertemuan() {
-    if (!selectedKelasId) return;
+    console.log('[ABS-DEBUG] 6. loadPertemuan mulai, selectedKelasId=', selectedKelasId);
+    if (!selectedKelasId) { console.log('[ABS-DEBUG] loadPertemuan berhenti — tidak ada selectedKelasId'); return; }
     await refreshProgress(); // load progress sebelum render
+    console.log('[ABS-DEBUG] 7. refreshProgress selesai');
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    console.log('[ABS-DEBUG] 8. kelas aktif ditemukan?', !!kls, kls?.jenjang, kls?.semester);
     if (kls) await ensureMateriLoaded(kls.jenjang, kls.semester);
+    console.log('[ABS-DEBUG] 9. ensureMateriLoaded selesai dipanggil');
     pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId, getTahunAjaran());
+    console.log('[ABS-DEBUG] 10. pertemuanList didapat, jumlah=', pertemuanList.length);
     santriList = await SB.santri.getByKelas(selectedKelasId);
+    console.log('[ABS-DEBUG] 11. santriList didapat, jumlah=', santriList.length);
     // Default: tampilkan form pertemuan BARU (bukan data lama)
     currentPertemuanId = null;
     absensiData = {};
     jurnalData = null;
     selectedMateriIds = new Set();
     materiStatus = {};
+    console.log('[ABS-DEBUG] 12. mau panggil renderMain()');
     renderMain();
+    console.log('[ABS-DEBUG] 13. renderMain() SELESAI — kalau ini muncul, harusnya sudah kelihatan di layar');
   }
 
   async function loadDetail(pId) {
@@ -3921,7 +3936,9 @@ async function renderAbsensi() {
 
   window.ABS_addPertemuan = () => openAddPertemuanModal(selectedKelasId, async () => await loadPertemuan());
 
+  console.log('[ABS-DEBUG] 5b. sebelum panggil loadPertemuan() pertama kali');
   await loadPertemuan();
+  console.log('[ABS-DEBUG] 14. lanjutAbsensi SEMUANYA SELESAI');
   } // end lanjutAbsensi
 }
 
