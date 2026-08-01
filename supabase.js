@@ -120,11 +120,17 @@ const sbDesa = {
 
 // ============ MATERI ============
 const sbMateri = {
-  getAll: () =>
-    // Sebelumnya dipecah 16 request per jenjang untuk hindari batas 1000 baris —
-    // sudah tidak perlu lagi karena sbFetch() global sudah pasang Range 0-9999,
-    // jadi cukup 1 request untuk ambil semua ~1552 baris kurikulum.
-    sbFetch(`materi?select=*&order=jenjang,semester,id`),
+  getAll: async () => {
+    // Dipecah 2 (per semester) — bukan 1 request raksasa (~1552 baris kurikulum
+    // sekaligus bisa bikin proses JSON.parse di HP lemah kerasa macet lama),
+    // dan bukan 16 request kecil-kecil (sisa cara lama yang malah bikin banyak
+    // koneksi bersamaan nabrak batas server gratis).
+    const [sem1, sem2] = await Promise.all([
+      sbFetch(`materi?semester=eq.1&select=*&order=jenjang,id`),
+      sbFetch(`materi?semester=eq.2&select=*&order=jenjang,id`),
+    ]);
+    return [...(sem1||[]), ...(sem2||[])];
+  },
   getByJenjang: (jenjang, semester) =>
     sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=id&limit=500`),
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
