@@ -1,0 +1,24 @@
+name: Keep Supabase Alive
+
+# Supabase free tier auto-pause project setelah 7 hari tanpa aktivitas.
+# Workflow ini "ketuk" database tiap 3 hari sekali (ringan, cuma baca 1 baris),
+# supaya project tidak pernah dianggap idle — penting khusus untuk periode sepi
+# seperti bulan puasa yang bisa 1-2 bulan tidak ada yang buka aplikasi.
+
+on:
+  schedule:
+    - cron: '0 3 */3 * *'   # tiap 3 hari sekali, jam 03:00 UTC (~10:00 WIB)
+  workflow_dispatch:         # supaya bisa dites manual lewat tab "Actions" di GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (ambil 1 baris ringan)
+        run: |
+          curl -sS -X GET \
+            "https://jxkumrxnokmkzsmkhvol.supabase.co/rest/v1/kelompok?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            --fail --show-error
+          echo "Ping berhasil — Supabase project tetap aktif."
