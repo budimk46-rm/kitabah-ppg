@@ -306,7 +306,7 @@ const DAPUKAN_CATALOG = {
   daerah: {
     '4S': EMPAT_S,
     'Pengurus Harian': ['Ketua PPG', 'Wakil Ketua', 'Sekretaris', 'Bendahara'],
-    'Pengurus Bidang': ['Sekretariat', 'Kurikulum', 'Tenaga Pendidik', 'Seni & Olahraga', 'Kemandirian', 'Keputrian', 'KMM Daerah', 'Tahfidz', 'Sarana dan Prasarana', 'Penggalang Dana', 'Bimbingan Konseling'],
+    'Pengurus Bidang': ['Kurikulum', 'Tenaga Pendidik', 'Seni & Olahraga', 'Kemandirian', 'Keputrian', 'KMM Daerah', 'Tahfidz', 'Sarana dan Prasarana', 'Penggalang Dana', 'Bimbingan Konseling'],
     'Tim 7': TIM_7,
   },
 };
