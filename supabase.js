@@ -490,6 +490,8 @@ const sbFormSubmissions = {
 const sbChat = {
   getRecent: (limit=100) => sbFetch(`chat_messages?select=*&order=created_at.desc&limit=${limit}`),
   getSince: (sinceIso) => sbFetch(`chat_messages?created_at=gt.${encodeURIComponent(sinceIso)}&select=*&order=created_at.asc`),
+  // Query ringan — cuma ambil waktu pesan terakhir, dipakai untuk badge notifikasi (bukan isi pesan)
+  getLatestTimestamp: () => sbFetch(`chat_messages?select=created_at&order=created_at.desc&limit=1`),
   insert: (data) => sbFetch('chat_messages', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
 };
 

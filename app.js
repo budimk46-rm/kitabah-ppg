@@ -116,6 +116,8 @@ const App = {
   user: null,
   session: null,
   currentPage: 'dashboard',
+  chatUnread: false,
+  chatUnreadInterval: null,
   kurState: {
     jenjang: 'PAUD TK',
     sem: _defaultSem,
@@ -145,6 +147,7 @@ function clearSession() {
   try { localStorage.removeItem('kitabah_session'); } catch(e) {}
   App.user = null;
   App.cache = { materi: null, kelompok: null, desa: null, myProgress: null, allSantri: null };
+  if (App.chatUnreadInterval) { clearInterval(App.chatUnreadInterval); App.chatUnreadInterval = null; }
 }
 
 /* ===== UTILITIES ===== */
@@ -219,6 +222,32 @@ function showShell() {
   document.getElementById('appShell').style.display = 'flex';
   renderNav();
   navigate('dashboard');
+  startChatUnreadWatcher();
+}
+
+// Badge "ada pesan baru" di menu Live Chat — cek ringan (cuma 1 timestamp, bukan isi pesan),
+// jalan tiap 60 detik selama aplikasi terbuka, di halaman manapun. Berhenti saat logout.
+function startChatUnreadWatcher() {
+  if (App.chatUnreadInterval) clearInterval(App.chatUnreadInterval);
+  checkChatUnread();
+  App.chatUnreadInterval = setInterval(checkChatUnread, 60000);
+}
+async function checkChatUnread() {
+  try {
+    const res = await SB.chat.getLatestTimestamp();
+    const latest = res?.[0]?.created_at;
+    if (!latest) return;
+    const lastSeen = localStorage.getItem('kitabah_chat_lastseen');
+    const isUnread = !lastSeen || new Date(latest) > new Date(lastSeen);
+    if (isUnread !== App.chatUnread) {
+      App.chatUnread = isUnread;
+      if (document.getElementById('sidebarNav')) renderNav();
+    }
+  } catch(e) { /* diam-diam gagal, coba lagi di cek berikutnya */ }
+}
+function markChatAsRead() {
+  localStorage.setItem('kitabah_chat_lastseen', new Date().toISOString());
+  if (App.chatUnread) { App.chatUnread = false; renderNav(); }
 }
 
 async function loadPendingWaBtn(username, namaLengkap) {
@@ -1023,6 +1052,7 @@ const NAV_ITEMS = {
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
@@ -1154,8 +1184,10 @@ function renderNav() {
       html += `<div class="nav-section-title">${escHtml(item.section)}</div>`;
       lastSection = item.section;
     }
+    const badge = (item.id === 'live_chat' && App.chatUnread)
+      ? '<span style="width:8px; height:8px; border-radius:50%; background:var(--rose); display:inline-block; margin-left:6px;"></span>' : '';
     html += `<div class="nav-item" data-page="${item.id}" onclick="navigate('${item.id}')">
-      ${item.icon} <span>${escHtml(item.label)}</span>
+      ${item.icon} <span>${escHtml(item.label)}</span>${badge}
     </div>`;
   });
   if (lintasItems.length) {
@@ -8897,6 +8929,7 @@ async function renderLiveChat() {
   const main = document.getElementById('mainContent');
   const u = App.user;
 
+  markChatAsRead();
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let messages = (await SB.chat.getRecent(100) || []).reverse(); // urut lama → baru
@@ -8965,6 +8998,7 @@ async function renderLiveChat() {
         user_id: u.id, nama_lengkap: u.nama_lengkap, role: u.role, pesan,
       });
       if (res?.[0]) messages.push(res[0]);
+      markChatAsRead();
       render();
     } catch(e) {
       showToast('Gagal kirim: ' + e.message, true);
@@ -8988,6 +9022,7 @@ async function renderLiveChat() {
         if (trulyBaru.length) {
           const wasNearBottom = nearBottom();
           messages.push(...trulyBaru);
+          markChatAsRead();
           render();
           if (wasNearBottom) scrollBawah();
         }
