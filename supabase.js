@@ -120,17 +120,11 @@ const sbDesa = {
 
 // ============ MATERI ============
 const sbMateri = {
-  getAll: async () => {
-    // Ambil per-jenjang untuk menghindari batas 1000 baris
-    const JENJANG = ['PAUD TK','SD 1','SD 2','SD 3','SD 4','SD 5','SD 6',
-      'SMP 1','SMP 2','SMP 3','SMA 1','SMA 2','SMA 3','PRA 1','PRA 2','PRA 3','PRA 4'];
-    const results = await Promise.all(
-      JENJANG.map(j =>
-        sbFetch(`materi?jenjang=eq.${encodeURIComponent(j)}&select=*&order=semester,id&limit=500`)
-      )
-    );
-    return results.flat();
-  },
+  getAll: () =>
+    // Sebelumnya dipecah 16 request per jenjang untuk hindari batas 1000 baris —
+    // sudah tidak perlu lagi karena sbFetch() global sudah pasang Range 0-9999,
+    // jadi cukup 1 request untuk ambil semua ~1552 baris kurikulum.
+    sbFetch(`materi?select=*&order=jenjang,semester,id`),
   getByJenjang: (jenjang, semester) =>
     sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=id&limit=500`),
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
