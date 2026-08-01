@@ -288,7 +288,6 @@ const FORM_CONFIGS = {
       { key:'jenis_kel', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
       { key:'tgl_lahir', label:'Tanggal Lahir', type:'date', required:true },
       { key:'nama_ortu', label:'Nama Orang Tua / Wali', type:'text' },
-      { key:'no_hp_ortu', label:'No. HP Orang Tua / Wali', type:'text' },
     ],
   },
   mtms: {
@@ -532,7 +531,7 @@ async function openSantriApprovalModal(data, sub, kelompokId) {
       await SB.santri.insert({
         nama: toTitleCase(data.nama||''), jenis_kel: data.jenis_kel || null,
         tgl_lahir: data.tgl_lahir || null, nama_ortu: data.nama_ortu ? toTitleCase(data.nama_ortu) : null,
-        no_hp_ortu: data.no_hp_ortu || null, kelas_id: kelasId, aktif: true,
+        kelas_id: kelasId, aktif: true,
       });
       App.cache.allSantri = null;
       await SB.formSubmissions.updateStatus(sub.id, { status:'approved', reviewed_at: new Date().toISOString(), reviewed_by: App.user.id });
@@ -2771,8 +2770,9 @@ async function renderKelolaKelas() {
       const s = await SB.santri.getByKelas(k.id);
       allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang, _fromKelasId: k.id}))];
     }
-    // Juga load santri tanpa kelas (kelas_id = null)
-    const unassignedPool = await SB.santri.getUnassigned() || [];
+    // Juga load santri tanpa kelas (kelas_id = null) — HANYA yang asal kelompoknya sama,
+    // supaya tidak nyasar campur santri kelompok lain (bug lama: dulu tidak difilter sama sekali)
+    const unassignedPool = await SB.santri.getUnassigned(selectedKelompokId) || [];
     unassignedPool.forEach(s => {
       if (!allSantriKlp.find(x => x.id === s.id)) {
         allSantriKlp.push({...s, _fromKelas: 'Belum masuk kelas', _fromKelasId: null});
@@ -3134,10 +3134,11 @@ async function renderKelolaKelas() {
       : `Hapus kelas "${kls.nama_kelas}"?\nKelas ini kosong (tidak ada santri).`;
     if (!confirm(msg)) return;
     try {
-      // Pindahkan semua santri ke null dulu
+      // Pindahkan semua santri ke null dulu (tapi tetap catat asal kelompoknya,
+      // supaya tidak nyasar campur ke daftar "belum masuk kelas" kelompok lain)
       if (santriCount > 0) {
         for (const s of santriList) {
-          await SB.santri.update(s.id, { kelas_id: null });
+          await SB.santri.update(s.id, { kelas_id: null, kelompok_asal_id: kls.kelompok_id || selectedKelompokId });
         }
       }
       await SB.kelas.delete(kls.id);
@@ -3228,7 +3229,7 @@ async function renderKelolaKelas() {
   };
   window.STR_delete = async (id, nama) => {
     if (!confirm(`Keluarkan "${nama}" dari kelas ini?\nSantri akan dipindah ke daftar belum masuk kelas.`)) return;
-    await SB.santri.update(id, { kelas_id: null });
+    await SB.santri.update(id, { kelas_id: null, kelompok_asal_id: selectedKelompokId });
     App.cache.allSantri = null;
     logActivity('ubah', 'Santri', `Mengeluarkan "${nama}" dari kelas`);
     showToast('Santri dikeluarkan dari kelas');
