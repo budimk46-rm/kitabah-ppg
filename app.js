@@ -2109,21 +2109,32 @@ async function renderUsers() {
     const isDefault = target.akses_menu === null || target.akses_menu === undefined;
     const currentSet = isDefault ? new Set(roleItems.map(i => i.id)) : new Set(target.akses_menu.split(',').map(s=>s.trim()).filter(Boolean));
 
+    // Desa milik user ini sendiri — akses lintas peran Level Desa dikunci ke desa ini saja,
+    // tidak mungkin kasih akses ke desa lain (tidak masuk akal secara organisasi).
+    const targetKlp = (App.cache.kelompok||[]).find(k => k.id === target.kelompok_id);
+    const targetDesaId = target.desa_id || targetKlp?.desa_id || null;
+    const targetDesaNama = desaList.find(d => d.id === targetDesaId)?.nama || targetDesaId;
+
     const checkboxesHtml = roleItems.map(item => `
       <label style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:13px; color:#111;">
         <input type="checkbox" class="akMenu" value="${item.id}" ${currentSet.has(item.id)?'checked':''}> ${escHtml(item.label)}
       </label>`).join('');
 
     function llRowHtml(row) {
-      const level = row.level || 'daerah';
+      const level = row.level || (targetDesaId ? 'desa' : 'daerah');
+      const desaFieldHtml = targetDesaId
+        ? `<span style="display:${level==='desa'?'inline-flex':'none'}; align-items:center; gap:5px; padding:8px 10px; border:1.5px solid var(--line); border-radius:6px; font-size:12.5px; background:var(--cream-2); color:var(--ink-soft);" class="llDesaFixed">
+             🏘️ ${escHtml(targetDesaNama)} <input type="hidden" class="llDesa" value="${targetDesaId}">
+           </span>`
+        : `<select class="llDesa" style="flex:0 0 auto; display:${level==='desa'?'inline-block':'none'};">
+             ${desaList.map(d=>`<option value="${d.id}" ${d.id===row.desaId?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
+           </select>`;
       return `<div class="ll-row" style="display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
         <select class="llLevel" onchange="LL_onLevelChange(this)" style="flex:0 0 auto;">
           <option value="daerah" ${level==='daerah'?'selected':''}>Level Daerah</option>
           <option value="desa" ${level==='desa'?'selected':''}>Level Desa</option>
         </select>
-        <select class="llDesa" style="flex:0 0 auto; display:${level==='desa'?'inline-block':'none'};">
-          ${desaList.map(d=>`<option value="${d.id}" ${d.id===row.desaId?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
-        </select>
+        ${desaFieldHtml}
         <select class="llMenu" style="flex:1 1 auto; min-width:140px;">${llMenuOptions(level, row.menu)}</select>
         <button type="button" class="btn-icon danger" onclick="this.closest('.ll-row').remove()" title="Hapus baris">✕</button>
       </div>`;
@@ -2132,7 +2143,9 @@ async function renderUsers() {
     window.LL_onLevelChange = (sel) => {
       const row = sel.closest('.ll-row');
       const level = sel.value;
-      row.querySelector('.llDesa').style.display = level === 'desa' ? 'inline-block' : 'none';
+      const desaEl = row.querySelector('.llDesa');
+      const wrapper = desaEl.tagName === 'INPUT' ? desaEl.closest('.llDesaFixed') : desaEl;
+      if (wrapper) wrapper.style.display = level === 'desa' ? (desaEl.tagName === 'INPUT' ? 'inline-flex' : 'inline-block') : 'none';
       row.querySelector('.llMenu').innerHTML = llMenuOptions(level, null);
     };
     window.LL_addRow = () => {
