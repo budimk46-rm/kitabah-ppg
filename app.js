@@ -2362,7 +2362,10 @@ async function renderSantri() {
 
   const kelompokIds = new Set(filteredKelompok.map(k => k.id));
   const santriFiltered = allSantri.filter(s => {
-    const kid = s.kelas?.kelompok_id;
+    // Santri yang sudah masuk kelas: pakai kelompok dari kelasnya.
+    // Santri yang belum masuk kelas (kelas_id null): pakai kelompok_asal_id sebagai fallback,
+    // supaya tetap kehitung di Data Generus, bukan cuma muncul di Kelola Kelas Generus.
+    const kid = s.kelas?.kelompok_id || s.kelompok_asal_id;
     return kelompokIds.has(kid);
   });
 
@@ -2436,7 +2439,8 @@ async function renderSantri() {
     tabelBody += statRow('TOTAL SELURUH DAERAH', statsTotal, true);
     Object.entries(desaMap).forEach(([desaNama, klpList], desaIdx) => {
       const santriDesa = santriFiltered.filter(s => {
-        const k = klpList.find(k => k.id === s.kelas?.kelompok_id);
+        const kid = s.kelas?.kelompok_id || s.kelompok_asal_id;
+        const k = klpList.find(k => k.id === kid);
         return !!k;
       });
       const statsDesa = hitungStats(santriDesa);
@@ -2447,7 +2451,7 @@ async function renderSantri() {
       tabelBody += `<tr style="background:#e8f0e8;"><td colspan="6" style="padding:8px 10px; font-size:13px; font-weight:800; color:var(--green); border-top:2px solid var(--green);">📍 ${escHtml(desaNama)} &nbsp;·&nbsp; ${santriDesa.length} generus</td></tr>`;
       tabelBody += statRow('Total ' + desaNama, statsDesa, false, false);
       klpList.forEach(k => {
-        const santriKlp = santriFiltered.filter(s => s.kelas?.kelompok_id === k.id);
+        const santriKlp = santriFiltered.filter(s => (s.kelas?.kelompok_id || s.kelompok_asal_id) === k.id);
         const statsKlp = hitungStats(santriKlp);
         tabelBody += statRow(k.nama, statsKlp, false, true);
       });
@@ -2457,7 +2461,7 @@ async function renderSantri() {
     tabelBody += statRow('TOTAL ' + (u.desa_nama || 'DESA SAYA'), statsTotal, true);
     Object.entries(desaMap).forEach(([desaNama, klpList]) => {
       klpList.forEach(k => {
-        const santriKlp = santriFiltered.filter(s => s.kelas?.kelompok_id === k.id);
+        const santriKlp = santriFiltered.filter(s => (s.kelas?.kelompok_id || s.kelompok_asal_id) === k.id);
         const statsKlp = hitungStats(santriKlp);
         tabelBody += statRow(k.nama, statsKlp, false, true);
       });
