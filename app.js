@@ -2108,6 +2108,7 @@ async function renderUsers() {
     const roleItems = (NAV_ITEMS[target.role] || NAV_ITEMS.kelompok).filter(i => i.id !== 'dashboard' && i.id !== 'settings');
     const isDefault = target.akses_menu === null || target.akses_menu === undefined;
     const currentSet = isDefault ? new Set(roleItems.map(i => i.id)) : new Set(target.akses_menu.split(',').map(s=>s.trim()).filter(Boolean));
+    let grantedSet = new Set([...currentSet].filter(id => roleItems.some(i => i.id === id)));
 
     // Desa milik user ini sendiri — akses lintas peran Level Desa dikunci ke desa ini saja,
     // tidak mungkin kasih akses ke desa lain (tidak masuk akal secara organisasi).
@@ -2115,10 +2116,36 @@ async function renderUsers() {
     const targetDesaId = target.desa_id || targetKlp?.desa_id || null;
     const targetDesaNama = desaList.find(d => d.id === targetDesaId)?.nama || targetDesaId;
 
-    const checkboxesHtml = roleItems.map(item => `
-      <label style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:13px; color:#111;">
-        <input type="checkbox" class="akMenu" value="${item.id}" ${currentSet.has(item.id)?'checked':''}> ${escHtml(item.label)}
-      </label>`).join('');
+    function renderAksesBody() {
+      const granted = roleItems.filter(i => grantedSet.has(i.id));
+      const missing = roleItems.filter(i => !grantedSet.has(i.id));
+
+      const grantedHtml = granted.length ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
+        ${granted.map(i => `<span style="display:inline-flex; align-items:center; gap:6px; padding:5px 6px 5px 12px; border-radius:20px; background:var(--green-soft); color:var(--green); font-size:12px; font-weight:600;">
+          ${escHtml(i.label)}
+          <button type="button" onclick="AK_toggle('${i.id}',false)" title="Cabut akses ini" style="width:18px; height:18px; border-radius:50%; border:none; background:rgba(0,0,0,.08); color:var(--green); font-size:12px; line-height:1; cursor:pointer;">✕</button>
+        </span>`).join('')}
+      </div>` : `<div style="font-size:12px; color:var(--ink-soft); margin-bottom:12px;">Belum ada menu yang diberikan.</div>`;
+
+      const missingHtml = missing.length ? missing.map(i => `
+        <label style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:13px; color:#111; cursor:pointer;">
+          <input type="checkbox" onchange="AK_toggle('${i.id}', this.checked)"> ${escHtml(i.label)}
+        </label>`).join('') : `<div style="font-size:12px; color:var(--ink-soft); padding:8px 4px;">Semua menu sudah diberikan ke user ini. 🎉</div>`;
+
+      const body = document.getElementById('aksesBodyWrap');
+      if (!body) return;
+      body.innerHTML = `
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Sudah Punya Akses</div>
+        ${grantedHtml}
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin:10px 0 6px;">Belum Punya Akses — klik untuk tambah</div>
+        <div style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:0 8px;">${missingHtml}</div>
+      `;
+    }
+
+    window.AK_toggle = (id, add) => {
+      if (add) grantedSet.add(id); else grantedSet.delete(id);
+      renderAksesBody();
+    };
 
     function llRowHtml(row) {
       const level = row.level || (targetDesaId ? 'desa' : 'daerah');
@@ -2163,12 +2190,8 @@ async function renderUsers() {
     el.innerHTML = `<div class="modal">
       <div class="modal-head"><h3 class="modal-title">Atur Akses — ${escHtml(target.nama_lengkap)}</h3><button class="modal-close" onclick="closeModal('aksesModal')">✕</button></div>
       <div class="modal-body">
-        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Dashboard & Pengaturan selalu bisa diakses. Centang menu lain yang boleh dipakai user ini.</div>
-        <div style="display:flex; gap:8px; margin-bottom:8px;">
-          <button type="button" class="btn btn-outline btn-sm" onclick="document.querySelectorAll('.akMenu').forEach(c=>c.checked=true)">Pilih Semua</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="document.querySelectorAll('.akMenu').forEach(c=>c.checked=false)">Kosongkan</button>
-        </div>
-        <div style="max-height:280px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:0 8px; margin-bottom:16px;">${checkboxesHtml}</div>
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Dashboard & Pengaturan selalu bisa diakses.</div>
+        <div id="aksesBodyWrap" style="margin-bottom:16px;"></div>
 
         <div style="border-top:1px solid var(--line); padding-top:12px;">
           <div class="fw-bold" style="font-size:13px; color:var(--green); margin-bottom:4px;">Akses Lintas Peran (opsional)</div>
@@ -2184,7 +2207,7 @@ async function renderUsers() {
     </div>`;
 
     document.getElementById('aksesSaveBtn').onclick = async () => {
-      const checked = Array.from(document.querySelectorAll('.akMenu:checked')).map(c => c.value);
+      const checked = [...grantedSet];
       const fullDefault = checked.length === roleItems.length;
       const value = fullDefault ? null : checked.join(',');
 
@@ -2206,6 +2229,7 @@ async function renderUsers() {
       } catch(e) { showToast('Gagal: ' + e.message, true); }
     };
 
+    renderAksesBody();
     openModal('aksesModal');
   }
 }
