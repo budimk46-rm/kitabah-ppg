@@ -305,7 +305,8 @@ const DAPUKAN_CATALOG = {
   },
   daerah: {
     '4S': EMPAT_S,
-    'Unsur PPG': ['Pengurus Harian PPG', 'Pengurus Bidang PPG'],
+    'Pengurus Harian': ['Ketua PPG', 'Wakil Ketua', 'Sekretaris', 'Bendahara'],
+    'Pengurus Bidang': ['Sekretariat', 'Kurikulum', 'Tenaga Pendidik', 'Seni & Olahraga', 'Kemandirian', 'Keputrian', 'KMM Daerah', 'Tahfidz', 'Sarana dan Prasarana', 'Penggalang Dana', 'Bimbingan Konseling'],
     'Tim 7': TIM_7,
   },
 };
@@ -433,6 +434,10 @@ async function renderPublicForm(jenis, scope) {
         <select id="pfDapukan"><option value="">Pilih kategori dulu</option></select>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
+        <label>Tanggal Lahir (opsional)</label>
+        <input type="date" id="pf_tgl_lahir">
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
         <label>No. HP / WhatsApp (opsional)</label>
         <input type="text" id="pf_no_hp">
       </div>
@@ -472,6 +477,7 @@ async function renderPublicForm(jenis, scope) {
       data.nama = document.getElementById('pf_nama')?.value.trim() || '';
       data.kategori = document.getElementById('pfKategori')?.value || '';
       data.dapukan = document.getElementById('pfDapukan')?.value || '';
+      data.tgl_lahir = document.getElementById('pf_tgl_lahir')?.value || '';
       data.no_hp = document.getElementById('pf_no_hp')?.value.trim() || '';
       if (!data.nama || !data.dapukan) {
         document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Mohon lengkapi Nama dan Dapukan</div>`;
@@ -7447,7 +7453,7 @@ async function renderPengurus() {
           return false;
         }
       }
-      const payload = { nama: (data.nama||'').trim() ? toTitleCase(data.nama) : '-', jabatan: dapukan, no_hp: data.no_hp || null, aktif: true };
+      const payload = { nama: (data.nama||'').trim() ? toTitleCase(data.nama) : '-', jabatan: dapukan, tgl_lahir: data.tgl_lahir || null, no_hp: data.no_hp || null, aktif: true };
       if (scopeType === 'kelompok') payload.kelompok_id = scopeRef;
       else if (scopeType === 'desa') payload.desa_id = scopeRef;
       else payload.level_daerah = true;
@@ -7528,7 +7534,7 @@ async function renderPengurus() {
                 <div style="font-weight:700; font-size:12.5px; color:#111;">${escHtml(dp)}</div>
                 ${people.length ? people.map(p => `
                   <div style="display:flex; align-items:center; gap:5px; margin-top:4px;">
-                    <span style="font-size:12.5px; color:var(--ink-soft);">${escHtml(p.nama)}</span>
+                    <span style="font-size:12.5px; color:var(--ink-soft);">${escHtml(p.nama)}${p.tgl_lahir ? ` <span style="color:var(--ink-soft);">· ${hitungUsia(p.tgl_lahir)} th</span>` : ''}</span>
                     ${waBtn(p)}
                     ${canEdit ? `
                     <button class="btn-icon" onclick="PGR_editSlot('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
@@ -7638,6 +7644,7 @@ async function renderPengurus() {
       <div class="modal-head"><h3 class="modal-title">${existing?'Edit':'Tambah'} — ${escHtml(dapukan)}</h3><button class="modal-close" onclick="closeModal('dapukanSlotModal')">✕</button></div>
       <div class="modal-body">
         <div class="form-group"><label>Nama Lengkap *</label><input id="dsNama" value="${escHtml(existing?.nama||'')}"></div>
+        <div class="form-group"><label>Tanggal Lahir (opsional)</label><input type="date" id="dsTglLahir" value="${existing?.tgl_lahir||''}"></div>
         <div class="form-group"><label>No. HP / WhatsApp (opsional)</label><input id="dsHp" value="${escHtml(existing?.no_hp||'')}"></div>
       </div>
       <div class="modal-foot">
@@ -7648,13 +7655,14 @@ async function renderPengurus() {
 
     document.getElementById('dsSaveBtn').onclick = async () => {
       const nama = document.getElementById('dsNama').value.trim();
+      const tglLahir = document.getElementById('dsTglLahir').value || null;
       const noHp = document.getElementById('dsHp').value.trim();
       if (!nama) { showToast('Nama wajib diisi', true); return; }
       const btn = document.getElementById('dsSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
         if (existing) {
-          await SB.musPeserta.update(existing.id, { nama: toTitleCase(nama), no_hp: noHp || null });
+          await SB.musPeserta.update(existing.id, { nama: toTitleCase(nama), tgl_lahir: tglLahir, no_hp: noHp || null });
         } else {
           const [scopeType, scopeRef] = scopeKey.split('|');
           // Re-cek slot solo (Kyai/KU) tepat sebelum simpan, jaga-jaga ada yang nambah barengan
@@ -7669,7 +7677,7 @@ async function renderPengurus() {
               return;
             }
           }
-          const payload = { nama: toTitleCase(nama), jabatan: dapukan, no_hp: noHp || null, aktif: true };
+          const payload = { nama: toTitleCase(nama), jabatan: dapukan, tgl_lahir: tglLahir, no_hp: noHp || null, aktif: true };
           if (scopeType === 'kelompok') payload.kelompok_id = scopeRef;
           else if (scopeType === 'desa') payload.desa_id = scopeRef;
           else payload.level_daerah = true;
