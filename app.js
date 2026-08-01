@@ -12381,6 +12381,34 @@ document.addEventListener('DOMContentLoaded', () => {
   initFlatpickr(document.body);
 });
 
+/* ===== PWA INSTALL PROMPT (Android/Chrome) ===== */
+// iOS/Safari tidak menyediakan API ini sama sekali — di sana tetap manual lewat
+// Share > Add to Home Screen, tidak ada cara mempersingkatnya.
+let _deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'flex';
+});
+
+window.addEventListener('appinstalled', () => {
+  _deferredInstallPrompt = null;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'none';
+});
+
+window.INSTALL_now = async () => {
+  if (!_deferredInstallPrompt) return;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.disabled = true;
+  _deferredInstallPrompt.prompt();
+  await _deferredInstallPrompt.userChoice;
+  _deferredInstallPrompt = null;
+  if (btn) { btn.style.display = 'none'; btn.disabled = false; }
+};
+
 /* ===== SERVICE WORKER (PWA) ===== */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
