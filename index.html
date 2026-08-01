@@ -698,7 +698,31 @@ tr:hover td { background: var(--green-soft); }
   .topnav, .sidebar, .btn, .modal-overlay { display: none !important; }
   .main-content { padding: 0; }
 }
+
+/* Flatpickr — tema kalender modern menyesuaikan warna aplikasi.
+   Catatan: input asli TIDAK dipaksa disembunyikan lewat CSS — flatpickr yang
+   mengurus itu sendiri setelah berhasil aktif. Kalau library gagal dimuat
+   (mis. CDN diblokir), input tanggal bawaan browser tetap tampil & berfungsi
+   sebagai fallback, bukan malah hilang. */
+.flatpickr-input.form-control, input.flatpickr-alt-input {
+  width: 100%; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+  font-size: 13px; font-family: var(--font-body); color: var(--ink); background: #fff; cursor: pointer;
+}
+input.flatpickr-alt-input:focus { outline: none; border-color: var(--green); }
+.flatpickr-calendar { border-radius: var(--radius); box-shadow: var(--shadow-lg); border: 1px solid var(--line); font-family: var(--font-body); }
+.flatpickr-months { background: var(--green); border-radius: var(--radius) var(--radius) 0 0; }
+.flatpickr-current-month { color: #fff; }
+.flatpickr-current-month input.cur-year { color: #fff; }
+.flatpickr-current-month .flatpickr-monthDropdown-months { color: var(--green); font-weight: 600; }
+.flatpickr-prev-month, .flatpickr-next-month { color: #fff !important; fill: #fff !important; }
+.flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg { fill: var(--gold) !important; }
+.flatpickr-weekday { background: var(--green-soft); color: var(--green); font-weight: 700; }
+.flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--green); border-color: var(--green); }
+.flatpickr-day.today { border-color: var(--gold); }
+.flatpickr-day:hover { background: var(--gold-soft); }
+.flatpickr-months .flatpickr-month { color: #fff; }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
 </head>
 <body>
 <div id="app">
@@ -929,9 +953,12 @@ tr:hover td { background: var(--green-soft); }
 
 <!-- bcryptjs for password verification -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<!-- Flatpickr — kalender modern pengganti input tanggal bawaan browser -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/id.js"></script>
 <!-- Supabase client (minified — source: supabase.js, build with: npx terser supabase.js -c -m -o supabase.min.js) -->
-<script defer src="supabase.min.js?v=20260801"></script>
+<script defer src="supabase.min.js?v=20260801d"></script>
 <!-- Main App (minified — source: app.js, build with: npx terser app.js -c -m -o app.min.js) -->
-<script defer src="app.min.js?v=20260801"></script>
+<script defer src="app.min.js?v=20260801d"></script>
 </body>
 </html>

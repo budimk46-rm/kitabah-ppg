@@ -503,10 +503,23 @@ const sbChat = {
 const sbMateriRaport = {
   getByJenjangSemester: (jenjang, semester) =>
     sbFetch(`materi_raport?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=urutan`),
+  // Ambil materi untuk BANYAK jenjang sekaligus (dipakai rekap lintas kelas/kelompok)
+  getByJenjangListSemester: (jenjangList, semester) => {
+    const list = [...new Set(jenjangList)].filter(Boolean);
+    if (!list.length) return Promise.resolve([]);
+    const inList = list.map(j => `"${j}"`).join(',');
+    return sbFetch(`materi_raport?jenjang=in.(${inList})&semester=eq.${semester}&select=*&order=urutan`);
+  },
 };
 const sbRaportNilai = {
   getBySantri: (santriId, semester, ta) =>
     sbFetch(`raport_nilai?santri_id=eq.${santriId}&semester=eq.${semester}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  // Ambil nilai untuk BANYAK santri sekaligus (dipakai rekap kelompok/desa/daerah)
+  getBySantriIds: (santriIds, semester, ta) => {
+    const ids = [...new Set(santriIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`raport_nilai?santri_id=in.(${ids.join(',')})&semester=eq.${semester}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`);
+  },
   upsertBulk: (rows) => sbFetch('raport_nilai?on_conflict=santri_id,materi_raport_id,semester,tahun_ajaran', {
     method: 'POST',
     headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},

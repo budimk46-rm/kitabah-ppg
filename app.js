@@ -987,6 +987,7 @@ const NAV_ITEMS = {
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
@@ -1003,6 +1004,7 @@ const NAV_ITEMS = {
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
@@ -1019,6 +1021,7 @@ const NAV_ITEMS = {
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
@@ -1040,6 +1043,7 @@ const NAV_ITEMS = {
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -1058,6 +1062,7 @@ const NAV_ITEMS = {
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
@@ -1075,6 +1080,7 @@ const NAV_ITEMS = {
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
     { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -1086,6 +1092,7 @@ const NAV_ITEMS = {
     { id: 'santri', icon: usersIcon(), label: 'Data Santri' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
@@ -1234,6 +1241,7 @@ async function renderPage(page) {
       case 'guru_sekolah': await renderGuruSekolah(); break;
       case 'log_aktivitas': await renderLogAktivitas(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
+      case 'rekap_raport': await renderRekapRaport(); break;
       case 'profil_saya': await renderProfilSaya(); break;
       case 'live_chat': await renderLiveChat(); break;
       case 'proker':      await renderProker(); break;
@@ -6512,6 +6520,239 @@ async function renderRaportCaberawit() {
       showToast('Gagal membuat PDF: ' + e.message, true);
       console.error(e);
     }
+  };
+
+  render();
+}
+
+/* ===== PAGE: REKAP RAPORT CABERAWIT ===== */
+async function renderRekapRaport() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+  const isKelompok = ['pjp_kelompok','wali_kbm','guru','kelompok'].includes(u.role);
+
+  const SECTION_LABEL = { A: 'Akhlaqul Karimah', B: 'Alim Faqih', C: 'Kemandirian' };
+  const taSekarang = getTahunAjaran();
+  const taStartYear = parseInt(taSekarang.split('/')[0], 10);
+  const taOptions = Array.from({length:5}, (_,i) => { const y = taStartYear - i; return `${y}/${y+1}`; });
+  let ta = taSekarang;
+  const nowMonth = currentMonthName();
+  let semester = SEM1_MONTHS.includes(nowMonth) ? 1 : 2;
+
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  // Tentukan cakupan kelompok
+  let kelompokScope = [];
+  if (isAdmin || isDaerah) kelompokScope = App.cache.kelompok || [];
+  else if (isDesa) kelompokScope = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+  else if (isKelompok && u.kelompok_id) kelompokScope = (App.cache.kelompok||[]).filter(k => k.id === u.kelompok_id);
+
+  async function loadData() {
+    const klpIds = kelompokScope.map(k => k.id);
+    const kelasRaw = await SB.kelas.getByKelompokIds(klpIds) || [];
+    const kelasIds = kelasRaw.map(k => k.id);
+    const santriRaw = await SB.santri.getByKelasIds(kelasIds) || [];
+    const santriIds = santriRaw.map(s => s.id);
+
+    const jenjangList = [...new Set(kelasRaw.map(k => k.jenjang).filter(Boolean))];
+    const [nilaiRaw, materiRaw] = await Promise.all([
+      SB.raportNilai.getBySantriIds(santriIds, semester, ta),
+      SB.materiRaport.getByJenjangListSemester(jenjangList, semester),
+    ]);
+
+    const materiSectionMap = {};
+    (materiRaw||[]).forEach(m => { materiSectionMap[m.id] = m.section; });
+
+    const nilaiBySantri = {};
+    (nilaiRaw||[]).forEach(n => { (nilaiBySantri[n.santri_id] ||= []).push(n); });
+
+    // Hitung ringkasan per santri
+    const santriSummary = {};
+    santriRaw.forEach(s => {
+      const rows = nilaiBySantri[s.id] || [];
+      const bySection = { A: [], B: [], C: [] };
+      rows.forEach(r => {
+        const sec = materiSectionMap[r.materi_raport_id];
+        if (sec && r.nilai != null) bySection[sec].push(Number(r.nilai));
+      });
+      const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
+      const allVals = [...bySection.A, ...bySection.B, ...bySection.C];
+      santriSummary[s.id] = {
+        santri: s, kelas: kelasRaw.find(k=>k.id===s.kelas_id),
+        totalDinilai: rows.length,
+        rataRata: avg(allVals),
+        perSection: { A: avg(bySection.A), B: avg(bySection.B), C: avg(bySection.C) },
+      };
+    });
+
+    return { kelasRaw, santriRaw, santriSummary };
+  }
+
+  let { kelasRaw, santriRaw, santriSummary } = await loadData();
+
+  function badgeNilai(v) {
+    if (v == null) return '<span style="color:var(--ink-soft); font-size:11px;">belum ada</span>';
+    const color = v >= 90 ? 'var(--green)' : v >= 80 ? '#2563eb' : v >= 70 ? '#ca8a04' : 'var(--rose)';
+    return `<span style="font-weight:800; color:${color};">${v}</span>`;
+  }
+
+  function render() {
+    let bodyHtml = '';
+
+    if (isKelompok) {
+      // ── Level Kelompok: grouped by kelas, klik santri untuk detail ──
+      const byKelas = {};
+      kelasRaw.forEach(k => { byKelas[k.id] = { kelas: k, list: [] }; });
+      Object.values(santriSummary).forEach(sm => {
+        if (sm.kelas && byKelas[sm.kelas.id]) byKelas[sm.kelas.id].list.push(sm);
+      });
+
+      const cards = Object.values(byKelas).filter(g => g.list.length).map(g => {
+        const rows = g.list.map(sm => `
+          <tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="RR_toggleDetail('${sm.santri.id}')">
+            <td style="padding:8px 10px; font-size:13px; font-weight:600; color:#111;">${escHtml(sm.santri.nama)} <span style="font-size:10px; color:var(--ink-soft);">▼</span></td>
+            <td style="text-align:center; font-size:12px;">${sm.totalDinilai || '—'}</td>
+            <td style="text-align:center;">${badgeNilai(sm.rataRata)}</td>
+          </tr>
+          <tr id="rr-detail-${sm.santri.id}" style="display:none; background:#f9f9f6;">
+            <td colspan="3" style="padding:10px 16px;">
+              <div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:6px;">
+                <div style="font-size:12px;"><span style="color:var(--ink-soft);">Akhlaqul Karimah:</span> ${badgeNilai(sm.perSection.A)}</div>
+                <div style="font-size:12px;"><span style="color:var(--ink-soft);">Alim Faqih:</span> ${badgeNilai(sm.perSection.B)}</div>
+                <div style="font-size:12px;"><span style="color:var(--ink-soft);">Kemandirian:</span> ${badgeNilai(sm.perSection.C)}</div>
+              </div>
+              <div style="font-size:11px; color:var(--ink-soft);">Untuk isi/edit nilai lengkap, buka menu <b style="color:var(--green);">Raport Caberawit</b>.</div>
+            </td>
+          </tr>`).join('');
+        return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:var(--green); padding:10px 16px;">
+            <div style="font-weight:800; font-size:13.5px; color:#fff;">${escHtml(g.kelas.nama_kelas)} <span style="font-weight:500; font-size:11px; color:rgba(255,255,255,.8);">(${escHtml(g.kelas.jenjang)})</span></div>
+          </div>
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--green-soft);">
+              <th style="padding:6px 10px; text-align:left; font-size:11px; color:var(--green);">Nama</th>
+              <th style="padding:6px 10px; text-align:center; font-size:11px; color:var(--green); width:80px;">Item Dinilai</th>
+              <th style="padding:6px 10px; text-align:center; font-size:11px; color:var(--green); width:80px;">Rata-rata</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+      }).join('');
+      bodyHtml = cards || `<div class="card" style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada santri Caberawit di kelompok ini.</div>`;
+
+    } else if (isDesa) {
+      // ── Level Desa: rekap per kelompok, rata-rata saja ──
+      const rows = kelompokScope.map(klp => {
+        const santriKlp = Object.values(santriSummary).filter(sm => sm.kelas && kelasRaw.find(k=>k.id===sm.kelas.id)?.kelompok_id === klp.id);
+        const dinilai = santriKlp.filter(sm => sm.totalDinilai > 0);
+        const avgAll = dinilai.length ? Math.round(dinilai.reduce((a,sm)=>a+(sm.rataRata||0),0)/dinilai.length) : null;
+        const avgSec = sec => {
+          const vals = dinilai.map(sm=>sm.perSection[sec]).filter(v=>v!=null);
+          return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : null;
+        };
+        return `<tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:8px 10px; font-size:13px; font-weight:600; color:#111;">${escHtml(klp.nama)}</td>
+          <td style="text-align:center; font-size:12px;">${dinilai.length}/${santriKlp.length}</td>
+          <td style="text-align:center;">${badgeNilai(avgAll)}</td>
+          <td style="text-align:center; font-size:12px;">${badgeNilai(avgSec('A'))}</td>
+          <td style="text-align:center; font-size:12px;">${badgeNilai(avgSec('B'))}</td>
+          <td style="text-align:center; font-size:12px;">${badgeNilai(avgSec('C'))}</td>
+        </tr>`;
+      }).join('');
+      bodyHtml = `<div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:600px;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff;">Santri Dinilai</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff;">Rata² Keseluruhan</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff;">Akhlak</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff;">Alim Faqih</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff;">Kemandirian</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`;
+
+    } else {
+      // ── Level Daerah/Admin: grouped per desa, isi rata-rata per kelompok ──
+      const DESA_NAMA_MAP = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
+      const byDesa = {};
+      kelompokScope.forEach(klp => {
+        const dn = klp.desa?.nama || DESA_NAMA_MAP[klp.desa_id] || klp.desa_id || '-';
+        (byDesa[dn] ||= []).push(klp);
+      });
+      bodyHtml = Object.entries(byDesa).map(([dn, klpList]) => {
+        const rows = klpList.map(klp => {
+          const santriKlp = Object.values(santriSummary).filter(sm => sm.kelas && kelasRaw.find(k=>k.id===sm.kelas.id)?.kelompok_id === klp.id);
+          const dinilai = santriKlp.filter(sm => sm.totalDinilai > 0);
+          const avgAll = dinilai.length ? Math.round(dinilai.reduce((a,sm)=>a+(sm.rataRata||0),0)/dinilai.length) : null;
+          return `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(klp.nama)}</td>
+            <td style="text-align:center; font-size:12px;">${dinilai.length}/${santriKlp.length}</td>
+            <td style="text-align:center;">${badgeNilai(avgAll)}</td>
+          </tr>`;
+        }).join('');
+        return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="background:var(--green); padding:9px 16px;">
+            <div style="font-weight:800; font-size:13px; color:#fff;">🏘️ Desa ${escHtml(dn)}</div>
+          </div>
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--green-soft);">
+              <th style="padding:6px 10px; text-align:left; font-size:11px; color:var(--green);">Kelompok</th>
+              <th style="padding:6px 10px; text-align:center; font-size:11px; color:var(--green); width:100px;">Santri Dinilai</th>
+              <th style="padding:6px 10px; text-align:center; font-size:11px; color:var(--green); width:90px;">Rata-rata</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+      }).join('');
+    }
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Rekap Raport Caberawit</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Tahun Ajaran ${escHtml(ta)}</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <label style="font-size:12.5px; font-weight:700; color:var(--green);">Tahun Ajaran:</label>
+        <select id="rrTaSel" onchange="RR_setTA(this.value)" style="max-width:160px;">
+          ${taOptions.map(t => `<option value="${t}" ${t===ta?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <label style="font-size:12.5px; font-weight:700; color:var(--green); margin-left:8px;">Semester:</label>
+        <select id="rrSemesterSel" onchange="RR_setSemester(this.value)" style="max-width:160px;">
+          <option value="1" ${semester===1?'selected':''}>Semester 1</option>
+          <option value="2" ${semester===2?'selected':''}>Semester 2</option>
+        </select>
+      </div>
+
+      ${bodyHtml}
+    `;
+  }
+
+  window.RR_toggleDetail = (santriId) => {
+    const el = document.getElementById('rr-detail-' + santriId);
+    if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+  };
+  window.RR_setSemester = async (val) => {
+    semester = Number(val);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    const res = await loadData();
+    kelasRaw = res.kelasRaw; santriRaw = res.santriRaw; santriSummary = res.santriSummary;
+    render();
+  };
+  window.RR_setTA = async (val) => {
+    ta = val;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    const res = await loadData();
+    kelasRaw = res.kelasRaw; santriRaw = res.santriRaw; santriSummary = res.santriSummary;
+    render();
   };
 
   render();
@@ -12115,6 +12356,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLogin();
   }
   showLoading(false);
+});
+
+/* ===== FLATPICKR — kalender modern, otomatis diaktifkan di semua input tanggal ===== */
+function initFlatpickr(root) {
+  if (!window.flatpickr) return;
+  root.querySelectorAll('input[type="date"]:not([data-fp-init])').forEach(el => {
+    el.setAttribute('data-fp-init', '1');
+    window.flatpickr(el, {
+      altInput: true,
+      altFormat: 'j F Y',
+      dateFormat: 'Y-m-d',
+      locale: window.flatpickr.l10ns?.id || undefined,
+      allowInput: true,
+      disableMobile: true, // tetap pakai kalender custom meski di HP, bukan native
+    });
+  });
+}
+const _fpObserver = new MutationObserver(() => {
+  initFlatpickr(document.body);
+});
+document.addEventListener('DOMContentLoaded', () => {
+  _fpObserver.observe(document.body, { childList: true, subtree: true });
+  initFlatpickr(document.body);
 });
 
 /* ===== SERVICE WORKER (PWA) ===== */
