@@ -2868,21 +2868,11 @@ async function renderKelolaKelas() {
     else if (nmUpper.startsWith('REMAJA')) targetTingkatan = 'remaja';
     else if (nmUpper.startsWith('PRA NIKAH')) targetTingkatan = 'pra_nikah';
 
-    // Load semua santri di kelompok ini
-    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
-    let allSantriKlp = [];
-    for (const k of allKelasKlp) {
-      const s = await SB.santri.getByKelas(k.id);
-      allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang, _fromKelasId: k.id}))];
-    }
-    // Juga load santri tanpa kelas (kelas_id = null) — HANYA yang asal kelompoknya sama,
-    // supaya tidak nyasar campur santri kelompok lain (bug lama: dulu tidak difilter sama sekali)
+    // Cuma santri yang BENAR-BENAR belum punya kelas sama sekali (kelas_id null).
+    // Santri yang sudah di kelas lain TIDAK ikut muncul di sini — untuk memindahkan
+    // santri antar kelas, pakai tombol "Pindah Kelas" di baris santri kelas asalnya.
     const unassignedPool = await SB.santri.getUnassigned(selectedKelompokId) || [];
-    unassignedPool.forEach(s => {
-      if (!allSantriKlp.find(x => x.id === s.id)) {
-        allSantriKlp.push({...s, _fromKelas: 'Belum masuk kelas', _fromKelasId: null});
-      }
-    });
+    const allSantriKlp = unassignedPool.map(s => ({...s, _fromKelas: 'Belum masuk kelas', _fromKelasId: null}));
 
     // Filter by tingkatan dan belum di kelas ini
     const currentSantriIds = new Set(santriList.map(s => s.id));
@@ -2979,6 +2969,9 @@ async function renderKelolaKelas() {
               <div style="display:flex; gap:4px;">
                 <button class="btn-icon" onclick="STR_edit('${s.id}')" title="Edit">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+                </button>
+                <button class="btn-icon" onclick="STR_pindahKelas('${s.id}','${escHtml(s.nama)}')" title="Pindah ke Kelas Lain">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/></svg>
                 </button>
                 <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Keluarkan dari kelas">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
@@ -3157,18 +3150,13 @@ async function renderKelolaKelas() {
   window.STR_showAllUsia = async () => {
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (!kls || !selectedKelompokId) return;
-    const allKelasKlp = await SB.kelas.getByKelompok(selectedKelompokId);
-    let allSantriKlp = [];
-    for (const k of allKelasKlp) {
-      const s = await SB.santri.getByKelas(k.id);
-      allSantriKlp = [...allSantriKlp, ...s.map(x => ({...x, _fromKelas: k.nama_kelas || k.jenjang}))];
-    }
+    const unassignedPool = await SB.santri.getUnassigned(selectedKelompokId) || [];
     const currentIds = new Set(santriList.map(s => s.id));
-    const all = allSantriKlp.filter(s => !currentIds.has(s.id)).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
-    if (!all.length) { showToast('Tidak ada generus lain yang tersedia'); return; }
+    const all = unassignedPool.filter(s => !currentIds.has(s.id)).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    if (!all.length) { showToast('Tidak ada generus lain yang belum masuk kelas'); return; }
     unassignedChecklistHtml = `
       <div class="card" style="margin-top:12px; border:1.5px solid var(--gold);">
-        <div class="fw-bold" style="color:var(--gold); font-size:14px; margin-bottom:6px;">\ud83d\udccb Semua Generus Belum di Kelas Ini</div>
+        <div class="fw-bold" style="color:var(--gold); font-size:14px; margin-bottom:6px;">📋 Semua Generus Belum di Kelas Ini</div>
         <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Centang untuk memindahkan ke kelas <b>${escHtml(kls.nama_kelas||'')}</b></div>
         ${all.map(s => {
           const t = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
@@ -3178,7 +3166,7 @@ async function renderKelolaKelas() {
             <div style="flex:1;">
               <div style="font-weight:700; font-size:13px; color:#111;">${escHtml(s.nama)}</div>
               <div style="font-size:11px; color:var(--ink-soft);">
-                ${s.jenis_kel||'\u2014'} \u00b7 ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '\u2014'} \u00b7 ${TINGKATAN_LABELS[t]||t||'\u2014'} \u00b7 dari ${escHtml(s._fromKelas||'\u2014')}
+                ${s.jenis_kel||'—'} · ${s.tgl_lahir ? hitungUsia(s.tgl_lahir)+' thn' : '—'} · ${TINGKATAN_LABELS[t]||t||'—'}
               </div>
             </div>
           </div>`;
@@ -3332,6 +3320,52 @@ async function renderKelolaKelas() {
     if (!s) { showToast('Data tidak ditemukan', true); return; }
     openAddSantriModal(selectedKelasId, s, async () => await loadSantri(selectedKelasId));
   };
+  window.STR_pindahKelas = (id, nama) => {
+    const currentKelas = kelasOptions.find(k => k.id === selectedKelasId);
+    const pilihan = kelasOptions.filter(k => k.id !== selectedKelasId && !k.desa_id);
+    let el = document.getElementById('pindahKelasModal');
+    if (!el) { el = document.createElement('div'); el.id = 'pindahKelasModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Pindah Kelas — ${escHtml(nama)}</h3><button class="modal-close" onclick="closeModal('pindahKelasModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">Saat ini di kelas <b>${escHtml(currentKelas?.nama_kelas||'-')}</b>. Pilih kelas tujuan:</div>
+        <div class="form-group">
+          <label>Pindah ke Kelas</label>
+          <select id="pkTarget">
+            <option value="">Pilih kelas...</option>
+            ${pilihan.map(k => `<option value="${k.id}">${escHtml(k.nama_kelas)} (${escHtml(k.jenjang)})</option>`).join('')}
+          </select>
+        </div>
+        ${!pilihan.length ? '<div style="font-size:12px; color:var(--rose);">Belum ada kelas lain di kelompok ini.</div>' : ''}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('pindahKelasModal')">Batal</button>
+        <button class="btn btn-green" id="pkSaveBtn">Pindahkan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('pkSaveBtn').onclick = async () => {
+      const targetId = document.getElementById('pkTarget').value;
+      if (!targetId) { showToast('Pilih kelas tujuan dulu', true); return; }
+      const btn = document.getElementById('pkSaveBtn');
+      btn.disabled = true; btn.textContent = 'Memindahkan...';
+      try {
+        await SB.santri.update(id, { kelas_id: targetId });
+        App.cache.allSantri = null;
+        const targetKelas = pilihan.find(k => k.id === targetId);
+        logActivity('ubah', 'Santri', `Memindahkan "${nama}" dari ${currentKelas?.nama_kelas||'-'} ke ${targetKelas?.nama_kelas||'-'}`);
+        showToast(`${nama} dipindahkan ke ${targetKelas?.nama_kelas||'kelas baru'}`);
+        closeModal('pindahKelasModal');
+        await loadSantri(selectedKelasId);
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+        btn.disabled = false; btn.textContent = 'Pindahkan';
+      }
+    };
+
+    openModal('pindahKelasModal');
+  };
+
   window.STR_delete = async (id, nama) => {
     if (!confirm(`Keluarkan "${nama}" dari kelas ini?\nSantri akan dipindah ke daftar belum masuk kelas.`)) return;
     await SB.santri.update(id, { kelas_id: null, kelompok_asal_id: selectedKelompokId });
