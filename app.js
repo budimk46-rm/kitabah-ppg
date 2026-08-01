@@ -434,12 +434,12 @@ async function renderPublicForm(jenis, scope) {
         <select id="pfDapukan"><option value="">Pilih kategori dulu</option></select>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
-        <label>Tanggal Lahir (opsional)</label>
+        <label>Tanggal Lahir</label>
         <input type="date" id="pf_tgl_lahir">
       </div>
       <div class="form-group" style="margin-bottom:12px;">
-        <label>No. HP / WhatsApp (opsional)</label>
-        <input type="text" id="pf_no_hp">
+        <label>No. HP / WhatsApp</label>
+        <input type="tel" inputmode="numeric" id="pf_no_hp" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
       </div>
     ` : config.fields.map(f => `
       <div class="form-group" style="margin-bottom:12px;">
@@ -7644,8 +7644,8 @@ async function renderPengurus() {
       <div class="modal-head"><h3 class="modal-title">${existing?'Edit':'Tambah'} — ${escHtml(dapukan)}</h3><button class="modal-close" onclick="closeModal('dapukanSlotModal')">✕</button></div>
       <div class="modal-body">
         <div class="form-group"><label>Nama Lengkap *</label><input id="dsNama" value="${escHtml(existing?.nama||'')}"></div>
-        <div class="form-group"><label>Tanggal Lahir (opsional)</label><input type="date" id="dsTglLahir" value="${existing?.tgl_lahir||''}"></div>
-        <div class="form-group"><label>No. HP / WhatsApp (opsional)</label><input id="dsHp" value="${escHtml(existing?.no_hp||'')}"></div>
+        <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="dsTglLahir" value="${existing?.tgl_lahir||''}"></div>
+        <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="dsHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('dapukanSlotModal')">Batal</button>
