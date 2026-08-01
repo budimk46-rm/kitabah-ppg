@@ -172,8 +172,11 @@ const sbSantri = {
     if (!ids.length) return Promise.resolve([]);
     return sbFetch(`santri?kelas_id=in.(${ids.join(',')})&aktif=eq.true&select=*&order=nama`);
   },
-  getUnassigned: (kelompokIds) =>
-    sbFetch(`santri?aktif=eq.true&kelas_id=is.null&select=*&order=nama`),
+  getUnassigned: (kelompokIds) => {
+    const ids = [...new Set(Array.isArray(kelompokIds) ? kelompokIds : [kelompokIds])].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`santri?aktif=eq.true&kelas_id=is.null&kelompok_asal_id=in.(${ids.map(id=>`"${id}"`).join(',')})&select=*&order=nama`);
+  },
   getByKelompok: (kelompokId) =>
     sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
   getAll: () =>
