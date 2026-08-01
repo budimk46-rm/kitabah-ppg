@@ -1507,9 +1507,10 @@ async function renderKurikulum() {
   }
   const rows = App.cache.materi;
 
-  // Ambil progress kalau role kelompok
+  // Ambil progress kalau role level kelompok (semua peran: PJP Kelompok, Wali KBM, Guru, Kelompok)
   let progressSet = new Set();
-  if (App.user.role === 'kelompok' && App.user.kelompok_id) {
+  const KELOMPOK_ROLES = ['kelompok', 'pjp_kelompok', 'wali_kbm', 'guru'];
+  if (KELOMPOK_ROLES.includes(App.user.role) && App.user.kelompok_id) {
     const prog = await SB.progress.getByKelompok(App.user.kelompok_id, getTahunAjaran());
     progressSet = new Set(prog.map(p => p.materi_id + '|' + p.bulan));
     App.cache.myProgress = { set: progressSet, raw: prog };
@@ -1524,7 +1525,7 @@ async function renderKurikulum() {
     const currentMonth = ks.month;
     const searchQ = ks.search;
     const isAdmin = App.user.role === 'admin';
-    const isKelompok = App.user.role === 'kelompok' || App.user.role === 'pjp_kelompok';
+    const isKelompok = KELOMPOK_ROLES.includes(App.user.role);
     const months = currentSem === '1' ? SEM1_MONTHS : SEM2_MONTHS;
     const monthsToShow = currentMonth ? [currentMonth] : months;
 
@@ -1592,12 +1593,7 @@ async function renderKurikulum() {
             return `<div style="padding:10px 13px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); ${checked ? 'background:var(--green-soft);' : ''}">
               <div style="font-size:9.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--gold); margin-bottom:4px;">${m}</div>
               <div style="font-size:12.5px; color:${val ? 'var(--ink)' : 'var(--ink-soft)'}; font-style:${val ? 'normal' : 'italic'};">${escHtml(val || 'Belum diisi')}</div>
-              ${isKelompok ? `<label style="display:flex; align-items:center; gap:6px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); cursor:pointer;">
-                <input type="checkbox" ${checked ? 'checked' : ''}
-                  onchange="KUR_toggleProgress('${escHtml(item.id)}','${m}', this)"
-                  style="width:15px; height:15px; accent-color:var(--green); cursor:pointer;">
-                <span style="font-size:11.5px; font-weight:700; color:${checked ? 'var(--green)' : 'var(--ink-soft)'};">Sudah Disampaikan</span>
-              </label>` : ''}
+              ${checked ? `<div style="font-size:10.5px; font-weight:700; color:var(--green); margin-top:6px; padding-top:6px; border-top:1px dashed var(--line);">✓ Sudah disampaikan (lihat Absensi &amp; Jurnal)</div>` : ''}
             </div>`;
           }).join('');
 
@@ -1952,21 +1948,6 @@ async function renderKurikulum() {
       showToast('Gagal membuat PDF: ' + e.message, true);
       console.error('PDF error:', e);
     }
-  };
-  window.KUR_toggleProgress = async (materiId, bulan, el) => {
-    if (!App.user.kelompok_id) return;
-    el.disabled = true;
-    try {
-      const result = await SB.progress.toggle(App.user.kelompok_id, materiId, bulan, App.user.id, getTahunAjaran());
-      const key = materiId + '|' + bulan;
-      if (result === 'checked') progressSet.add(key);
-      else progressSet.delete(key);
-      render();
-    } catch(e) {
-      showToast('Gagal menyimpan: ' + e.message, true);
-      el.checked = !el.checked;
-    }
-    el.disabled = false;
   };
   window.KUR_edit = (id) => {
     const item = rows.find(r => r.id === id);
