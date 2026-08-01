@@ -492,6 +492,14 @@ const sbFormSubmissions = {
   insert: (data) => sbFetch('form_submissions', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
   getPending: (jenis, kelompokId) =>
     sbFetch(`form_submissions?jenis=eq.${jenis}&kelompok_id=eq.${kelompokId}&status=eq.pending&select=*&order=created_at.asc`),
+  // Versi umum — bisa scoped ke kelompok, desa, atau daerah
+  getPendingScoped: (jenis, scopeType, scopeRef) => {
+    let filter = `jenis=eq.${jenis}&status=eq.pending`;
+    if (scopeType === 'kelompok') filter += `&kelompok_id=eq.${scopeRef}`;
+    else if (scopeType === 'desa') filter += `&desa_id=eq.${scopeRef}`;
+    else filter += `&level_daerah=eq.true`;
+    return sbFetch(`form_submissions?${filter}&select=*&order=created_at.asc`);
+  },
   updateStatus: (id, data) => sbFetch(`form_submissions?id=eq.${id}`, { method:'PATCH', body:JSON.stringify(data) }),
 };
 

@@ -280,6 +280,47 @@ function logActivity(action, modul, keterangan) {
 }
 
 /* ===== FORM PUBLIK (link berbagi, tanpa login) ===== */
+// Katalog dapukan pengurus — 3 kategori (4S / Unsur PPG / Tim 7) x 3 level (kelompok/desa/daerah).
+// Dipakai di menu Data Pengurus (in-app) dan form publik (link share).
+const TIM_7 = [
+  'Tim Pernikahan & Keluarga Bahagia',
+  'Tim Basyiron Wa Nadziron, Kematian & Faroid',
+  'Tim Gambuh & Penyelesaian',
+  'Tim Pembangunan & Penghimpun Benda SB',
+  'Tim Bacaan & Sholat',
+  'Tim Aghniya, Haji dan Umroh',
+  "Tim Dhu'afa",
+];
+const EMPAT_S = ['Kyai', 'Wakil Kyai', 'KU', 'Penulis KU', 'Penerobos', 'Mubalegh', 'Aghnia'];
+const DAPUKAN_CATALOG = {
+  kelompok: {
+    '4S': EMPAT_S,
+    'Unsur PPG': ['PJP KBM', 'PJP SarPras', 'Wali KBM Caberawit', 'Wali KBM Pra Remaja', 'Wali KBM Remaja', 'Wali KBM Pra Nikah', 'Ketua MM', 'BK', 'MT', 'Guru Generus'],
+    'Tim 7': TIM_7,
+  },
+  desa: {
+    '4S': EMPAT_S,
+    'Unsur PPG': ['PJP KBM', 'PJP SarPras', 'Ketua MM', 'BK'],
+    'Tim 7': TIM_7,
+  },
+  daerah: {
+    '4S': EMPAT_S,
+    'Unsur PPG': ['Pengurus Harian PPG', 'Pengurus Bidang PPG'],
+    'Tim 7': TIM_7,
+  },
+};
+// Dapukan yang cuma boleh 1 orang per kelompok/desa/daerah — sisanya boleh banyak orang
+const DAPUKAN_SOLO = new Set(['Kyai', 'KU']);
+
+function dapukanGroupOf(level, dapukan) {
+  const cat = DAPUKAN_CATALOG[level];
+  if (!cat) return null;
+  for (const [grp, list] of Object.entries(cat)) {
+    if (list.includes(dapukan)) return grp;
+  }
+  return null;
+}
+
 const FORM_CONFIGS = {
   santri: {
     judul: 'Form Pendataan Santri Baru',
@@ -303,9 +344,9 @@ const FORM_CONFIGS = {
   pengurus: {
     judul: 'Form Pendataan Pengurus Baru',
     fields: [
-      { key:'nama_lengkap', label:'Nama Lengkap', type:'text', required:true },
-      { key:'jabatan', label:'Jabatan', type:'text' },
+      { key:'nama', label:'Nama Lengkap', type:'text', required:true },
       { key:'dapukan', label:'Dapukan', type:'text' },
+      { key:'kategori', label:'Kategori', type:'text' },
     ],
   },
   guru_sekolah: {
@@ -337,7 +378,7 @@ function formFieldHtml(f) {
   return `<input type="${f.type}" id="pf_${f.key}">`;
 }
 
-async function renderPublicForm(jenis, klpId) {
+async function renderPublicForm(jenis, scope) {
   const screen = document.getElementById('publicFormScreen');
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('pendingScreen').style.display = 'none';
@@ -350,62 +391,118 @@ async function renderPublicForm(jenis, klpId) {
     screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Link form tidak dikenali.</p></div>`;
     return;
   }
+  // Cuma 'pengurus' yang boleh scope desa/daerah — jenis lain (santri/mtms/guru_sekolah) tetap kelompok saja
+  if (scope.type !== 'kelompok' && jenis !== 'pengurus') {
+    screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Link ini tidak valid untuk jenis form ini.</p></div>`;
+    return;
+  }
 
-  let klpNama = klpId;
+  let scopeNama = '';
   try {
-    const klpList = await SB.kelompok.getAll();
-    const klp = klpList.find(k => k.id === klpId);
-    if (klp) klpNama = klp.nama + (klp.desa?.nama ? ' · ' + klp.desa.nama : '');
-    else {
-      screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Kelompok tidak ditemukan. Pastikan link yang dipakai benar.</p></div>`;
-      return;
+    if (scope.type === 'kelompok') {
+      const klpList = await SB.kelompok.getAll();
+      const klp = klpList.find(k => k.id === scope.id);
+      if (!klp) { screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Kelompok tidak ditemukan. Pastikan link yang dipakai benar.</p></div>`; return; }
+      scopeNama = klp.nama + (klp.desa?.nama ? ' · ' + klp.desa.nama : '');
+    } else if (scope.type === 'desa') {
+      const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+      scopeNama = DESA_NAMA_MAP[scope.id] || scope.id;
+      if (!scopeNama) { screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Desa tidak ditemukan.</p></div>`; return; }
+    } else {
+      scopeNama = 'PPG Sidoarjo Utara';
     }
   } catch(e) {
     screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Gagal memuat halaman. Cek koneksi internet lalu coba lagi.</p></div>`;
     return;
   }
 
+  const isPengurus = jenis === 'pengurus';
+  const catalog = isPengurus ? (DAPUKAN_CATALOG[scope.type] || {}) : null;
+
   function renderFormBody() {
+    const pengurusFieldsHtml = isPengurus ? `
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Kategori Dapukan *</label>
+        <select id="pfKategori" onchange="PF_onKategoriChange()">
+          <option value="">Pilih kategori...</option>
+          ${Object.keys(catalog).map(g => `<option value="${escHtml(g)}">${escHtml(g)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Dapukan *</label>
+        <select id="pfDapukan"><option value="">Pilih kategori dulu</option></select>
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>No. HP / WhatsApp (opsional)</label>
+        <input type="text" id="pf_no_hp">
+      </div>
+    ` : config.fields.map(f => `
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>${escHtml(f.label)}${f.required?' *':''}</label>
+        ${formFieldHtml(f)}
+      </div>`).join('');
+
     screen.innerHTML = `
       <div class="login-card" style="max-width:440px;">
         <h1 class="login-title" style="font-size:19px;">${escHtml(config.judul)}</h1>
-        <p class="login-subtitle">Untuk: <b>${escHtml(klpNama)}</b></p>
+        <p class="login-subtitle">Untuk: <b>${escHtml(scopeNama)}</b></p>
         <div id="pfAlert"></div>
         <div style="margin-top:16px;">
-          ${config.fields.map(f => `
-            <div class="form-group" style="margin-bottom:12px;">
-              <label>${escHtml(f.label)}${f.required?' *':''}</label>
-              ${formFieldHtml(f)}
-            </div>`).join('')}
+          ${isPengurus ? `<div class="form-group" style="margin-bottom:12px;"><label>Nama Lengkap *</label><input type="text" id="pf_nama"></div>` : ''}
+          ${pengurusFieldsHtml}
         </div>
         <button class="btn-primary" style="width:100%; margin-top:6px;" id="pfSubmitBtn" onclick="PF_submit()">Kirim Data</button>
-        <div class="login-hint" style="margin-top:12px;">Data yang dikirim akan diperiksa dulu oleh PJP Kelompok sebelum masuk ke sistem.</div>
+        <div class="login-hint" style="margin-top:12px;">Data yang dikirim akan diperiksa dulu oleh pengurus terkait sebelum masuk ke sistem.</div>
       </div>`;
   }
   renderFormBody();
 
+  window.PF_onKategoriChange = () => {
+    const grp = document.getElementById('pfKategori').value;
+    const sel = document.getElementById('pfDapukan');
+    const list = catalog[grp] || [];
+    sel.innerHTML = grp
+      ? `<option value="">Pilih dapukan...</option>${list.map(d => `<option value="${escHtml(d)}">${escHtml(d)}</option>`).join('')}`
+      : `<option value="">Pilih kategori dulu</option>`;
+  };
+
   window.PF_submit = async () => {
     const data = {};
-    for (const f of config.fields) {
-      if (f.type === 'checkbox-group') {
-        data[f.key] = Array.from(document.querySelectorAll(`.pf_cb_${f.key}:checked`)).map(c=>c.value).join(',');
-      } else {
-        const el = document.getElementById('pf_' + f.key);
-        data[f.key] = el ? el.value.trim() : '';
-      }
-      if (f.required && !data[f.key]) {
-        document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Mohon lengkapi "${escHtml(f.label)}"</div>`;
+    if (isPengurus) {
+      data.nama = document.getElementById('pf_nama')?.value.trim() || '';
+      data.kategori = document.getElementById('pfKategori')?.value || '';
+      data.dapukan = document.getElementById('pfDapukan')?.value || '';
+      data.no_hp = document.getElementById('pf_no_hp')?.value.trim() || '';
+      if (!data.nama || !data.dapukan) {
+        document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Mohon lengkapi Nama dan Dapukan</div>`;
         return;
+      }
+    } else {
+      for (const f of config.fields) {
+        if (f.type === 'checkbox-group') {
+          data[f.key] = Array.from(document.querySelectorAll(`.pf_cb_${f.key}:checked`)).map(c=>c.value).join(',');
+        } else {
+          const el = document.getElementById('pf_' + f.key);
+          data[f.key] = el ? el.value.trim() : '';
+        }
+        if (f.required && !data[f.key]) {
+          document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Mohon lengkapi "${escHtml(f.label)}"</div>`;
+          return;
+        }
       }
     }
     const btn = document.getElementById('pfSubmitBtn');
     btn.disabled = true; btn.textContent = 'Mengirim...';
     try {
-      await SB.formSubmissions.insert({ jenis, kelompok_id: klpId, data: JSON.stringify(data), status: 'pending' });
+      const payload = { jenis, data: JSON.stringify(data), status: 'pending' };
+      if (scope.type === 'kelompok') payload.kelompok_id = scope.id;
+      else if (scope.type === 'desa') payload.desa_id = scope.id;
+      else payload.level_daerah = true;
+      await SB.formSubmissions.insert(payload);
       screen.innerHTML = `<div class="login-card" style="max-width:440px; text-align:center;">
         <div style="font-size:40px; margin-bottom:10px;">✅</div>
         <h1 class="login-title" style="font-size:18px;">Data Terkirim</h1>
-        <p class="login-subtitle">Terima kasih. Data yang dikirim akan diperiksa oleh PJP Kelompok ${escHtml(klpNama)} sebelum masuk ke sistem.</p>
+        <p class="login-subtitle">Terima kasih. Data yang dikirim akan diperiksa oleh pengurus ${escHtml(scopeNama)} sebelum masuk ke sistem.</p>
       </div>`;
     } catch(e) {
       document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Gagal mengirim: ${escHtml(e.message)}</div>`;
@@ -419,8 +516,12 @@ function shareLinkButtonHtml(jenis, kelompokId) {
   return `<button class="btn btn-outline" onclick="SHARE_openLink('${jenis}','${kelompokId}')">🔗 Bagikan Link Form</button>`;
 }
 
-window.SHARE_openLink = (jenis, kelompokId) => {
-  const url = `${location.origin}${location.pathname}?isi=${jenis}&klp=${kelompokId}`;
+window.SHARE_openLink = (jenis, scope) => {
+  let qs;
+  if (scope === 'daerah') qs = `level=daerah`;
+  else if (String(scope).startsWith('desa_')) qs = `level=desa&desa=${scope.slice(5)}`;
+  else qs = `klp=${scope}`; // kelompok_id — perilaku lama, tetap dipakai untuk Santri/MT-MS/Guru Sekolah/Pengurus Kelompok
+  const url = `${location.origin}${location.pathname}?isi=${jenis}&${qs}`;
   let el = document.getElementById('shareLinkModal');
   if (!el) { el = document.createElement('div'); el.id = 'shareLinkModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
   el.innerHTML = `<div class="modal">
@@ -445,8 +546,8 @@ window.SHARE_copy = () => {
 
 // Render bagian "Menunggu Persetujuan" — dipakai di renderSantri, renderMtMs, renderPengurus, renderGuruSekolah.
 // approveFn: async (submission) => { ...insert ke tabel asli... } — return true kalau berhasil.
-async function renderPendingSection(jenis, kelompokId, config, approveFn) {
-  const pending = await SB.formSubmissions.getPending(jenis, kelompokId) || [];
+async function renderPendingSection(jenis, scopeType, scopeRef, config, approveFn) {
+  const pending = await SB.formSubmissions.getPendingScoped(jenis, scopeType, scopeRef) || [];
   if (!pending.length) return '';
 
   const rows = pending.map(p => {
@@ -2513,7 +2614,7 @@ async function renderSantri() {
     </div>` : ''}`;
 
   const pendingHtmlSantri = u.role === 'pjp_kelompok' && u.kelompok_id
-    ? await renderPendingSection('santri', u.kelompok_id, FORM_CONFIGS.santri, async (data, sub) => {
+    ? await renderPendingSection('santri', 'kelompok', u.kelompok_id, FORM_CONFIGS.santri, async (data, sub) => {
         openSantriApprovalModal(data, sub, u.kelompok_id);
         return false; // modal yang urus insert + update status sendiri
       })
@@ -5321,7 +5422,7 @@ async function renderMtMs() {
   }
 
   const pendingHtml = isPjp && u.kelompok_id
-    ? await renderPendingSection('mtms', u.kelompok_id, FORM_CONFIGS.mtms, async (data) => {
+    ? await renderPendingSection('mtms', 'kelompok', u.kelompok_id, FORM_CONFIGS.mtms, async (data) => {
         await SB.mtMs.insert({
           kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
           gender: data.gender || null, tgl_lahir: data.tgl_lahir || null,
@@ -5713,7 +5814,7 @@ async function renderGuruSekolah() {
   }
 
   const pendingHtml = (isPjp || isWaliKbm) && u.kelompok_id
-    ? await renderPendingSection('guru_sekolah', u.kelompok_id, FORM_CONFIGS.guru_sekolah, async (data) => {
+    ? await renderPendingSection('guru_sekolah', 'kelompok', u.kelompok_id, FORM_CONFIGS.guru_sekolah, async (data) => {
         await SB.guruSekolah.insert({
           kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
           gender: data.gender || null, tgl_lahir: data.tgl_lahir || null,
@@ -7276,7 +7377,8 @@ async function renderPengurus() {
           SB.musPeserta.getByDesa(did),
         ]);
         const seen = new Set();
-        pengurusDesa[dNama] = [...(p||[]), ...(p2||[])].filter(x => { if(seen.has(x.id)) return false; seen.add(x.id); return true; });
+        const merged = [...(p||[]), ...(p2||[])].filter(x => { if(seen.has(x.id)) return false; seen.add(x.id); return true; });
+        pengurusDesa[did] = { nama: dNama, list: merged };
       }));
     }
 
@@ -7294,15 +7396,38 @@ async function renderPengurus() {
     }
   } catch(e) { console.error(e); }
 
-  const pendingHtml = u.role === 'pjp_kelompok' && u.kelompok_id
-    ? await renderPendingSection('pengurus', u.kelompok_id, FORM_CONFIGS.pengurus, async (data) => {
-        await SB.musPeserta.insert({
-          kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
-          jabatan: data.jabatan || null, dapukan: data.dapukan || null, aktif: true,
-        });
-        return true;
-      })
-    : '';
+  function buildPengurusApproveFn(scopeType, scopeRef) {
+    return async (data) => {
+      const dapukan = data.dapukan || null;
+      if (dapukan && DAPUKAN_SOLO.has(dapukan)) {
+        let currentList = [];
+        if (scopeType === 'kelompok') currentList = await SB.musPeserta.getByKelompok(scopeRef) || [];
+        else if (scopeType === 'desa') currentList = await SB.musPeserta.getByDesa(scopeRef) || [];
+        else currentList = await SB.musPeserta.getByDaerah() || [];
+        if (currentList.some(p => p.jabatan === dapukan)) {
+          showToast(`${dapukan} sudah ada orangnya — tolak dulu data ini atau cabut yang lama`, true);
+          return false;
+        }
+      }
+      const payload = { nama: (data.nama||'').trim() ? toTitleCase(data.nama) : '-', jabatan: dapukan, no_hp: data.no_hp || null, aktif: true };
+      if (scopeType === 'kelompok') payload.kelompok_id = scopeRef;
+      else if (scopeType === 'desa') payload.desa_id = scopeRef;
+      else payload.level_daerah = true;
+      await SB.musPeserta.insert(payload);
+      return true;
+    };
+  }
+
+  let pendingHtml = '';
+  if (u.role === 'pjp_kelompok' && u.kelompok_id) {
+    pendingHtml += await renderPendingSection('pengurus', 'kelompok', u.kelompok_id, FORM_CONFIGS.pengurus, buildPengurusApproveFn('kelompok', u.kelompok_id));
+  }
+  if (u.role === 'desa' && u.desa_id) {
+    pendingHtml += await renderPendingSection('pengurus', 'desa', u.desa_id, FORM_CONFIGS.pengurus, buildPengurusApproveFn('desa', u.desa_id));
+  }
+  if (isAdmin || u.role === 'daerah') {
+    pendingHtml += await renderPendingSection('pengurus', 'daerah', null, FORM_CONFIGS.pengurus, buildPengurusApproveFn('daerah', null));
+  }
 
   function waBtn(p) {
     const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
@@ -7345,6 +7470,54 @@ async function renderPengurus() {
       </div>`;
   }
 
+  // Kelompokkan data pengurus jadi 3 kategori (4S / Unsur PPG / Tim 7) sesuai katalog dapukan.
+  // Data lama yang jabatannya tidak cocok kategori manapun tetap ditampilkan di bagian "Lainnya".
+  function renderDapukanSection(level, list, canEdit, scopeKey) {
+    const catalog = DAPUKAN_CATALOG[level] || {};
+    const byDapukan = {};
+    list.forEach(p => { (byDapukan[p.jabatan] ||= []).push(p); });
+    const known = new Set(Object.values(catalog).flat());
+
+    const groupHtml = Object.entries(catalog).map(([grpName, dapukanList]) => `
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:800; font-size:11.5px; color:var(--gold); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">${escHtml(grpName)}</div>
+        <div style="border:1px solid var(--line); border-radius:8px; overflow:hidden;">
+          ${dapukanList.map(dp => {
+            const people = byDapukan[dp] || [];
+            const isFull = DAPUKAN_SOLO.has(dp) && people.length >= 1;
+            return `<div style="padding:8px 10px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+              <div style="flex:1; min-width:150px;">
+                <div style="font-weight:700; font-size:12.5px; color:#111;">${escHtml(dp)}</div>
+                ${people.length ? people.map(p => `
+                  <div style="display:flex; align-items:center; gap:5px; margin-top:4px;">
+                    <span style="font-size:12.5px; color:var(--ink-soft);">${escHtml(p.nama)}</span>
+                    ${waBtn(p)}
+                    ${canEdit ? `
+                    <button class="btn-icon" onclick="PGR_editSlot('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                    <button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
+                  </div>`).join('') : `<div style="font-size:11.5px; color:var(--ink-soft); font-style:italic; margin-top:2px;">Belum diisi</div>`}
+              </div>
+              ${canEdit && !isFull ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="PGR_tambahDapukan('${scopeKey}','${level}','${escHtml(dp).replace(/'/g,"\\'")}')">+ Tambah</button>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+
+    const lain = list.filter(p => !known.has(p.jabatan));
+    const lainHtml = lain.length ? `
+      <div>
+        <div style="font-weight:800; font-size:11.5px; color:var(--rose); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">Lainnya (data lama)</div>
+        <div style="border:1px solid var(--line); border-radius:8px; overflow:hidden;">
+          ${lain.map(p => `<div style="padding:7px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div><span style="font-weight:700; font-size:12.5px;">${escHtml(p.nama)}</span> <span style="font-size:11px; color:var(--ink-soft);">— ${escHtml(p.jabatan||'-')}</span></div>
+            ${canEdit ? `<button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
+          </div>`).join('')}
+        </div>
+      </div>` : '';
+
+    return groupHtml + lainHtml;
+  }
+
   // Build HTML
   let html = `
     <div class="page-header">
@@ -7358,31 +7531,32 @@ async function renderPengurus() {
       </button>
     </div>`;
 
+  html += pendingHtml;
+
   // Pengurus Daerah
-  if (pengurusDaerah.length) {
+  if (isAdmin || u.role === 'daerah') {
     html += `<div class="card" style="margin-bottom:14px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
         <div class="fw-bold color-green" style="font-size:14px;">🏛️ Pengurus Daerah</div>
-        ${isAdmin ? '<button class="btn btn-outline btn-sm" onclick="PGR_tambah(\'daerah\')">+ Tambah</button>' : ''}
+        ${isAdmin ? shareLinkButtonHtml('pengurus', 'daerah') : ''}
       </div>
-      ${renderTable(pengurusDaerah, 'Daerah', isAdmin, 'daerah')}
+      ${renderDapukanSection('daerah', pengurusDaerah, isAdmin, 'daerah|_')}
     </div>`;
   }
 
   // Pengurus Desa
-  for (const [dNama, list] of Object.entries(pengurusDesa)) {
+  for (const [did, obj] of Object.entries(pengurusDesa)) {
     const canEdit = isAdmin || u.role === 'desa';
     html += `<div class="card" style="margin-bottom:14px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-        <div class="fw-bold color-green" style="font-size:14px;">🏘️ ${escHtml(dNama)}</div>
-        ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="PGR_tambah('desa','${escHtml(dNama)}')">+ Tambah</button>` : ''}
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+        <div class="fw-bold color-green" style="font-size:14px;">🏘️ ${escHtml(obj.nama)}</div>
+        ${u.role === 'desa' ? shareLinkButtonHtml('pengurus', 'desa_'+did) : ''}
       </div>
-      ${renderTable(list, dNama, canEdit, 'desa')}
+      ${renderDapukanSection('desa', obj.list, canEdit, 'desa|'+did)}
     </div>`;
   }
 
   // Pengurus Kelompok
-  html += pendingHtml;
   const allKlp = App.cache.kelompok || [];
   for (const [kid, list] of Object.entries(pengurusKlp)) {
     const klp = allKlp.find(k => k.id === kid);
@@ -7390,29 +7564,27 @@ async function renderPengurus() {
     html += `<div class="card" style="margin-bottom:14px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
         <div class="fw-bold color-green" style="font-size:14px;">👥 ${escHtml(klp?.nama||kid)} <span style="font-size:11px; color:var(--ink-soft);">(${escHtml(klp?.desa?.nama||'')})</span></div>
-        <div style="display:flex; gap:6px;">
-          ${u.role === 'pjp_kelompok' && kid === u.kelompok_id ? shareLinkButtonHtml('pengurus', kid) : ''}
-          ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="PGR_tambah('kelompok','${kid}')">+ Tambah</button>` : ''}
-        </div>
+        ${u.role === 'pjp_kelompok' && kid === u.kelompok_id ? shareLinkButtonHtml('pengurus', kid) : ''}
       </div>
-      ${renderTable(list, klp?.nama||kid, canEdit, 'kelompok')}
+      ${renderDapukanSection('kelompok', list, canEdit, 'kelompok|'+kid)}
     </div>`;
   }
 
   main.innerHTML = html;
 
   // Handlers
-  window.PGR_tambah = (mode, ref) => {
-    const user = App.user;
-    if (mode === 'daerah') openKelolaMusPesertaModal(null, user, 'daerah');
-    else if (mode === 'desa') openKelolaMusPesertaModal(ref, user, 'desa');
-    else openKelolaMusPesertaModal(ref || user.kelompok_id, user, 'kelompok');
+  const allPengurusFlat = [
+    ...pengurusDaerah,
+    ...Object.values(pengurusDesa).flatMap(o => o.list),
+    ...Object.values(pengurusKlp).flat(),
+  ];
+
+  window.PGR_tambahDapukan = (scopeKey, level, dapukan) => {
+    openDapukanSlotModal(null, scopeKey, level, dapukan);
   };
-  window.PGR_edit = (id, mode) => {
-    const user = App.user;
-    if (mode === 'daerah') openKelolaMusPesertaModal(null, user, 'daerah');
-    else if (mode === 'desa') openKelolaMusPesertaModal(user.desa_id, user, 'desa');
-    else openKelolaMusPesertaModal(user.kelompok_id, user, mode);
+  window.PGR_editSlot = (id) => {
+    const p = allPengurusFlat.find(x => x.id === id);
+    if (p) openDapukanSlotModal(p, null, null, p.jabatan);
   };
   window.PGR_hapus = async (id) => {
     if (!confirm('Hapus pengurus ini?')) return;
@@ -7420,6 +7592,63 @@ async function renderPengurus() {
     showToast('Pengurus dihapus');
     renderPengurus();
   };
+
+  function openDapukanSlotModal(existing, scopeKey, level, dapukan) {
+    let el = document.getElementById('dapukanSlotModal');
+    if (!el) { el = document.createElement('div'); el.id = 'dapukanSlotModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">${existing?'Edit':'Tambah'} — ${escHtml(dapukan)}</h3><button class="modal-close" onclick="closeModal('dapukanSlotModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Nama Lengkap *</label><input id="dsNama" value="${escHtml(existing?.nama||'')}"></div>
+        <div class="form-group"><label>No. HP / WhatsApp (opsional)</label><input id="dsHp" value="${escHtml(existing?.no_hp||'')}"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('dapukanSlotModal')">Batal</button>
+        <button class="btn btn-green" id="dsSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('dsSaveBtn').onclick = async () => {
+      const nama = document.getElementById('dsNama').value.trim();
+      const noHp = document.getElementById('dsHp').value.trim();
+      if (!nama) { showToast('Nama wajib diisi', true); return; }
+      const btn = document.getElementById('dsSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      try {
+        if (existing) {
+          await SB.musPeserta.update(existing.id, { nama: toTitleCase(nama), no_hp: noHp || null });
+        } else {
+          const [scopeType, scopeRef] = scopeKey.split('|');
+          // Re-cek slot solo (Kyai/KU) tepat sebelum simpan, jaga-jaga ada yang nambah barengan
+          if (DAPUKAN_SOLO.has(dapukan)) {
+            let currentList = [];
+            if (scopeType === 'kelompok') currentList = await SB.musPeserta.getByKelompok(scopeRef) || [];
+            else if (scopeType === 'desa') currentList = await SB.musPeserta.getByDesa(scopeRef) || [];
+            else currentList = await SB.musPeserta.getByDaerah() || [];
+            if (currentList.some(p => p.jabatan === dapukan)) {
+              showToast(`${dapukan} sudah ada orangnya — hapus dulu yang lama kalau mau ganti`, true);
+              btn.disabled = false; btn.textContent = 'Simpan';
+              return;
+            }
+          }
+          const payload = { nama: toTitleCase(nama), jabatan: dapukan, no_hp: noHp || null, aktif: true };
+          if (scopeType === 'kelompok') payload.kelompok_id = scopeRef;
+          else if (scopeType === 'desa') payload.desa_id = scopeRef;
+          else payload.level_daerah = true;
+          await SB.musPeserta.insert(payload);
+        }
+        logActivity(existing ? 'ubah' : 'tambah', 'Data Pengurus', `${dapukan}: ${nama}`);
+        showToast('Tersimpan ✓');
+        closeModal('dapukanSlotModal');
+        renderPengurus();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+        btn.disabled = false; btn.textContent = 'Simpan';
+      }
+    };
+
+    openModal('dapukanSlotModal');
+  }
   window.PGR_downloadPdf = async () => {
     showToast('Menyiapkan PDF...');
     if (!window.PDFLib) {
@@ -12448,8 +12677,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const formJenis = urlParams.get('isi');
   const formKlp = urlParams.get('klp');
-  if (formJenis && formKlp) {
-    await renderPublicForm(formJenis, formKlp);
+  const formLevel = urlParams.get('level'); // 'desa' | 'daerah' — kalau ada, override dari klp
+  const formDesa = urlParams.get('desa');
+  if (formJenis && (formKlp || formLevel)) {
+    let scope;
+    if (formLevel === 'daerah') scope = { type: 'daerah' };
+    else if (formLevel === 'desa') scope = { type: 'desa', id: formDesa };
+    else scope = { type: 'kelompok', id: formKlp };
+    await renderPublicForm(formJenis, scope);
     showLoading(false);
     return;
   }
