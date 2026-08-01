@@ -3367,12 +3367,17 @@ async function renderAbsensi() {
   await lanjutAbsensi();
 
   async function lanjutAbsensi() {
-    // Pastikan materi sudah di-cache untuk tampilan target materi
-    if (!App.cache.materi) {
-      App.cache.materi = await SB.materi.getAll();
-    }
     let selectedMateriIds = new Set();
     let materiStatus = {}; // materiId -> 'tuntas' | 'belum_tuntas'
+    // Materi diambil per jenjang+semester saat dibutuhkan saja (bukan seluruh 1552 baris
+    // kurikulum sekaligus) — payload kecil ini yang sebelumnya bikin loading lama/macet
+    // di HP karena harus parsing JSON besar sekaligus di 1 request.
+    let materiJenjangCache = {}; // key "jenjang|semester" -> materi rows
+    async function ensureMateriLoaded(jenjang, semester) {
+      const key = jenjang + '|' + semester;
+      if (materiJenjangCache[key]) return;
+      materiJenjangCache[key] = await SB.materi.getByJenjang(jenjang, semester) || [];
+    }
   let kelasKlp = sortKelas(await SB.kelas.getByKelompok(myKelompokId));
   // Juga load kelas gabungan desa
   const myKlp = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
@@ -3404,6 +3409,8 @@ async function renderAbsensi() {
   async function loadPertemuan() {
     if (!selectedKelasId) return;
     await refreshProgress(); // load progress sebelum render
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    if (kls) await ensureMateriLoaded(kls.jenjang, kls.semester);
     pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId, getTahunAjaran());
     santriList = await SB.santri.getByKelas(selectedKelasId);
     // Default: tampilkan form pertemuan BARU (bukan data lama)
@@ -3432,13 +3439,11 @@ async function renderAbsensi() {
 
   function getMateriForDisplay(bulan) {
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
-    if (!selectedKelas || !App.cache.materi) return [];
+    if (!selectedKelas) return [];
+    const key = selectedKelas.jenjang + '|' + selectedKelas.semester;
+    const materiList = materiJenjangCache[key] || [];
     const col = bulan.toLowerCase();
-    return App.cache.materi.filter(r =>
-      r.jenjang === selectedKelas.jenjang &&
-      String(r.semester) === String(selectedKelas.semester) &&
-      r[col] && r[col].trim()
-    );
+    return materiList.filter(r => r[col] && r[col].trim());
   }
 
   function renderMain() {
@@ -11812,12 +11817,20 @@ function openEditMateriModal(item, defaultJenjang = '', defaultSem = '1') {
 function openAddKelasModal(kelompokId, onSaved) {
   if (!kelompokId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
 
-  // Hitung suffix otomatis (A, B, C, ...)
+  // Hitung suffix otomatis (A, B, C, ...) — cari huruf pertama yang BELUM dipakai,
+  // bukan sekadar hitung jumlah kelas yang ada. Kalau cuma dihitung jumlahnya,
+  // begitu ada kelas di tengah yang terhapus (misal Caberawit A hilang tapi B-G masih
+  // ada), sistem salah kira huruf berikutnya itu H padahal masih ada slot G yang
+  // sebenarnya sudah kepakai — ujungnya nabrak nama yang sudah ada dan gagal diam-diam.
   async function getNextSuffix(tipe) {
     const existing = await SB.kelas.getByKelompok(kelompokId) || [];
-    const sameType = existing.filter(k => (k.nama_kelas||'').startsWith(tipe));
+    const usedLetters = new Set(
+      existing.filter(k => (k.nama_kelas||'').startsWith(tipe))
+        .map(k => (k.nama_kelas||'').trim().slice(-1).toUpperCase())
+    );
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return letters[sameType.length] || letters[0];
+    for (const l of letters) { if (!usedLetters.has(l)) return l; }
+    return letters[0];
   }
 
   // Default jenjang per tipe
