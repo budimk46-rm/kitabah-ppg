@@ -712,8 +712,9 @@ input.flatpickr-alt-input:focus { outline: none; border-color: var(--green); }
 .flatpickr-calendar { border-radius: var(--radius); box-shadow: var(--shadow-lg); border: 1px solid var(--line); font-family: var(--font-body); }
 .flatpickr-months { background: var(--green); border-radius: var(--radius) var(--radius) 0 0; }
 .flatpickr-current-month { color: #fff; }
-.flatpickr-current-month input.cur-year { color: #fff; }
-.flatpickr-current-month .flatpickr-monthDropdown-months { color: var(--green); font-weight: 600; }
+.flatpickr-current-month input.cur-year { color: #fff; background: transparent; }
+.flatpickr-current-month .flatpickr-monthDropdown-months { color: #fff; font-weight: 600; background: transparent; }
+.flatpickr-current-month .flatpickr-monthDropdown-months option { color: var(--ink); background: #fff; }
 .flatpickr-prev-month, .flatpickr-next-month { color: #fff !important; fill: #fff !important; }
 .flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg { fill: var(--gold) !important; }
 .flatpickr-weekday { background: var(--green-soft); color: var(--green); font-weight: 700; }
