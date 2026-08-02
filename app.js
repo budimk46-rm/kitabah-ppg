@@ -3070,8 +3070,8 @@ async function renderKelolaKelas() {
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
           ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" style="min-width:130px;" onclick="STR_addKelas()">+ Kelas</button>` : ''}
           ${u.role === 'desa' || isAdminForm
-            ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>`
-            : `<button class="btn btn-outline btn-sm" style="min-width:130px; opacity:.5; cursor:not-allowed; border-color:var(--line); color:var(--ink-soft);" onclick="showToast('Menu ini khusus PJP Desa. Kalau memang perlu, minta admin tambahkan Akses Lintas Peran (Level Desa) untuk Kelola Kelas Generus di akunmu.', true)" title="Khusus PJP Desa">+ Kelas Gabungan Desa</button>`}
+            ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan</button>`
+            : `<button class="btn btn-outline btn-sm" style="min-width:130px; opacity:.5; cursor:not-allowed; border-color:var(--line); color:var(--ink-soft);" onclick="showToast('Menu ini khusus PJP Desa. Kalau memang perlu, minta admin tambahkan Akses Lintas Peran (Level Desa) untuk Kelola Kelas Generus di akunmu.', true)" title="Khusus PJP Desa">+ Kelas Gabungan</button>`}
           ${selectedKelasId && !selectedKelasObj?.desa_id ? `
           <button class="btn btn-green btn-sm" style="min-width:130px;" onclick="STR_addSantri()">+ Tambah Santri</button>
           <button class="btn btn-outline btn-sm" style="min-width:130px;" onclick="STR_editKelas()">✏️ Edit Kelas</button>
@@ -11441,7 +11441,7 @@ async function renderRekapDesa() {
 
     return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
       <div style="background:#2a7a4f; padding:10px 16px;">
-        <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ Kelas Gabungan Desa</div>
+        <div style="font-weight:800; font-size:14px; color:#fff;">🏘️ Kelas Gabungan</div>
         <div style="font-size:11px; color:rgba(255,255,255,.7);">Kelas yang digabung dari semua kelompok</div>
       </div>
       <div class="table-wrap">
