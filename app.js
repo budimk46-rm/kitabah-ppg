@@ -3068,17 +3068,21 @@ async function renderKelolaKelas() {
         </div>
         ${(selectedKelompokId || !showPicker || isDesaForm) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
-          ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" onclick="STR_addKelas()">+ Kelas</button>` : ''}
-          ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green);" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
+          ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" style="min-width:130px;" onclick="STR_addKelas()">+ Kelas</button>` : ''}
+          ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
           ${selectedKelasId && !selectedKelasObj?.desa_id ? `
-          <button class="btn btn-green btn-sm" onclick="STR_addSantri()">+ Tambah Santri</button>
-          <button class="btn btn-outline btn-sm" onclick="STR_editKelas()">✏️ Edit Kelas</button>
-          <button class="btn btn-outline btn-sm" style="border-color:var(--rose); color:var(--rose);" onclick="STR_deleteKelas()">🗑️ Hapus Kelas</button>
-          <button class="btn btn-outline btn-sm" onclick="STR_uploadExcel()">
+          <button class="btn btn-green btn-sm" style="min-width:130px;" onclick="STR_addSantri()">+ Tambah Santri</button>
+          <button class="btn btn-outline btn-sm" style="min-width:130px;" onclick="STR_editKelas()">✏️ Edit Kelas</button>
+          <button class="btn btn-outline btn-sm" style="min-width:130px; border-color:var(--rose); color:var(--rose);" onclick="STR_deleteKelas()">🗑️ Hapus Kelas</button>
+          <button class="btn btn-outline btn-sm" style="min-width:130px; justify-content:center;" onclick="STR_uploadExcel()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import Excel
+          </button>
+          <button class="btn btn-outline btn-sm" style="min-width:130px; justify-content:center;" onclick="STR_downloadDataKelas()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Data
           </button>` : ''}
-          <button class="btn btn-outline btn-sm" onclick="STR_downloadTemplate()">
+          <button class="btn btn-outline btn-sm" style="min-width:130px; justify-content:center;" onclick="STR_downloadTemplate()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Template Excel
           </button>
@@ -3350,6 +3354,46 @@ async function renderKelolaKelas() {
   // ── Download template Excel ────────────────────────────────
   window.STR_downloadTemplate = () => {
     window.open('https://budimk46-rm.github.io/kitabah-ppg/Template_Data_Generus.xlsx', '_blank');
+  };
+
+  // Download data generus kelas ini dalam format yang persis sama dengan Template Excel —
+  // jadi kalau nanti mau diedit rame-rame atau perbaikan massal, tinggal upload ulang
+  // lewat "Import Excel" tanpa perlu susun ulang formatnya.
+  window.STR_downloadDataKelas = async () => {
+    if (!selectedKelasId) { showToast('Pilih kelas terlebih dahulu', true); return; }
+    if (!santriList.length) { showToast('Belum ada data generus di kelas ini', true); return; }
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    const kls = kelasOptions.find(k => k.id === selectedKelasId);
+    const aoa = [
+      [`DATA GENERUS — ${kls?.nama_kelas || ''} (${kls?.jenjang || ''})`],
+      ['Format ini bisa langsung di-import ulang lewat tombol "Import Excel" di menu Kelola Kelas Generus.'],
+      ['Kolom Tanggal Lahir wajib format YYYY-MM-DD. Kolom Tingkatan: caberawit / pra_remaja / remaja / pra_nikah (kosongkan supaya otomatis dihitung dari usia).'],
+      ['No', 'Nama', 'Tanggal Lahir', 'L/P', 'Tingkatan', 'Nama Orang Tua/Wali', 'NIS'],
+      ...santriList.map((s, i) => [
+        i + 1,
+        s.nama || '',
+        s.tgl_lahir || '',
+        s.jenis_kel || '',
+        s.tingkatan_override ? (s.tingkatan || '') : '',
+        s.nama_ortu || '',
+        s.nis || '',
+      ]),
+    ];
+    const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:5},{wch:28},{wch:14},{wch:6},{wch:14},{wch:28},{wch:12}];
+    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }, { s:{r:1,c:0}, e:{r:1,c:6} }, { s:{r:2,c:0}, e:{r:2,c:6} }];
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Data Generus');
+    const fname = `Data_Generus_${(kls?.nama_kelas||'kelas').replace(/\s+/g,'_')}.xlsx`;
+    window.XLSX.writeFile(wb, fname);
+    showToast('Data berhasil diunduh');
   };
 
   // ── Upload Excel ───────────────────────────────────────────
