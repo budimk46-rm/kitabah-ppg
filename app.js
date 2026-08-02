@@ -118,6 +118,7 @@ const App = {
   currentPage: 'dashboard',
   chatUnread: false,
   chatUnreadInterval: null,
+  onlineHeartbeatInterval: null,
   kurState: {
     jenjang: 'PAUD TK',
     sem: _defaultSem,
@@ -148,6 +149,7 @@ function clearSession() {
   App.user = null;
   App.cache = { materi: null, kelompok: null, desa: null, myProgress: null, allSantri: null };
   if (App.chatUnreadInterval) { clearInterval(App.chatUnreadInterval); App.chatUnreadInterval = null; }
+  if (App.onlineHeartbeatInterval) { clearInterval(App.onlineHeartbeatInterval); App.onlineHeartbeatInterval = null; }
 }
 
 /* ===== UTILITIES ===== */
@@ -223,6 +225,15 @@ function showShell() {
   renderNav();
   navigate('dashboard');
   startChatUnreadWatcher();
+  startOnlineHeartbeat();
+}
+
+// "User Sedang Online" — kirim tanda "masih aktif" tiap 2 menit selama aplikasi terbuka.
+// Dashboard nanti anggap user "online" kalau last_active-nya dalam 5 menit terakhir.
+function startOnlineHeartbeat() {
+  if (App.onlineHeartbeatInterval) clearInterval(App.onlineHeartbeatInterval);
+  SB.anggota.pingActive(App.user.id);
+  App.onlineHeartbeatInterval = setInterval(() => SB.anggota.pingActive(App.user.id), 120000);
 }
 
 // Badge "ada pesan baru" di menu Live Chat — cek ringan (cuma 1 timestamp, bukan isi pesan),
@@ -1464,6 +1475,7 @@ async function renderDashboard() {
       </div>
     </div>
     ${statsHtml}
+    <div id="onlineUsersWidget"></div>
     <div class="card">
       <div class="fw-bold" style="font-size:15px; margin-bottom:12px; color:var(--green);">Menu Cepat</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:10px;">
@@ -1479,6 +1491,51 @@ async function renderDashboard() {
       </div>
     </div>
   `;
+
+  loadOnlineUsersWidget();
+}
+
+// "User Sedang Online" — user yang last_active-nya dalam 5 menit terakhir.
+// Dimuat async setelah dashboard tampil, tidak menghalangi render awal.
+async function loadOnlineUsersWidget() {
+  const el = document.getElementById('onlineUsersWidget');
+  if (!el) return;
+  try {
+    const since = new Date(Date.now() - 5*60*1000).toISOString();
+    const online = await SB.anggota.getOnline(since) || [];
+    if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+    const DESA_NAMA_MAP = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
+
+    function lokasiOf(u) {
+      if (u.kelompok_id) {
+        const klp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
+        return klp ? `${klp.nama} · ${klp.desa?.nama || ''}` : u.kelompok_id;
+      }
+      if (u.desa_id) return 'Desa ' + (DESA_NAMA_MAP[u.desa_id] || u.desa_id);
+      if (u.role === 'daerah' || u.role === 'admin') return 'Daerah';
+      return '-';
+    }
+
+    if (!online.length) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block;"></span>
+          Sedang Online (${online.length})
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${online.map(p => `
+            <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; background:var(--cream-2); border-radius:20px; border:1px solid var(--line);">
+              <span style="width:6px; height:6px; border-radius:50%; background:#22c55e; flex-shrink:0;"></span>
+              <span style="font-size:12px; font-weight:700; color:#111;">${escHtml(p.nama_lengkap)}</span>
+              <span style="font-size:10.5px; color:var(--ink-soft);">${escHtml(ROLE_LABELS[p.role]||p.role)} · ${escHtml(lokasiOf(p))}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  } catch(e) { el.innerHTML = ''; /* diam-diam gagal, jangan ganggu dashboard */ }
 }
 
 function getQuickMenuItems() {

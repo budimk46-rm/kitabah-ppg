@@ -107,6 +107,9 @@ const sbUsers = {
     return null;
   },
   update: (id, data) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  // "User Sedang Online" — heartbeat ringan + query yang aktif dalam N menit terakhir
+  pingActive: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', headers:{'Prefer':'return=minimal'}, body: JSON.stringify({ last_active: new Date().toISOString() }) }).catch(()=>{}),
+  getOnline: (sinceIso) => sbFetch(`anggota?last_active=gte.${encodeURIComponent(sinceIso)}&status=eq.approved&select=id,nama_lengkap,role,kelompok_id,desa_id,last_active&order=last_active.desc`),
 };
 
 // ============ KELOMPOK & DESA ============
