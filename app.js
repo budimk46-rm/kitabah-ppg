@@ -7522,7 +7522,7 @@ async function renderPengurus() {
                     <button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
                   </div>`).join('') : `<div style="font-size:11.5px; color:var(--ink-soft); font-style:italic; margin-top:2px;">Belum diisi</div>`}
               </div>
-              ${canEdit && !isFull ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" onclick="PGR_tambahDapukan('${scopeKey}','${level}','${escHtml(dp).replace(/'/g,"\\'")}')">+ Tambah</button>` : ''}
+              ${canEdit && !isFull ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" data-scope="${escHtml(scopeKey)}" data-level="${escHtml(level)}" data-dapukan="${escHtml(dp)}" onclick="PGR_tambahDapukan(this.dataset.scope, this.dataset.level, this.dataset.dapukan)">+ Tambah</button>` : ''}
             </div>`;
           }).join('')}
         </div>
