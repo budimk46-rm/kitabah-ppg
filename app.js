@@ -3069,7 +3069,9 @@ async function renderKelolaKelas() {
         ${(selectedKelompokId || !showPicker || isDesaForm) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
           ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" style="min-width:130px;" onclick="STR_addKelas()">+ Kelas</button>` : ''}
-          ${u.role === 'desa' || isAdminForm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>` : ''}
+          ${u.role === 'desa' || isAdminForm
+            ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan Desa</button>`
+            : `<button class="btn btn-outline btn-sm" style="min-width:130px; opacity:.5; cursor:not-allowed; border-color:var(--line); color:var(--ink-soft);" onclick="showToast('Menu ini khusus PJP Desa. Kalau memang perlu, minta admin tambahkan Akses Lintas Peran (Level Desa) untuk Kelola Kelas Generus di akunmu.', true)" title="Khusus PJP Desa">+ Kelas Gabungan Desa</button>`}
           ${selectedKelasId && !selectedKelasObj?.desa_id ? `
           <button class="btn btn-green btn-sm" style="min-width:130px;" onclick="STR_addSantri()">+ Tambah Santri</button>
           <button class="btn btn-outline btn-sm" style="min-width:130px;" onclick="STR_editKelas()">✏️ Edit Kelas</button>
