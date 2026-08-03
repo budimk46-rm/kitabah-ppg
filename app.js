@@ -375,6 +375,16 @@ const FORM_CONFIGS = {
       { key:'no_wa', label:'No. WhatsApp', type:'text' },
     ],
   },
+  jamaah: {
+    judul: 'Form Pendataan Jamaah',
+    fields: [
+      { key:'nama', label:'Nama Lengkap', type:'text', required:true },
+      { key:'jenis_kelamin', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
+      { key:'tgl_lahir', label:'Tanggal Lahir', type:'date' },
+      { key:'no_hp', label:'No. HP / WhatsApp', type:'tel' },
+      { key:'keterangan', label:'Keterangan (misal: Ortu dari siapa)', type:'text' },
+    ],
+  },
 };
 
 function formFieldHtml(f) {
@@ -386,6 +396,9 @@ function formFieldHtml(f) {
       <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:500;">
         <input type="checkbox" class="pf_cb_${f.key}" value="${o}"> ${o}
       </label>`).join('')}</div>`;
+  }
+  if (f.type === 'tel') {
+    return `<input type="tel" inputmode="numeric" id="pf_${f.key}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">`;
   }
   return `<input type="${f.type}" id="pf_${f.key}">`;
 }
@@ -6318,6 +6331,14 @@ async function renderJamaahEntry() {
 
   let list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
 
+  const pendingHtml = await renderPendingSection('jamaah', 'kelompok', u.kelompok_id, FORM_CONFIGS.jamaah, async (data) => {
+    await SB.jamaah.insert({
+      kelompok_id: u.kelompok_id, nama: toTitleCase(data.nama||''), jenis_kelamin: data.jenis_kelamin || null,
+      tgl_lahir: data.tgl_lahir || null, no_hp: data.no_hp || null, keterangan: data.keterangan || null, aktif: true,
+    });
+    return true;
+  });
+
   function render() {
     const totalL = list.filter(x => x.jenis_kelamin === 'L').length;
     const totalP = list.filter(x => x.jenis_kelamin === 'P').length;
@@ -6330,8 +6351,13 @@ async function renderJamaahEntry() {
           <h1 class="page-title">Data Jamaah</h1>
           <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Sensus keluarga lengkap kelompok — dasar data absensi Pengajian Kelompok</p>
         </div>
-        <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
+          <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>
+        </div>
       </div>
+
+      ${pendingHtml}
 
       <div class="stat-grid" style="margin-bottom:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px;">
         <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--green);">${list.length}</div><div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div></div>
