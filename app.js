@@ -381,6 +381,7 @@ const FORM_CONFIGS = {
       { key:'nama', label:'Nama Lengkap', type:'text', required:true },
       { key:'jenis_kelamin', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
       { key:'tgl_lahir', label:'Tanggal Lahir', type:'date' },
+      { key:'status_menikah', label:'Status Pernikahan (kalau usia 19 th ke atas)', type:'select', options:[['belum_menikah','Belum Menikah'],['menikah','Menikah']] },
       { key:'no_hp', label:'No. HP / WhatsApp', type:'tel' },
       { key:'keterangan', label:'Keterangan (nama panggilan anak / ortu dari siapa)', type:'text' },
     ],
@@ -6323,6 +6324,50 @@ function hitungLansia(tglLahir) {
   return hitungUsia(tglLahir) >= 60;
 }
 
+const KATEGORI_JAMAAH_ORDER = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja','Pra Nikah','Dewasa','Lansia','Belum Diketahui'];
+function kategoriUsiaJamaah(tglLahir, statusMenikah) {
+  if (!tglLahir) return 'Belum Diketahui';
+  const usia = hitungUsia(tglLahir);
+  if (usia < 4) return 'Bayi';
+  if (usia <= 6) return 'PAUD/TK';
+  if (usia <= 12) return 'Caberawit';
+  if (usia <= 15) return 'Pra Remaja';
+  if (usia <= 18) return 'Remaja';
+  if (usia >= 60) return 'Lansia';
+  return statusMenikah === 'menikah' ? 'Dewasa' : 'Pra Nikah';
+}
+
+// Tabel rekap detail per kategori usia (dipakai di entri kelompok & rekap desa/daerah)
+function jamaahKategoriTableHtml(list) {
+  const counts = {};
+  KATEGORI_JAMAAH_ORDER.forEach(k => { counts[k] = { L:0, P:0 }; });
+  list.forEach(x => {
+    const kat = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+    if (!counts[kat]) counts[kat] = { L:0, P:0 };
+    if (x.jenis_kelamin === 'L') counts[kat].L++;
+    else if (x.jenis_kelamin === 'P') counts[kat].P++;
+  });
+  const rows = KATEGORI_JAMAAH_ORDER.map(kat => {
+    const c = counts[kat] || { L:0, P:0 };
+    if (kat === 'Belum Diketahui' && !c.L && !c.P) return '';
+    return `<tr style="border-bottom:1px solid var(--line); ${kat==='Lansia'?'background:var(--gold-soft);':''}">
+      <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(kat)}</td>
+      <td style="padding:6px 10px; text-align:center; font-size:12px; color:#2563eb; font-weight:700;">${c.L}</td>
+      <td style="padding:6px 10px; text-align:center; font-size:12px; color:#db2777; font-weight:700;">${c.P}</td>
+      <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:800;">${c.L+c.P}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+    <thead><tr style="background:var(--green);">
+      <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kategori Usia</th>
+      <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:50px;">L</th>
+      <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:50px;">P</th>
+      <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:60px;">Total</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
 /* --- Mode entri: PJP Kelompok --- */
 async function renderJamaahEntry() {
   const main = document.getElementById('mainContent');
@@ -6334,17 +6379,13 @@ async function renderJamaahEntry() {
   const pendingHtml = await renderPendingSection('jamaah', 'kelompok', u.kelompok_id, FORM_CONFIGS.jamaah, async (data) => {
     await SB.jamaah.insert({
       kelompok_id: u.kelompok_id, nama: toTitleCase(data.nama||''), jenis_kelamin: data.jenis_kelamin || null,
-      tgl_lahir: data.tgl_lahir || null, no_hp: data.no_hp || null, keterangan: data.keterangan || null, aktif: true,
+      tgl_lahir: data.tgl_lahir || null, status_menikah: data.status_menikah || null,
+      no_hp: data.no_hp || null, keterangan: data.keterangan || null, aktif: true,
     });
     return true;
   });
 
   function render() {
-    const totalL = list.filter(x => x.jenis_kelamin === 'L').length;
-    const totalP = list.filter(x => x.jenis_kelamin === 'P').length;
-    const lansiaL = list.filter(x => x.jenis_kelamin === 'L' && hitungLansia(x.tgl_lahir)).length;
-    const lansiaP = list.filter(x => x.jenis_kelamin === 'P' && hitungLansia(x.tgl_lahir)).length;
-
     main.innerHTML = `
       <div class="page-header">
         <div>
@@ -6359,21 +6400,23 @@ async function renderJamaahEntry() {
 
       ${pendingHtml}
 
-      <div class="stat-grid" style="margin-bottom:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px;">
-        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--green);">${list.length}</div><div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div></div>
-        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#2563eb;">${totalL}</div><div style="font-size:11px; color:var(--ink-soft);">Laki-laki</div></div>
-        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#db2777;">${totalP}</div><div style="font-size:11px; color:var(--ink-soft);">Perempuan</div></div>
-        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${lansiaL}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia L (60+)</div></div>
-        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${lansiaP}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia P (60+)</div></div>
+      <div class="card" style="margin-bottom:16px; text-align:center; padding:14px; max-width:180px;">
+        <div style="font-size:26px; font-weight:800; color:var(--green);">${list.length}</div>
+        <div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
+        ${jamaahKategoriTableHtml(list)}
       </div>
 
       <div class="card" style="padding:0; overflow:hidden;">
         ${!list.length ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah. Klik "+ Tambah Jamaah" untuk mulai.</div>' : `
-        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:600px;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:650px;">
           <thead><tr style="background:var(--green);">
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:50px;">L/P</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:60px;">Usia</th>
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff; width:100px;">Kategori</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">No. HP</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Keterangan</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>
@@ -6381,11 +6424,12 @@ async function renderJamaahEntry() {
           <tbody>
             ${list.map(x => {
               const usia = x.tgl_lahir ? hitungUsia(x.tgl_lahir) : null;
-              const lansia = hitungLansia(x.tgl_lahir);
+              const kat = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
               return `<tr style="border-bottom:1px solid var(--line);">
                 <td style="padding:7px 10px; font-size:13px; font-weight:600;">${escHtml(x.nama)}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${escHtml(x.jenis_kelamin||'-')}</td>
-                <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'} ${lansia?'<span title="Lansia" style="color:var(--gold);">👴</span>':''}</td>
+                <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'}</td>
+                <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Lansia'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Lansia'?'700':'500'};">${escHtml(kat)}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.keterangan||'-')}</td>
                 <td style="padding:7px 10px; text-align:center;">
@@ -6424,6 +6468,9 @@ async function renderJamaahEntry() {
           <select id="jmhJK"><option value="">Pilih...</option><option value="L" ${existing?.jenis_kelamin==='L'?'selected':''}>Laki-laki</option><option value="P" ${existing?.jenis_kelamin==='P'?'selected':''}>Perempuan</option></select>
         </div>
         <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="jmhTgl" value="${existing?.tgl_lahir||''}"></div>
+        <div class="form-group"><label>Status Pernikahan (kalau usia 19 th ke atas)</label>
+          <select id="jmhStatusNikah"><option value="">Pilih...</option><option value="belum_menikah" ${existing?.status_menikah==='belum_menikah'?'selected':''}>Belum Menikah</option><option value="menikah" ${existing?.status_menikah==='menikah'?'selected':''}>Menikah</option></select>
+        </div>
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="jmhHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ahmad (anak) / Ortu dari Ahmad"></div>
       </div>
@@ -6436,6 +6483,7 @@ async function renderJamaahEntry() {
       const nama = document.getElementById('jmhNama').value.trim();
       const jk = document.getElementById('jmhJK').value;
       const tgl = document.getElementById('jmhTgl').value || null;
+      const statusNikah = document.getElementById('jmhStatusNikah').value || null;
       const hp = document.getElementById('jmhHp').value.trim() || null;
       const ket = document.getElementById('jmhKet').value.trim() || null;
       if (!nama || !jk) { showToast('Nama dan Jenis Kelamin wajib diisi', true); return; }
@@ -6443,10 +6491,10 @@ async function renderJamaahEntry() {
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
         if (existing) {
-          await SB.jamaah.update(existing.id, { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, no_hp: hp, keterangan: ket });
+          await SB.jamaah.update(existing.id, { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket });
           logActivity('ubah', 'Data Jamaah', `Mengubah data jamaah: ${nama}`);
         } else {
-          await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, no_hp: hp, keterangan: ket, aktif: true });
+          await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket, aktif: true });
           logActivity('tambah', 'Data Jamaah', `Menambah data jamaah: ${nama}`);
         }
         showToast('Tersimpan ✓');
@@ -6532,20 +6580,18 @@ async function renderJamaahRekap() {
 
   let bodyHtml = '';
   if (isDesa) {
-    const c = hitung(allJamaah);
     bodyHtml = `
-      ${statCards(c)}
+      <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>
       <div class="card">
         <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail Lansia per Kelompok</button>
         ${detailPerKelompokHtml(kelompokScope, 'jmhDetailDesa')}
       </div>`;
   } else {
     // Admin / Daerah — total keseluruhan + breakdown per desa
-    const cTotal = hitung(allJamaah);
     const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
     const byDesa = {};
     kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
-    bodyHtml = statCards(cTotal) + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
+    bodyHtml = `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>` + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
       const c = hitung(allJamaah.filter(x => klpList.some(k => k.id === x.kelompok_id)));
       const idp = 'jmhDetail_' + did;
       return `<div class="card" style="margin-bottom:12px;">
