@@ -1143,6 +1143,7 @@ const NAV_ITEMS = {
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'log_aktivitas', icon: logIcon(), label: 'Log Aktivitas', section: 'SISTEM' },
+    { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   daerah: [
@@ -1161,6 +1162,7 @@ const NAV_ITEMS = {
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
   ],
   desa: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
@@ -1178,6 +1180,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
+    { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
   pjp_kelompok: [
@@ -1320,6 +1323,9 @@ function renderNav() {
 
 function navigate(page) {
   App.currentPage = page;
+  // Catat klik menu (kecuali dashboard, karena itu otomatis kebuka pas login, bukan klik sengaja) —
+  // dasar laporan "User Tidak Aktif Mingguan". Ringan, tidak nunggu selesai (fire-and-forget).
+  if (page !== 'dashboard' && App.user) SB.navLog.insert(App.user.id);
   // Hentikan polling Live Chat kalau sedang pindah dari halaman itu — supaya tidak jalan terus di background
   if (App.chatInterval) { clearInterval(App.chatInterval); App.chatInterval = null; }
   // Update active nav
@@ -1389,6 +1395,7 @@ async function renderPage(page) {
       case 'mtms':        await renderMtMs(); break;
       case 'guru_sekolah': await renderGuruSekolah(); break;
       case 'log_aktivitas': await renderLogAktivitas(); break;
+      case 'user_tidak_aktif': await renderUserTidakAktif(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
       case 'rekap_raport': await renderRekapRaport(); break;
       case 'profil_saya': await renderProfilSaya(); break;
@@ -3673,6 +3680,10 @@ async function renderAbsensi() {
 
   async function loadDetail(pId) {
     currentPertemuanId = pId;
+    // PENTING: sinkronkan "bulan aktif" ke bulan ASLI pertemuan ini (bukan bulan hari ini) —
+    // supaya target materi & progress kurikulum tercatat ke bulan yang benar saat edit pertemuan lama.
+    const ptm = pertemuanList.find(p => p.id === pId);
+    if (ptm?.bulan) jurnalBulan = ptm.bulan;
     const [absen, jurnal] = await Promise.all([
       SB.absensi.getByPertemuan(pId),
       SB.jurnal.getByPertemuan(pId),
@@ -3913,21 +3924,27 @@ async function renderAbsensi() {
         </button>
       </div>` : '';
 
-    // Hitung pertemuan ke berapa bulan ini
+    // Hitung pertemuan ke berapa bulan ini (khusus pertemuan BARU)
     const pertemuanBulanIni = pertemuanList.filter(p => p.bulan === nowMonth);
     const pertemuanKe = pertemuanBulanIni.length + 1;
 
-    // Riwayat pertemuan bulan ini
-    const riwayatHtml = pertemuanBulanIni.length ? pertemuanBulanIni.map((p, idx) => `
-      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; background:${p.id===currentPertemuanId?'var(--green-soft)':'var(--white)'};" onclick="ABS_setPertemuan('${p.id}')">
+    // Riwayat SEMUA pertemuan sepanjang tahun ajaran (bukan cuma bulan ini) — supaya kesalahan
+    // di pertemuan bulan-bulan sebelumnya juga bisa dibuka & diperbaiki, bukan cuma bulan berjalan.
+    const semuaPertemuanUrut = [...pertemuanList].sort((a,b) => (b.tanggal||'').localeCompare(a.tanggal||''));
+    let bulanTerakhir = null;
+    const riwayatHtml = semuaPertemuanUrut.length ? semuaPertemuanUrut.map((p, idx) => {
+      const tandaBulan = p.bulan !== bulanTerakhir ? `<div style="padding:6px 10px; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--gold); background:var(--cream-2);">${escHtml(p.bulan||'')}</div>` : '';
+      bulanTerakhir = p.bulan;
+      return `${tandaBulan}<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; background:${p.id===currentPertemuanId?'var(--green-soft)':'var(--white)'};" onclick="ABS_setPertemuan('${p.id}')">
         <div>
           <div style="font-weight:600; font-size:13px; color:${p.id===currentPertemuanId?'var(--green)':'var(--ink)'};">Pertemuan ke-${p.pertemuan_ke || (idx+1)}</div>
           <div style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(p.tanggal)}</div>
         </div>
         <div style="font-size:11px; color:var(--ink-soft);">
-          ${p.id===currentPertemuanId ? '<span class="badge badge-green" style="font-size:10px;">Sedang diedit</span>' : 'Lihat \u2192'}
+          ${p.id===currentPertemuanId ? '<span class="badge badge-green" style="font-size:10px;">Sedang diedit</span>' : 'Edit \u2192'}
         </div>
-      </div>`).join('') : '<div style="padding:10px; font-size:12px; color:var(--ink-soft);">Belum ada pertemuan di bulan ini.</div>';
+      </div>`;
+    }).join('') : '<div style="padding:10px; font-size:12px; color:var(--ink-soft);">Belum ada pertemuan di kelas ini.</div>';
 
     main.innerHTML = `
       <div class="page-header">
@@ -3959,11 +3976,11 @@ async function renderAbsensi() {
           <div style="display:flex; gap:6px;">
             ${currentPertemuanId ? '<button class="btn btn-outline btn-sm" onclick="ABS_setPertemuan(\'\')" style="font-size:11px;">+ Pertemuan Baru</button>' : ''}
             <button class="btn btn-outline btn-sm" onclick="document.getElementById('riwayatPtm').style.display=document.getElementById('riwayatPtm').style.display==='none'?'block':'none'" style="font-size:11px;">
-              \ud83d\udccb Riwayat (${pertemuanBulanIni.length})
+              📋 Riwayat (${semuaPertemuanUrut.length})
             </button>
           </div>
         </div>
-        <div id="riwayatPtm" style="display:none; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; margin-bottom:10px;">
+        <div id="riwayatPtm" style="display:none; border:1px solid var(--line); border-radius:var(--radius-sm); overflow-y:auto; max-height:320px; margin-bottom:10px;">
           ${riwayatHtml}
         </div>
         ${!currentPertemuanId ? `
@@ -6155,6 +6172,125 @@ async function renderGuruSekolah() {
   }
 
   render();
+}
+
+/* ===== PAGE: USER TIDAK AKTIF (mingguan) ===== */
+async function renderUserTidakAktif() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
+
+  function getMonday(d) {
+    const date = new Date(d);
+    const day = date.getDay(); // 0=Min,1=Sen,...6=Sab
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    date.setHours(0,0,0,0);
+    return date;
+  }
+  const thisMonday = getMonday(new Date());
+  let weekOffset = -1; // -1 = minggu lalu (yang sudah lengkap), default tampil
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
+  async function loadData() {
+    const weekStart = new Date(thisMonday); weekStart.setDate(weekStart.getDate() + weekOffset*7);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
+
+    const allUsers = await SB.anggota.getAll() || [];
+    let scopedUsers = allUsers.filter(x => x.status === 'approved');
+    if (isDesa) {
+      const klpIds = new Set((App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id).map(k => k.id));
+      scopedUsers = scopedUsers.filter(x => klpIds.has(x.kelompok_id));
+    }
+
+    const [logins, navs] = await Promise.all([
+      SB.activityLog.getLoginsInRange(weekStart.toISOString(), weekEnd.toISOString()),
+      SB.navLog.getInRange(weekStart.toISOString(), weekEnd.toISOString()),
+    ]);
+    const loginSet = new Set((logins||[]).map(r => r.user_id));
+    const navSet = new Set((navs||[]).map(r => r.user_id));
+
+    const takAktif = scopedUsers.filter(x => !loginSet.has(x.id) || !navSet.has(x.id))
+      .map(x => ({ ...x, status_minggu: !loginSet.has(x.id) ? 'tidak_login' : 'login_saja' }));
+
+    return { weekStart, weekEnd, takAktif };
+  }
+
+  function lokasiOf(x) {
+    if (x.kelompok_id) {
+      const klp = (App.cache.kelompok||[]).find(k => k.id === x.kelompok_id);
+      return klp ? `${klp.nama} · ${klp.desa?.nama||''}` : x.kelompok_id;
+    }
+    const DESA_NAMA_MAP = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
+    if (x.desa_id) return 'Desa ' + (DESA_NAMA_MAP[x.desa_id] || x.desa_id);
+    return '-';
+  }
+
+  function render(data) {
+    const { weekStart, weekEnd, takAktif } = data;
+    const weekEndDisplay = new Date(weekEnd); weekEndDisplay.setDate(weekEndDisplay.getDate() - 1);
+    const isCurrentIncomplete = weekOffset >= 0;
+
+    const rows = takAktif.map(x => `
+      <tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:8px 10px; font-size:13px; font-weight:600;">${escHtml(x.nama_lengkap)}</td>
+        <td style="padding:8px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(ROLE_LABELS[x.role]||x.role)}</td>
+        <td style="padding:8px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(lokasiOf(x))}</td>
+        <td style="padding:8px 10px; text-align:center;">
+          ${x.status_minggu === 'tidak_login'
+            ? '<span style="font-size:11px; font-weight:700; color:var(--rose); background:#fde8e8; padding:3px 8px; border-radius:10px;">Tidak Login</span>'
+            : '<span style="font-size:11px; font-weight:700; color:#a67c00; background:#fff3d6; padding:3px 8px; border-radius:10px;">Login Saja</span>'}
+        </td>
+      </tr>`).join('');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">User Tidak Aktif</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">User yang tidak login sama sekali, atau login tapi tidak buka menu apapun, dalam 1 minggu (Senin–Minggu)</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="UTA_ubahMinggu(-1)">← Minggu Sebelumnya</button>
+        <div style="text-align:center; font-weight:700; color:var(--green); font-size:13px;">
+          ${fmtDateShort(weekStart)} – ${fmtDateShort(weekEndDisplay)}
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="UTA_ubahMinggu(1)" ${isCurrentIncomplete ? 'disabled style="opacity:.4;"' : ''}>Minggu Berikutnya →</button>
+      </div>
+
+      ${!takAktif.length ? `<div class="card" style="text-align:center; padding:36px 20px;">
+        <div style="font-size:32px; margin-bottom:8px;">🎉</div>
+        <div class="fw-bold">Semua User Aktif Minggu Ini</div>
+        <div style="font-size:13px; color:var(--ink-soft); margin-top:4px;">Tidak ada user yang tidak login atau cuma login tanpa buka menu.</div>
+      </div>` : `
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:500px;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Level</th>
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Lokasi</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff;">Status</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>`}
+    `;
+  }
+
+  window.UTA_ubahMinggu = async (delta) => {
+    const newOffset = weekOffset + delta;
+    if (newOffset >= 0) return; // gak boleh lihat minggu yang belum selesai
+    weekOffset = newOffset;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    render(await loadData());
+  };
+
+  render(await loadData());
 }
 
 /* ===== PAGE: LOG AKTIVITAS (admin only) ===== */

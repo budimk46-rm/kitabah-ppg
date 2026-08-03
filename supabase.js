@@ -553,12 +553,21 @@ const sbRaportCatatan = {
 };
 
 // ============ ACTIVITY LOG ============
+// ============ NAV LOG (klik menu, dasar laporan User Tidak Aktif) ============
+const sbNavLog = {
+  insert: (userId) => sbFetch('user_nav_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body: JSON.stringify({ user_id: userId }) }).catch(()=>{}),
+  getInRange: (startIso, endIso) =>
+    sbFetch(`user_nav_log?created_at=gte.${encodeURIComponent(startIso)}&created_at=lt.${encodeURIComponent(endIso)}&select=user_id`),
+};
+
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
   getByUser: (userId, limit=300) => sbFetch(`activity_log?user_id=eq.${userId}&select=*&order=created_at.desc&limit=${limit}`),
   deleteRange: (fromIso, toIso) => sbFetch(`activity_log?created_at=gte.${fromIso}&created_at=lte.${toIso}`, { method:'DELETE' }),
   deleteAll: () => sbFetch(`activity_log?id=not.is.null`, { method:'DELETE' }),
+  getLoginsInRange: (startIso, endIso) =>
+    sbFetch(`activity_log?action=eq.login&created_at=gte.${encodeURIComponent(startIso)}&created_at=lt.${encodeURIComponent(endIso)}&select=user_id,created_at`),
 };
 
 // Export semua
@@ -591,5 +600,6 @@ window.SB = {
   raportNilai: sbRaportNilai,
   raportCatatan: sbRaportCatatan,
   chat: sbChat,
+  navLog: sbNavLog,
   formSubmissions: sbFormSubmissions,
 };
