@@ -1141,6 +1141,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus', section: 'KELOLA' },
+    { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'log_aktivitas', icon: logIcon(), label: 'Log Aktivitas', section: 'SISTEM' },
     { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
@@ -1161,6 +1162,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
+    { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
   ],
@@ -1179,6 +1181,7 @@ const NAV_ITEMS = {
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
+    { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -1199,6 +1202,7 @@ const NAV_ITEMS = {
     { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
+    { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
@@ -1396,6 +1400,7 @@ async function renderPage(page) {
       case 'guru_sekolah': await renderGuruSekolah(); break;
       case 'log_aktivitas': await renderLogAktivitas(); break;
       case 'user_tidak_aktif': await renderUserTidakAktif(); break;
+      case 'data_jamaah': await renderDataJamaah(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
       case 'rekap_raport': await renderRekapRaport(); break;
       case 'profil_saya': await renderProfilSaya(); break;
@@ -6293,7 +6298,249 @@ async function renderUserTidakAktif() {
   render(await loadData());
 }
 
-/* ===== PAGE: LOG AKTIVITAS (admin only) ===== */
+/* ===== PAGE: DATA JAMAAH ===== */
+async function renderDataJamaah() {
+  const u = App.user;
+  if (u.role === 'pjp_kelompok') return renderJamaahEntry();
+  return renderJamaahRekap();
+}
+
+function hitungLansia(tglLahir) {
+  if (!tglLahir) return false;
+  return hitungUsia(tglLahir) >= 60;
+}
+
+/* --- Mode entri: PJP Kelompok --- */
+async function renderJamaahEntry() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  let list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+
+  function render() {
+    const totalL = list.filter(x => x.jenis_kelamin === 'L').length;
+    const totalP = list.filter(x => x.jenis_kelamin === 'P').length;
+    const lansiaL = list.filter(x => x.jenis_kelamin === 'L' && hitungLansia(x.tgl_lahir)).length;
+    const lansiaP = list.filter(x => x.jenis_kelamin === 'P' && hitungLansia(x.tgl_lahir)).length;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Data Jamaah</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Sensus keluarga lengkap kelompok — dasar data absensi Pengajian Kelompok</p>
+        </div>
+        <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>
+      </div>
+
+      <div class="stat-grid" style="margin-bottom:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px;">
+        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--green);">${list.length}</div><div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div></div>
+        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#2563eb;">${totalL}</div><div style="font-size:11px; color:var(--ink-soft);">Laki-laki</div></div>
+        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#db2777;">${totalP}</div><div style="font-size:11px; color:var(--ink-soft);">Perempuan</div></div>
+        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${lansiaL}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia L (60+)</div></div>
+        <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${lansiaP}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia P (60+)</div></div>
+      </div>
+
+      <div class="card" style="padding:0; overflow:hidden;">
+        ${!list.length ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah. Klik "+ Tambah Jamaah" untuk mulai.</div>' : `
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:600px;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:50px;">L/P</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:60px;">Usia</th>
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">No. HP</th>
+            <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Keterangan</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>
+          </tr></thead>
+          <tbody>
+            ${list.map(x => {
+              const usia = x.tgl_lahir ? hitungUsia(x.tgl_lahir) : null;
+              const lansia = hitungLansia(x.tgl_lahir);
+              return `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:7px 10px; font-size:13px; font-weight:600;">${escHtml(x.nama)}</td>
+                <td style="padding:7px 10px; text-align:center; font-size:12px;">${escHtml(x.jenis_kelamin||'-')}</td>
+                <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'} ${lansia?'<span title="Lansia" style="color:var(--gold);">👴</span>':''}</td>
+                <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
+                <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.keterangan||'-')}</td>
+                <td style="padding:7px 10px; text-align:center;">
+                  <div style="display:flex; gap:3px; justify-content:center;">
+                    <button class="btn-icon" onclick="JMH_edit('${x.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                    <button class="btn-icon danger" onclick="JMH_hapus('${x.id}','${escHtml(x.nama)}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>`}
+      </div>
+    `;
+  }
+
+  window.JMH_tambah = () => openJamaahModal(null);
+  window.JMH_edit = (id) => openJamaahModal(list.find(x => x.id === id));
+  window.JMH_hapus = async (id, nama) => {
+    if (!confirm(`Hapus data jamaah "${nama}"?`)) return;
+    await SB.jamaah.softDelete(id);
+    logActivity('hapus', 'Data Jamaah', `Menghapus data jamaah: ${nama}`);
+    showToast('Data jamaah dihapus');
+    list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+    render();
+  };
+
+  function openJamaahModal(existing) {
+    let el = document.getElementById('jamaahModal');
+    if (!el) { el = document.createElement('div'); el.id = 'jamaahModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">${existing?'Edit':'Tambah'} Jamaah</h3><button class="modal-close" onclick="closeModal('jamaahModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>Nama Lengkap *</label><input id="jmhNama" value="${escHtml(existing?.nama||'')}"></div>
+        <div class="form-group"><label>Jenis Kelamin *</label>
+          <select id="jmhJK"><option value="">Pilih...</option><option value="L" ${existing?.jenis_kelamin==='L'?'selected':''}>Laki-laki</option><option value="P" ${existing?.jenis_kelamin==='P'?'selected':''}>Perempuan</option></select>
+        </div>
+        <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="jmhTgl" value="${existing?.tgl_lahir||''}"></div>
+        <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="jmhHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+        <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ortu dari Ahmad"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('jamaahModal')">Batal</button>
+        <button class="btn btn-green" id="jmhSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+    document.getElementById('jmhSaveBtn').onclick = async () => {
+      const nama = document.getElementById('jmhNama').value.trim();
+      const jk = document.getElementById('jmhJK').value;
+      const tgl = document.getElementById('jmhTgl').value || null;
+      const hp = document.getElementById('jmhHp').value.trim() || null;
+      const ket = document.getElementById('jmhKet').value.trim() || null;
+      if (!nama || !jk) { showToast('Nama dan Jenis Kelamin wajib diisi', true); return; }
+      const btn = document.getElementById('jmhSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      try {
+        if (existing) {
+          await SB.jamaah.update(existing.id, { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, no_hp: hp, keterangan: ket });
+          logActivity('ubah', 'Data Jamaah', `Mengubah data jamaah: ${nama}`);
+        } else {
+          await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, no_hp: hp, keterangan: ket, aktif: true });
+          logActivity('tambah', 'Data Jamaah', `Menambah data jamaah: ${nama}`);
+        }
+        showToast('Tersimpan ✓');
+        closeModal('jamaahModal');
+        list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+        render();
+      } catch(e) { showToast('Gagal: ' + e.message, true); btn.disabled=false; btn.textContent='Simpan'; }
+    };
+    openModal('jamaahModal');
+  }
+
+  render();
+}
+
+/* --- Mode rekap: Desa / Daerah / Admin --- */
+async function renderJamaahRekap() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin';
+  const isDaerah = u.role === 'daerah';
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+
+  const kelompokScope = (isAdmin || isDaerah)
+    ? (App.cache.kelompok || [])
+    : (App.cache.kelompok || []).filter(k => k.desa_id === u.desa_id);
+
+  const allJamaah = await SB.jamaah.getByKelompokIds(kelompokScope.map(k => k.id)) || [];
+
+  function hitung(list) {
+    return {
+      total: list.length,
+      L: list.filter(x => x.jenis_kelamin === 'L').length,
+      P: list.filter(x => x.jenis_kelamin === 'P').length,
+      lansiaL: list.filter(x => x.jenis_kelamin === 'L' && hitungLansia(x.tgl_lahir)).length,
+      lansiaP: list.filter(x => x.jenis_kelamin === 'P' && hitungLansia(x.tgl_lahir)).length,
+    };
+  }
+
+  function statCards(c) {
+    return `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin-bottom:14px;">
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--green);">${c.total}</div><div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div></div>
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#2563eb;">${c.L}</div><div style="font-size:11px; color:var(--ink-soft);">Laki-laki</div></div>
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#db2777;">${c.P}</div><div style="font-size:11px; color:var(--ink-soft);">Perempuan</div></div>
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaL}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia L</div></div>
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaP}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia P</div></div>
+    </div>`;
+  }
+
+  function detailPerKelompokHtml(klpList, idPrefix) {
+    const rows = klpList.map(k => {
+      const c = hitung(allJamaah.filter(x => x.kelompok_id === k.id));
+      return `<tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
+        <td style="padding:6px 10px; text-align:center; font-size:12px;">${c.L}</td>
+        <td style="padding:6px 10px; text-align:center; font-size:12px;">${c.P}</td>
+        <td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--gold); font-weight:700;">${c.lansiaL}</td>
+        <td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--gold); font-weight:700;">${c.lansiaP}</td>
+      </tr>`;
+    }).join('');
+    return `<div id="${idPrefix}" style="display:none; margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow:hidden;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:var(--green-soft);">
+          <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:var(--green);">Kelompok</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">L</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">P</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Lansia L</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Lansia P</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  window.JMH_toggleDetail = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+
+  let bodyHtml = '';
+  if (isDesa) {
+    const c = hitung(allJamaah);
+    bodyHtml = `
+      ${statCards(c)}
+      <div class="card">
+        <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail Lansia per Kelompok</button>
+        ${detailPerKelompokHtml(kelompokScope, 'jmhDetailDesa')}
+      </div>`;
+  } else {
+    // Admin / Daerah — total keseluruhan + breakdown per desa
+    const cTotal = hitung(allJamaah);
+    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    const byDesa = {};
+    kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
+    bodyHtml = statCards(cTotal) + Object.entries(byDesa).map(([did, klpList]) => {
+      const c = hitung(allJamaah.filter(x => klpList.some(k => k.id === x.kelompok_id)));
+      const idp = 'jmhDetail_' + did;
+      return `<div class="card" style="margin-bottom:12px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div class="fw-bold color-green" style="font-size:13.5px;">🏘️ ${escHtml(DESA_NAMA_MAP[did]||did)}</div>
+          <div style="font-size:12px; color:var(--ink-soft);">L: <b>${c.L}</b> · P: <b>${c.P}</b> · Lansia L: <b style="color:var(--gold);">${c.lansiaL}</b> · Lansia P: <b style="color:var(--gold);">${c.lansiaP}</b></div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="JMH_toggleDetail('${idp}')">📋 Detail per Kelompok</button>
+        ${detailPerKelompokHtml(klpList, idp)}
+      </div>`;
+    }).join('');
+  }
+
+  main.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Data Jamaah</h1>
+        <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Rekap sensus jamaah — dasar data absensi Pengajian Kelompok</p>
+      </div>
+    </div>
+    ${bodyHtml}
+  `;
+}
+
+
 async function renderLogAktivitas() {
   const main = document.getElementById('mainContent');
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';

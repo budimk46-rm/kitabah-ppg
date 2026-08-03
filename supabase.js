@@ -560,6 +560,22 @@ const sbNavLog = {
     sbFetch(`user_nav_log?created_at=gte.${encodeURIComponent(startIso)}&created_at=lt.${encodeURIComponent(endIso)}&select=user_id`),
 };
 
+// ============ DATA JAMAAH ============
+const sbJamaah = {
+  getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=*&order=nama`),
+  getByKelompokIds: (ids) => {
+    const list = [...new Set(ids)].filter(Boolean);
+    if (!list.length) return Promise.resolve([]);
+    return sbFetch(`jamaah?kelompok_id=in.(${list.join(',')})&aktif=eq.true&select=*&order=nama`);
+  },
+  insert: async (data) => {
+    try { return await sbFetch('jamaah', { method:'POST', headers:{'Prefer':'return=representation'}, body: JSON.stringify(data) }); }
+    catch(e) { if (e.message?.includes('409')) return [data]; throw e; }
+  },
+  update: (id, data) => sbFetch(`jamaah?id=eq.${id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body: JSON.stringify(data) }),
+  softDelete: (id) => sbFetch(`jamaah?id=eq.${id}`, { method:'PATCH', body: JSON.stringify({ aktif: false }) }),
+};
+
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
@@ -601,5 +617,6 @@ window.SB = {
   raportCatatan: sbRaportCatatan,
   chat: sbChat,
   navLog: sbNavLog,
+  jamaah: sbJamaah,
   formSubmissions: sbFormSubmissions,
 };
