@@ -576,6 +576,24 @@ const sbJamaah = {
   softDelete: (id) => sbFetch(`jamaah?id=eq.${id}`, { method:'PATCH', body: JSON.stringify({ aktif: false }) }),
 };
 
+// ============ TAUTAN KELUARGA JAMAAH ============
+const sbJamaahKeluarga = {
+  getByJamaah: (jamaahId) => sbFetch(`jamaah_keluarga?jamaah_id=eq.${jamaahId}&select=*`),
+  getBySantriIds: (santriIds) => {
+    const ids = [...new Set(santriIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`jamaah_keluarga?santri_id=in.(${ids.join(',')})&select=*`);
+  },
+  insertBulk: (rows) => {
+    if (!rows.length) return Promise.resolve(null);
+    return sbFetch('jamaah_keluarga', { method:'POST', headers:{'Prefer':'return=minimal,resolution=ignore-duplicates'}, body: JSON.stringify(rows) });
+  },
+  deleteByIds: (ids) => {
+    if (!ids.length) return Promise.resolve(null);
+    return sbFetch(`jamaah_keluarga?id=in.(${ids.join(',')})`, { method:'DELETE' });
+  },
+};
+
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
@@ -618,5 +636,6 @@ window.SB = {
   chat: sbChat,
   navLog: sbNavLog,
   jamaah: sbJamaah,
+  jamaahKeluarga: sbJamaahKeluarga,
   formSubmissions: sbFormSubmissions,
 };

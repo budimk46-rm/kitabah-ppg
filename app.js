@@ -6376,6 +6376,9 @@ async function renderJamaahEntry() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+  const santriKlp = await SB.santri.getByKelompok(u.kelompok_id) || [];
+  const linkedSet = new Set((await SB.jamaahKeluarga.getBySantriIds(santriKlp.map(s => s.id)) || []).map(r => r.santri_id));
+  const santriBelumTertaut = santriKlp.filter(s => !linkedSet.has(s.id));
 
   const pendingHtml = await renderPendingSection('jamaah', 'kelompok', u.kelompok_id, FORM_CONFIGS.jamaah, async (data) => {
     await SB.jamaah.insert({
@@ -6400,6 +6403,14 @@ async function renderJamaahEntry() {
       </div>
 
       ${pendingHtml}
+
+      ${santriBelumTertaut.length ? `
+      <div class="card" style="margin-bottom:16px; border:1.5px solid var(--gold);">
+        <button class="btn btn-outline btn-sm" onclick="JMH_toggleBelumTertaut()">⚠️ ${santriBelumTertaut.length} Generus Belum Ada Data Keluarga</button>
+        <div id="jmhBelumTertautList" style="display:none; margin-top:10px; font-size:12.5px; color:var(--ink-soft);">
+          ${santriBelumTertaut.map(s => escHtml(s.nama)).join(', ')}
+        </div>
+      </div>` : ''}
 
       <div class="card" style="margin-bottom:16px; text-align:center; padding:14px; max-width:180px;">
         <div style="font-size:26px; font-weight:800; color:var(--green);">${list.length}</div>
@@ -6458,7 +6469,20 @@ async function renderJamaahEntry() {
     render();
   };
 
-  function openJamaahModal(existing) {
+  window.JMH_toggleBelumTertaut = () => {
+    const el = document.getElementById('jmhBelumTertautList');
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+
+  async function openJamaahModal(existing) {
+    const kategori = existing ? kategoriUsiaJamaah(existing.tgl_lahir, existing.status_menikah) : null;
+    const showKeluarga = existing && (kategori === 'Dewasa' || kategori === 'Lansia');
+    let linkedIds = new Set();
+    if (showKeluarga) {
+      const links = await SB.jamaahKeluarga.getByJamaah(existing.id) || [];
+      linkedIds = new Set(links.map(l => l.santri_id));
+    }
+
     let el = document.getElementById('jamaahModal');
     if (!el) { el = document.createElement('div'); el.id = 'jamaahModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
     el.innerHTML = `<div class="modal">
@@ -6474,6 +6498,16 @@ async function renderJamaahEntry() {
         </div>
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="jmhHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ahmad (anak) / Ortu dari Ahmad"></div>
+        ${showKeluarga ? `
+        <div class="form-group">
+          <label>Anak (Generus) — centang semua yang jadi anaknya</label>
+          <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius-sm); padding:6px 10px;">
+            ${santriKlp.length ? santriKlp.map(s => `
+              <label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; cursor:pointer;">
+                <input type="checkbox" class="jmhAnak" value="${s.id}" ${linkedIds.has(s.id)?'checked':''}> ${escHtml(s.nama)}
+              </label>`).join('') : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada data santri di kelompok ini.</div>'}
+          </div>
+        </div>` : (existing ? `<div style="font-size:11.5px; color:var(--ink-soft);">Penautan anak cuma tersedia untuk jamaah kategori Dewasa/Lansia.</div>` : '')}
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('jamaahModal')">Batal</button>
@@ -6491,12 +6525,23 @@ async function renderJamaahEntry() {
       const btn = document.getElementById('jmhSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
+        let jamaahId = existing?.id;
         if (existing) {
           await SB.jamaah.update(existing.id, { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket });
           logActivity('ubah', 'Data Jamaah', `Mengubah data jamaah: ${nama}`);
         } else {
-          await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket, aktif: true });
+          const res = await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket, aktif: true });
+          jamaahId = res?.[0]?.id;
           logActivity('tambah', 'Data Jamaah', `Menambah data jamaah: ${nama}`);
+        }
+        // Sinkronkan tautan anak kalau bagian itu tampil
+        if (showKeluarga && jamaahId) {
+          const checkedNow = new Set(Array.from(document.querySelectorAll('.jmhAnak:checked')).map(c => c.value));
+          const toAdd = [...checkedNow].filter(id => !linkedIds.has(id)).map(santriId => ({ jamaah_id: jamaahId, santri_id: santriId }));
+          const toRemoveLinkIds = (await SB.jamaahKeluarga.getByJamaah(jamaahId) || [])
+            .filter(l => !checkedNow.has(l.santri_id)).map(l => l.id);
+          await SB.jamaahKeluarga.insertBulk(toAdd);
+          await SB.jamaahKeluarga.deleteByIds(toRemoveLinkIds);
         }
         showToast('Tersimpan ✓');
         closeModal('jamaahModal');
