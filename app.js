@@ -6467,6 +6467,7 @@ async function renderJamaahRekap() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
+  const isDesa = u.role === 'desa';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
 
