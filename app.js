@@ -6328,13 +6328,14 @@ const KATEGORI_JAMAAH_ORDER = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja
 function kategoriUsiaJamaah(tglLahir, statusMenikah) {
   if (!tglLahir) return 'Belum Diketahui';
   const usia = hitungUsia(tglLahir);
+  if (usia >= 60) return 'Lansia'; // Lansia selalu menang, apapun status nikahnya
+  if (statusMenikah === 'menikah') return 'Dewasa'; // sudah menikah = Dewasa, berapapun usianya
   if (usia < 4) return 'Bayi';
   if (usia <= 6) return 'PAUD/TK';
   if (usia <= 12) return 'Caberawit';
   if (usia <= 15) return 'Pra Remaja';
   if (usia <= 18) return 'Remaja';
-  if (usia >= 60) return 'Lansia';
-  return statusMenikah === 'menikah' ? 'Dewasa' : 'Pra Nikah';
+  return 'Pra Nikah';
 }
 
 // Tabel rekap detail per kategori usia (dipakai di entri kelompok & rekap desa/daerah)
