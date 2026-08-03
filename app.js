@@ -382,7 +382,7 @@ const FORM_CONFIGS = {
       { key:'jenis_kelamin', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
       { key:'tgl_lahir', label:'Tanggal Lahir', type:'date' },
       { key:'no_hp', label:'No. HP / WhatsApp', type:'tel' },
-      { key:'keterangan', label:'Keterangan (misal: Ortu dari siapa)', type:'text' },
+      { key:'keterangan', label:'Keterangan (nama panggilan anak / ortu dari siapa)', type:'text' },
     ],
   },
 };
@@ -6425,7 +6425,7 @@ async function renderJamaahEntry() {
         </div>
         <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="jmhTgl" value="${existing?.tgl_lahir||''}"></div>
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="jmhHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
-        <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ortu dari Ahmad"></div>
+        <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ahmad (anak) / Ortu dari Ahmad"></div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('jamaahModal')">Batal</button>
@@ -6498,6 +6498,9 @@ async function renderJamaahRekap() {
   }
 
   function detailPerKelompokHtml(klpList, idPrefix) {
+    if (!klpList.length) {
+      return `<div id="${idPrefix}" style="display:none; margin-top:10px; padding:14px; text-align:center; font-size:12px; color:var(--ink-soft); border:1px solid var(--line); border-radius:8px;">Belum ada kelompok terdaftar di sini.</div>`;
+    }
     const rows = klpList.map(k => {
       const c = hitung(allJamaah.filter(x => x.kelompok_id === k.id));
       return `<tr style="border-bottom:1px solid var(--line);">
@@ -6542,7 +6545,7 @@ async function renderJamaahRekap() {
     const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
     const byDesa = {};
     kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
-    bodyHtml = statCards(cTotal) + Object.entries(byDesa).map(([did, klpList]) => {
+    bodyHtml = statCards(cTotal) + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
       const c = hitung(allJamaah.filter(x => klpList.some(k => k.id === x.kelompok_id)));
       const idp = 'jmhDetail_' + did;
       return `<div class="card" style="margin-bottom:12px;">
@@ -6553,7 +6556,7 @@ async function renderJamaahRekap() {
         <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="JMH_toggleDetail('${idp}')">📋 Detail per Kelompok</button>
         ${detailPerKelompokHtml(klpList, idp)}
       </div>`;
-    }).join('');
+    }).join('') : `<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Belum ada data kelompok/desa untuk ditampilkan.</div>`);
   }
 
   main.innerHTML = `
