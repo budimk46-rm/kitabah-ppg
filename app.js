@@ -741,7 +741,8 @@ const JABATAN_CONFIG = {
   kelompok: [
     { val:'kelompok', icon:'👑', label:'Ulil Amri', sub:'Pimpinan kelompok' },
     { val:'kelompok', icon:'🤝', label:'BK', sub:'Bimbingan Konseling' },
-    { val:'pjp_kelompok', icon:'📋', label:'PJP Kelompok', sub:'Penanggung jawab program' },
+    { val:'pjp_kelompok', icon:'📚', label:'PJP Kelompok KBM', sub:'Penanggung jawab KBM kelompok' },
+    { val:'pjp_kelompok', icon:'🏗️', label:'PJP Kelompok Sarpras', sub:'Sarana dan prasarana' },
     { val:'wali_kbm', icon:'🎓', label:'Wali KBM', sub:'Pilih kelas usia yang diampu' },
     { val:'guru', icon:'👨‍🏫', label:'Guru Generus', sub:'Pengajar generus' },
   ],
