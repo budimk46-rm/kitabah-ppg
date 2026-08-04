@@ -1546,6 +1546,15 @@ async function loadOnlineUsersWidget() {
       el.innerHTML = '';
       return;
     }
+    const BATAS_AWAL = 8;
+    const chipHtml = p => `
+      <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; background:var(--cream-2); border-radius:20px; border:1px solid var(--line);">
+        <span style="width:6px; height:6px; border-radius:50%; background:#22c55e; flex-shrink:0;"></span>
+        <span style="font-size:12px; font-weight:700; color:#111;">${escHtml(p.nama_lengkap)}</span>
+        <span style="font-size:10.5px; color:var(--ink-soft);">${escHtml(ROLE_LABELS[p.role]||p.role)} · ${escHtml(lokasiOf(p))}</span>
+      </div>`;
+    const awal = online.slice(0, BATAS_AWAL);
+    const sisa = online.slice(BATAS_AWAL);
     el.innerHTML = `
       <div class="card" style="margin-bottom:16px;">
         <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
@@ -1553,14 +1562,22 @@ async function loadOnlineUsersWidget() {
           Sedang Online (${online.length})
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
-          ${online.map(p => `
-            <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; background:var(--cream-2); border-radius:20px; border:1px solid var(--line);">
-              <span style="width:6px; height:6px; border-radius:50%; background:#22c55e; flex-shrink:0;"></span>
-              <span style="font-size:12px; font-weight:700; color:#111;">${escHtml(p.nama_lengkap)}</span>
-              <span style="font-size:10.5px; color:var(--ink-soft);">${escHtml(ROLE_LABELS[p.role]||p.role)} · ${escHtml(lokasiOf(p))}</span>
-            </div>`).join('')}
+          ${awal.map(chipHtml).join('')}
         </div>
+        ${sisa.length ? `
+        <div id="onlineUsersSisa" style="display:none; flex-wrap:wrap; gap:8px; margin-top:8px; max-height:220px; overflow-y:auto;">
+          ${sisa.map(chipHtml).join('')}
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="ONLINE_toggleSisa(this)">Lihat ${sisa.length} lainnya ↓</button>
+        ` : ''}
       </div>`;
+    window.ONLINE_toggleSisa = (btn) => {
+      const el2 = document.getElementById('onlineUsersSisa');
+      if (!el2) return;
+      const buka = el2.style.display === 'none';
+      el2.style.display = buka ? 'flex' : 'none';
+      btn.textContent = buka ? 'Sembunyikan ↑' : `Lihat ${sisa.length} lainnya ↓`;
+    };
   } catch(e) { el.innerHTML = ''; /* diam-diam gagal, jangan ganggu dashboard */ }
 }
 
