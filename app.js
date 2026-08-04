@@ -487,6 +487,10 @@ async function renderPublicForm(jenis, scope) {
   }
   renderFormBody();
 
+  window.PF_isiLagi = () => {
+    renderFormBody();
+  };
+
   window.PF_onKategoriChange = () => {
     const grp = document.getElementById('pfKategori').value;
     const sel = document.getElementById('pfDapukan');
@@ -534,6 +538,7 @@ async function renderPublicForm(jenis, scope) {
         <div style="font-size:40px; margin-bottom:10px;">✅</div>
         <h1 class="login-title" style="font-size:18px;">Data Terkirim</h1>
         <p class="login-subtitle">Terima kasih. Data yang dikirim akan diperiksa oleh pengurus ${escHtml(scopeNama)} sebelum masuk ke sistem.</p>
+        <button class="btn-primary" style="width:100%; margin-top:14px;" onclick="PF_isiLagi()">+ Isi Data Baru</button>
       </div>`;
     } catch(e) {
       document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Gagal mengirim: ${escHtml(e.message)}</div>`;
