@@ -163,6 +163,13 @@ function toTitleCase(str) {
   if (!str) return '';
   return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
+// Tombol bulat WhatsApp — dipakai di Data Pengurus, Kelola Pengguna, dst. Butuh objek dengan .no_hp atau .wa_link
+function waBtn(p) {
+  const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
+  return waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; background:#25d366; border-radius:50%; flex-shrink:0;" title="WhatsApp">
+    <svg viewBox="0 0 24 24" fill="#fff" width="14" height="14"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
+  </a>` : '';
+}
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'});
@@ -1055,6 +1062,10 @@ function WIZ_resetWizard() {
         <label>Kata Sandi</label>
         <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
       </div>
+      <div class="field">
+        <label>No. HP / WhatsApp</label>
+        <input type="tel" inputmode="numeric" id="regNoHp" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
       <div style="display:flex; gap:8px; margin-top:4px;">
         <button class="btn-outline" style="flex:1;" onclick="WIZ_back(3)">\u2190 Kembali</button>
         <button class="btn-primary" style="flex:2;" id="regBtn" onclick="doRegister()">Daftar Sekarang</button>
@@ -1065,6 +1076,7 @@ function WIZ_resetWizard() {
     document.getElementById('regNama').value = '';
     document.getElementById('regUser').value = '';
     document.getElementById('regPass').value = '';
+    document.getElementById('regNoHp').value = '';
     const wizAlert = document.getElementById('wizAlert');
     if (wizAlert) wizAlert.innerHTML = '';
   }
@@ -1080,14 +1092,18 @@ async function doRegister() {
   const namaLengkap = document.getElementById('regNama').value.trim();
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
+  const noHp = document.getElementById('regNoHp').value.trim();
   const alertEl = document.getElementById('wizAlert') || document.getElementById('loginAlert');
   if (alertEl) alertEl.innerHTML = '';
 
   if (!WIZ_STATE.jabatan) {
     alertEl.innerHTML = '<div class="alert error">Pilih jenis akun terlebih dahulu.</div>'; return;
   }
-  if (!namaLengkap || !username || !password) {
+  if (!namaLengkap || !username || !password || !noHp) {
     alertEl.innerHTML = '<div class="alert error">Semua field wajib diisi.</div>'; return;
+  }
+  if (noHp.length < 8) {
+    alertEl.innerHTML = '<div class="alert error">Masukkan nomor HP yang valid.</div>'; return;
   }
   if (password.length < 6) {
     alertEl.innerHTML = '<div class="alert error">Kata sandi minimal 6 karakter.</div>'; return;
@@ -1125,6 +1141,7 @@ async function doRegister() {
       kelompok_id: WIZ_STATE.kelompokId || null,
       desa_id: DESA_ID_MAP[WIZ_STATE.desaId] || WIZ_STATE.desaId || null,
       jabatan: jabatanLengkap,
+      no_hp: noHp,
     });
 
     // Register selalu berhasil (data masuk meski Supabase return 409)
@@ -8304,13 +8321,6 @@ async function renderPengurus() {
   }
   if (isAdmin || u.role === 'daerah') {
     pendingHtml += await renderPendingSection('pengurus', 'daerah', null, FORM_CONFIGS.pengurus, buildPengurusApproveFn('daerah', null));
-  }
-
-  function waBtn(p) {
-    const waLink = p.wa_link || (p.no_hp ? 'https://wa.me/62'+p.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'') : '');
-    return waLink ? `<a href="${escHtml(waLink)}" target="_blank" style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; background:#25d366; border-radius:50%; flex-shrink:0;" title="WhatsApp">
-      <svg viewBox="0 0 24 24" fill="#fff" width="14" height="14"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
-    </a>` : '';
   }
 
   function renderTable(list, title, showEdit, editMode) {

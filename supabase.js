@@ -103,6 +103,15 @@ const sbUsers = {
         p_desa_id: data.desa_id || null,
       })
     });
+    // No. HP belum didukung oleh RPC daftar_anggota (fungsi lama) — kirim lewat
+    // PATCH terpisah begitu barisnya sudah kebuat, dicocokkan lewat username.
+    if (data.no_hp) {
+      try {
+        await sbFetch(`anggota?username=eq.${encodeURIComponent(data.username)}`, {
+          method: 'PATCH', body: JSON.stringify({ no_hp: data.no_hp }),
+        });
+      } catch(e) { /* diamkan — kalaupun gagal, pop-up wajib saat login pertama tetap jadi jaring pengaman */ }
+    }
     // Tidak cek response status — data sudah masuk
     return null;
   },
