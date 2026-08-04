@@ -10628,8 +10628,15 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   };
 
   window.KONFIG_tambahDariDesa = () => {
-    ['Kyai', 'PJP KBM', 'PJP SarPras'].forEach(d => selectedDapukan.add(d));
+    const targetDapukan = ['Kyai', 'PJP KBM', 'PJP SarPras'];
+    const belumAda = targetDapukan.filter(d => !options.includes(d));
+    targetDapukan.forEach(d => selectedDapukan.add(d));
     renderKonfig();
+    if (belumAda.length) {
+      showToast(`Ditambahkan ke pilihan ✓ (tapi ${belumAda.join(', ')} belum ada orangnya di Data Pengurus desa manapun, jadi belum muncul di daftar/absensi sampai diisi)`, true);
+    } else {
+      showToast('Kyai, PJP KBM, PJP SarPras ditambahkan ke pilihan ✓');
+    }
   };
 
   window.KONFIG_simpan = async () => {
