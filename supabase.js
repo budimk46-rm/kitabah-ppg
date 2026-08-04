@@ -83,7 +83,7 @@ async function hashPassword(plain) {
 
 // ============ USERS ============
 const sbUsers = {
-  getAll: () => sbFetch('anggota?select=id,username,password_hash,nama_lengkap,role,jabatan,status,kelompok_id,desa_id,akses_menu,akses_lintas,created_at&order=created_at.asc'),
+  getAll: () => sbFetch('anggota?select=id,username,password_hash,nama_lengkap,role,jabatan,status,kelompok_id,desa_id,akses_menu,akses_lintas,no_hp,created_at&order=created_at.asc'),
   getPending: () => sbFetch('anggota?status=eq.pending&select=id,username,nama_lengkap,role,kelompok_id,desa_id,created_at&order=created_at.asc'),
   approve: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) }),
   reject: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),

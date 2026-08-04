@@ -685,6 +685,46 @@ async function openSantriApprovalModal(data, sub, kelompokId) {
   openModal('santriApprovalModal');
 }
 
+/* ===== POP-UP WAJIB LENGKAPI NO. HP (saat login, kalau belum ada) ===== */
+function showWajibNoHpModal() {
+  let el = document.getElementById('wajibNoHpModal');
+  if (!el) { el = document.createElement('div'); el.id = 'wajibNoHpModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="modal" style="max-width:420px;">
+    <div class="modal-head"><h3 class="modal-title">📱 Lengkapi No. HP</h3></div>
+    <div class="modal-body">
+      <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
+        Sebelum lanjut, mohon lengkapi nomor HP/WhatsApp kamu — dipakai admin untuk menghubungi kalau diperlukan.
+      </div>
+      <div class="form-group">
+        <label>No. HP / WhatsApp *</label>
+        <input type="tel" inputmode="numeric" id="wajibNoHp" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-green" id="wajibNoHpSaveBtn" style="width:100%;">Simpan & Lanjutkan</button>
+    </div>
+  </div>`;
+
+  document.getElementById('wajibNoHpSaveBtn').onclick = async () => {
+    const hp = document.getElementById('wajibNoHp').value.trim();
+    if (!hp || hp.length < 8) { showToast('Masukkan nomor HP yang valid', true); return; }
+    const btn = document.getElementById('wajibNoHpSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      await SB.anggota.update(App.user.id, { no_hp: hp });
+      App.user.no_hp = hp;
+      saveSession(App.user);
+      closeModal('wajibNoHpModal');
+      showShell();
+    } catch(e) {
+      showToast('Gagal menyimpan: ' + e.message, true);
+      btn.disabled = false; btn.textContent = 'Simpan & Lanjutkan';
+    }
+  };
+
+  openModal('wajibNoHpModal');
+}
+
 async function doLogin() {
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
@@ -700,7 +740,7 @@ async function doLogin() {
     const user = await SB.login(username, password);
     saveSession(user);
     logActivity('login', 'Login', `${user.nama_lengkap} (${ROLE_LABELS[user.role]||user.role}) login`);
-    showShell();
+    if (!user.no_hp) showWajibNoHpModal(); else showShell();
   } catch(e) {
     if (e.message === 'PENDING') {
       showPending(username, username);
@@ -2144,10 +2184,11 @@ async function renderUsers() {
         <td>${badge(u.status)}</td>
         <td style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(u.created_at)}</td>
         <td>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:6px; align-items:center;">
             ${u.status === 'pending' ? `
               <button class="btn btn-green btn-sm" onclick="USR_approve('${u.id}')">Setujui</button>
               <button class="btn btn-danger btn-sm" onclick="USR_reject('${u.id}')">Tolak</button>` : ''}
+            ${u.status !== 'pending' ? waBtn(u) : ''}
             ${u.status !== 'pending' ? `
               <button class="btn-icon" onclick="USR_editData('${u.id}')" title="Edit Data">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
@@ -2229,6 +2270,7 @@ async function renderUsers() {
         <div class="form-group"><label>Nama Lengkap</label><input id="eudNama" value="${escHtml(target.nama_lengkap||'')}"></div>
         <div class="form-group"><label>Username</label><input id="eudUsername" value="${escHtml(target.username||'')}"></div>
         <div class="form-group"><label>Dapukan / Jabatan</label><input id="eudJabatan" value="${escHtml(target.jabatan||'')}"></div>
+        <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="eudNoHp" value="${escHtml(target.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Ganti username berarti user harus login pakai username baru mulai sekarang. Pastikan sudah diinfokan ke yang bersangkutan.</div>
       </div>
       <div class="modal-foot">
@@ -2241,13 +2283,14 @@ async function renderUsers() {
       const nama = document.getElementById('eudNama').value.trim();
       const username = document.getElementById('eudUsername').value.trim();
       const jabatan = document.getElementById('eudJabatan').value.trim();
+      const noHp = document.getElementById('eudNoHp').value.trim();
       if (!nama || !username) { showToast('Nama dan Username wajib diisi', true); return; }
 
       const btn = document.getElementById('eudSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
-        await SB.anggota.update(target.id, { nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null });
-        target.nama_lengkap = toTitleCase(nama); target.username = username; target.jabatan = jabatan || null;
+        await SB.anggota.update(target.id, { nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null, no_hp: noHp || null });
+        target.nama_lengkap = toTitleCase(nama); target.username = username; target.jabatan = jabatan || null; target.no_hp = noHp || null;
         logActivity('ubah', 'Kelola Pengguna', `Edit data user: ${target.nama_lengkap}`);
         showToast('Data tersimpan');
         closeModal('editUserModal');
@@ -13619,7 +13662,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const session = loadSession();
   if (session) {
     App.user = session;
-    showShell();
+    if (!session.no_hp) showWajibNoHpModal(); else showShell();
   } else {
     showLogin();
   }
