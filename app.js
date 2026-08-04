@@ -6319,16 +6319,16 @@ async function renderDataJamaah() {
   return renderJamaahRekap();
 }
 
-function hitungLansia(tglLahir) {
+function hitungIstimewa(tglLahir) {
   if (!tglLahir) return false;
   return hitungUsia(tglLahir) >= 60;
 }
 
-const KATEGORI_JAMAAH_ORDER = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja','Pra Nikah','Dewasa','Lansia','Belum Diketahui'];
+const KATEGORI_JAMAAH_ORDER = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja','Pra Nikah','Dewasa','Istimewa','Belum Diketahui'];
 function kategoriUsiaJamaah(tglLahir, statusMenikah) {
   if (!tglLahir) return 'Belum Diketahui';
   const usia = hitungUsia(tglLahir);
-  if (usia >= 60) return 'Lansia'; // Lansia selalu menang, apapun status nikahnya
+  if (usia >= 60) return 'Istimewa'; // Istimewa selalu menang, apapun status nikahnya
   if (statusMenikah === 'menikah') return 'Dewasa'; // sudah menikah = Dewasa, berapapun usianya
   if (usia < 4) return 'Bayi';
   if (usia <= 6) return 'PAUD/TK';
@@ -6351,7 +6351,7 @@ function jamaahKategoriTableHtml(list) {
   const rows = KATEGORI_JAMAAH_ORDER.map(kat => {
     const c = counts[kat] || { L:0, P:0 };
     if (kat === 'Belum Diketahui' && !c.L && !c.P) return '';
-    return `<tr style="border-bottom:1px solid var(--line); ${kat==='Lansia'?'background:var(--gold-soft);':''}">
+    return `<tr style="border-bottom:1px solid var(--line); ${kat==='Istimewa'?'background:var(--gold-soft);':''}">
       <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(kat)}</td>
       <td style="padding:6px 10px; text-align:center; font-size:12px; color:#2563eb; font-weight:700;">${c.L}</td>
       <td style="padding:6px 10px; text-align:center; font-size:12px; color:#db2777; font-weight:700;">${c.P}</td>
@@ -6441,7 +6441,7 @@ async function renderJamaahEntry() {
                 <td style="padding:7px 10px; font-size:13px; font-weight:600;">${escHtml(x.nama)}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${escHtml(x.jenis_kelamin||'-')}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'}</td>
-                <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Lansia'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Lansia'?'700':'500'};">${escHtml(kat)}</td>
+                <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Istimewa'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Istimewa'?'700':'500'};">${escHtml(kat)}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.keterangan||'-')}</td>
                 <td style="padding:7px 10px; text-align:center;">
@@ -6476,7 +6476,7 @@ async function renderJamaahEntry() {
 
   async function openJamaahModal(existing) {
     const kategori = existing ? kategoriUsiaJamaah(existing.tgl_lahir, existing.status_menikah) : null;
-    const showKeluarga = existing && (kategori === 'Dewasa' || kategori === 'Lansia');
+    const showKeluarga = existing && (kategori === 'Dewasa' || kategori === 'Istimewa');
     let linkedIds = new Set();
     if (showKeluarga) {
       const links = await SB.jamaahKeluarga.getByJamaah(existing.id) || [];
@@ -6507,7 +6507,7 @@ async function renderJamaahEntry() {
                 <input type="checkbox" class="jmhAnak" value="${s.id}" ${linkedIds.has(s.id)?'checked':''}> ${escHtml(s.nama)}
               </label>`).join('') : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada data santri di kelompok ini.</div>'}
           </div>
-        </div>` : (existing ? `<div style="font-size:11.5px; color:var(--ink-soft);">Penautan anak cuma tersedia untuk jamaah kategori Dewasa/Lansia.</div>` : '')}
+        </div>` : (existing ? `<div style="font-size:11.5px; color:var(--ink-soft);">Penautan anak cuma tersedia untuk jamaah kategori Dewasa/Istimewa.</div>` : '')}
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('jamaahModal')">Batal</button>
@@ -6576,8 +6576,8 @@ async function renderJamaahRekap() {
       total: list.length,
       L: list.filter(x => x.jenis_kelamin === 'L').length,
       P: list.filter(x => x.jenis_kelamin === 'P').length,
-      lansiaL: list.filter(x => x.jenis_kelamin === 'L' && hitungLansia(x.tgl_lahir)).length,
-      lansiaP: list.filter(x => x.jenis_kelamin === 'P' && hitungLansia(x.tgl_lahir)).length,
+      lansiaL: list.filter(x => x.jenis_kelamin === 'L' && hitungIstimewa(x.tgl_lahir)).length,
+      lansiaP: list.filter(x => x.jenis_kelamin === 'P' && hitungIstimewa(x.tgl_lahir)).length,
     };
   }
 
@@ -6586,8 +6586,8 @@ async function renderJamaahRekap() {
       <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--green);">${c.total}</div><div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div></div>
       <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#2563eb;">${c.L}</div><div style="font-size:11px; color:var(--ink-soft);">Laki-laki</div></div>
       <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#db2777;">${c.P}</div><div style="font-size:11px; color:var(--ink-soft);">Perempuan</div></div>
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaL}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia L</div></div>
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaP}</div><div style="font-size:11px; color:var(--ink-soft);">Lansia P</div></div>
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaL}</div><div style="font-size:11px; color:var(--ink-soft);">Istimewa L</div></div>
+      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaP}</div><div style="font-size:11px; color:var(--ink-soft);">Istimewa P</div></div>
     </div>`;
   }
 
@@ -6611,8 +6611,8 @@ async function renderJamaahRekap() {
           <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:var(--green);">Kelompok</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">L</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">P</th>
-          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Lansia L</th>
-          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Lansia P</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Istimewa L</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Istimewa P</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -6629,7 +6629,7 @@ async function renderJamaahRekap() {
     bodyHtml = `
       <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>
       <div class="card">
-        <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail Lansia per Kelompok</button>
+        <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail Istimewa per Kelompok</button>
         ${detailPerKelompokHtml(kelompokScope, 'jmhDetailDesa')}
       </div>`;
   } else {
@@ -6643,7 +6643,7 @@ async function renderJamaahRekap() {
       return `<div class="card" style="margin-bottom:12px;">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div class="fw-bold color-green" style="font-size:13.5px;">🏘️ ${escHtml(DESA_NAMA_MAP[did]||did)}</div>
-          <div style="font-size:12px; color:var(--ink-soft);">L: <b>${c.L}</b> · P: <b>${c.P}</b> · Lansia L: <b style="color:var(--gold);">${c.lansiaL}</b> · Lansia P: <b style="color:var(--gold);">${c.lansiaP}</b></div>
+          <div style="font-size:12px; color:var(--ink-soft);">L: <b>${c.L}</b> · P: <b>${c.P}</b> · Istimewa L: <b style="color:var(--gold);">${c.lansiaL}</b> · Istimewa P: <b style="color:var(--gold);">${c.lansiaP}</b></div>
         </div>
         <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="JMH_toggleDetail('${idp}')">📋 Detail per Kelompok</button>
         ${detailPerKelompokHtml(klpList, idp)}
