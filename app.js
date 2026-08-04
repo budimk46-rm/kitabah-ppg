@@ -4865,6 +4865,7 @@ async function renderDataBK() {
   // Load data per kelompok
   const bkData = {}; // klpId → [{santri, kelas, pct, h, total}]
   const pertemuanCount = {}; // klpId → total pertemuan bulan ini (semua kelas, apapun hasil BK-nya)
+  const pertemuanDetail = {}; // klpId → [{namaKelas, jenjang, count}] rincian per kelas
   async function loadBKData(bulan) {
     // Fase 1: kumpulkan kelas + pertemuan + santri per kelompok (paralel, belum ambil absensi)
     const klpMeta = await Promise.all(kelompokList.map(async klp => {
@@ -4894,6 +4895,7 @@ async function renderDataBK() {
     klpMeta.forEach(({ klp, kelasMeta }) => {
       bkData[klp.id] = [];
       pertemuanCount[klp.id] = kelasMeta.reduce((sum, m) => sum + m.ptList.length, 0);
+      pertemuanDetail[klp.id] = kelasMeta.map(m => ({ namaKelas: m.kls.nama_kelas || m.kls.jenjang, jenjang: m.kls.jenjang, count: m.ptList.length }));
       kelasMeta.forEach(({ kls, ptList, santriList }) => {
         santriList.forEach(s => {
           let h = 0;
@@ -4975,7 +4977,7 @@ async function renderDataBK() {
               <th style="color:#fff; padding:6px; font-size:11px; width:30px;">No</th>
               <th style="color:#fff; padding:6px 8px; font-size:11px; text-align:left;">Nama</th>
               <th style="color:#fff; padding:6px; font-size:11px; text-align:center;">L/P</th>
-              <th style="color:#fff; padding:6px; font-size:11px; text-align:center;">Ptm</th>
+              <th style="color:#fff; padding:6px; font-size:11px; text-align:center;">Pertemuan KBM</th>
               <th style="color:#fff; padding:6px 8px; font-size:11px; text-align:center;">Kehadiran</th>
             </tr></thead>
             <tbody>${list.map((d, i) => `<tr style="border-bottom:1px solid var(--line);">
@@ -5009,13 +5011,27 @@ async function renderDataBK() {
           const kL = kb.filter(d => d.santri.jenis_kel === 'L').length;
           const kP = kb.filter(d => d.santri.jenis_kel === 'P').length;
           const ptmCount = pertemuanCount[k.id] || 0;
+          const detail = pertemuanDetail[k.id] || [];
+          const detailId = 'bkPtmDetail_' + k.id;
           return `<tr style="border-bottom:1px solid var(--line);">
             <td style="padding:6px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(k.nama)}</td>
-            <td style="padding:6px 8px; text-align:center; font-size:12px; color:${ptmCount?'#111':'var(--ink-soft)'};">${ptmCount ? ptmCount+'x' : '<i>belum ada</i>'}</td>
+            <td style="padding:6px 8px; text-align:center; font-size:12px; color:${ptmCount?'#111':'var(--ink-soft)'};">
+              <span style="display:inline-flex; align-items:center; gap:4px; cursor:${detail.length?'pointer':'default'};" ${detail.length ? `onclick="BK_togglePtmDetail('${detailId}', this)"` : ''}>
+                ${ptmCount ? ptmCount+'x' : '<i>belum ada</i>'}
+                ${detail.length ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10" style="transition:transform .15s;"><polyline points="6 9 12 15 18 9"/></svg>' : ''}
+              </span>
+            </td>
             <td style="padding:6px 8px; text-align:center; font-size:13px; font-weight:700; color:${!ptmCount ? 'var(--ink-soft)' : (kb.length?'var(--rose)':'var(--green)')};">${!ptmCount ? '—' : (kb.length || '✅')}</td>
             <td style="padding:6px 8px; text-align:center; font-size:12px; color:#1a6b3a; font-weight:700;">${kL||'—'}</td>
             <td style="padding:6px 8px; text-align:center; font-size:12px; color:#a6483b; font-weight:700;">${kP||'—'}</td>
-          </tr>`;
+          </tr>
+          ${detail.length ? `<tr id="${detailId}" style="display:none;"><td colspan="5" style="padding:0; background:var(--cream-2);">
+            <div style="padding:8px 16px;">
+              ${detail.map(d => `<div style="display:flex; justify-content:space-between; font-size:11.5px; padding:3px 0; color:var(--ink-soft);">
+                <span>${escHtml(d.namaKelas)}</span><span style="font-weight:700;">${d.count}x</span>
+              </div>`).join('')}
+            </div>
+          </td></tr>` : ''}`;
         }).join('');
 
         return `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
@@ -5026,7 +5042,7 @@ async function renderDataBK() {
           <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
             <thead><tr style="background:var(--rose);">
               <th style="padding:6px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
-              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">Ptm</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">Pertemuan KBM</th>
               <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">BK</th>
               <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">L</th>
               <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">P</th>
@@ -5047,7 +5063,7 @@ async function renderDataBK() {
       </div>
 
       <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--green); line-height:1.6;">
-        ℹ️ Persentase dihitung dari jumlah pertemuan yang <b>sudah dilaksanakan</b> bulan ini (kolom "Ptm"), bukan dari target sebulan penuh. Kalau bulan berjalan baru mulai dan pertemuannya masih sedikit, angka persentase belum tentu mencerminkan pola kehadiran sebenarnya — perhatikan juga kolom "Ptm" sebelum menyimpulkan.
+        ℹ️ Persentase dihitung dari jumlah pertemuan yang <b>sudah dilaksanakan</b> bulan ini (kolom "Pertemuan KBM"), bukan dari target sebulan penuh. Kalau bulan berjalan baru mulai dan pertemuannya masih sedikit, angka persentase belum tentu mencerminkan pola kehadiran sebenarnya — perhatikan juga kolom "Pertemuan KBM" sebelum menyimpulkan.
       </div>
 
       <div class="stat-grid" style="margin-bottom:16px;">
@@ -5061,6 +5077,15 @@ async function renderDataBK() {
       ${contentHtml}
     `;
   }
+
+  window.BK_togglePtmDetail = (id, el) => {
+    const row = document.getElementById(id);
+    if (!row) return;
+    const buka = row.style.display === 'none';
+    row.style.display = buka ? 'table-row' : 'none';
+    const arrow = el.querySelector('svg');
+    if (arrow) arrow.style.transform = buka ? 'rotate(180deg)' : 'rotate(0deg)';
+  };
 
   window.BK_setBulan = async (b) => {
     selectedBulan = b;
