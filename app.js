@@ -9337,10 +9337,11 @@ async function renderMusyawarah() {
 
       if (level === 'ppg_daerah') {
         allPeserta = await SB.musPeserta.getByDaerah() || [];
-        const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
-        for (const dn of DESA_NAMES) {
-          const dp = await SB.musPeserta.getByDesa(dn) || [];
-          allPeserta = [...allPeserta, ...dp];
+        // Data lama pakai NAMA desa, data baru (lewat Data Pengurus) pakai KODE (D1-D6) — cari dua-duanya
+        const DESA_NAMA_MAP2 = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+        for (const [kode, nama] of Object.entries(DESA_NAMA_MAP2)) {
+          const [dp1, dp2] = await Promise.all([SB.musPeserta.getByDesa(kode), SB.musPeserta.getByDesa(nama)]);
+          allPeserta = [...allPeserta, ...(dp1||[]), ...(dp2||[])];
         }
 
       } else if (level === 'pjp_desa') {
@@ -10543,10 +10544,18 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   try {
     if (levelMus === 'ppg_daerah') {
       allPesertaForKonfig = await SB.musPeserta.getByDaerah() || [];
-      // Juga ambil dapukan dari semua desa
-      const DESA_NAMES = ['Desa Barat 1','Desa Barat 2','Desa Tengah 1','Desa Tengah 2','Desa Timur 1','Desa Timur 2'];
-      const desaResults = await Promise.all(DESA_NAMES.map(dn => SB.musPeserta.getByDesa(dn)));
-      desaResults.filter(Boolean).forEach(dp => { allPesertaForKonfig = [...allPesertaForKonfig, ...dp]; });
+      // Juga ambil dapukan dari semua desa — data lama tersimpan pakai NAMA desa,
+      // data baru (lewat Data Pengurus) pakai KODE desa (D1-D6). Cari dua-duanya.
+      const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+      const desaResults = await Promise.all(Object.entries(DESA_NAMA_MAP).flatMap(([kode, nama]) => [
+        SB.musPeserta.getByDesa(kode), SB.musPeserta.getByDesa(nama),
+      ]));
+      const seenDesa = new Set();
+      desaResults.filter(Boolean).flat().forEach(p => {
+        if (seenDesa.has(p.id)) return;
+        seenDesa.add(p.id);
+        allPesertaForKonfig.push(p);
+      });
     } else if (levelMus === 'pjp_desa') {
       // Hanya desa sendiri + kelompok di desa sendiri
       const myDesaId = desaId || u.desa_id;
