@@ -6688,9 +6688,19 @@ async function renderJamaahRekap() {
     if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
   };
 
-  let bodyHtml = '';
+  // Total se-daerah — selalu dihitung dari SEMUA kelompok (bukan cuma scope si viewer),
+  // supaya Desa pun tetap bisa lihat gambaran besar seluruh daerah.
+  const allKelompokIds = (App.cache.kelompok || []).map(k => k.id);
+  const cSeDaerah = (isAdmin || isDaerah) ? hitung(allJamaah) : hitung(await SB.jamaah.getByKelompokIds(allKelompokIds) || []);
+  const totalSeDaerahHtml = `<div class="card" style="margin-bottom:14px; text-align:center; padding:18px;">
+    <div style="font-size:11.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">Total Jamaah Se-Daerah</div>
+    <div style="font-size:30px; font-weight:800; color:var(--green); margin-bottom:6px;">${cSeDaerah.total}</div>
+    <div style="font-size:13px; color:#000;">L: <b style="color:#000;">${cSeDaerah.L}</b> &nbsp;·&nbsp; P: <b style="color:#000;">${cSeDaerah.P}</b></div>
+  </div>`;
+
+  let bodyHtml = totalSeDaerahHtml;
   if (isDesa) {
-    bodyHtml = `
+    bodyHtml += `
       <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>
       <div class="card">
         <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail Istimewa per Kelompok</button>
@@ -6701,7 +6711,7 @@ async function renderJamaahRekap() {
     const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
     const byDesa = {};
     kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
-    bodyHtml = `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>` + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
+    bodyHtml += `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>` + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
       const c = hitung(allJamaah.filter(x => klpList.some(k => k.id === x.kelompok_id)));
       const idp = 'jmhDetail_' + did;
       return `<div class="card" style="margin-bottom:12px;">
