@@ -5039,6 +5039,10 @@ async function renderDataBK() {
         </div>
       </div>
 
+      <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--green); line-height:1.6;">
+        ℹ️ Persentase dihitung dari jumlah pertemuan yang <b>sudah dilaksanakan</b> bulan ini (kolom "Ptm"), bukan dari target sebulan penuh. Kalau bulan berjalan baru mulai dan pertemuannya masih sedikit, angka persentase belum tentu mencerminkan pola kehadiran sebenarnya — perhatikan juga kolom "Ptm" sebelum menyimpulkan.
+      </div>
+
       <div class="stat-grid" style="margin-bottom:16px;">
         <div class="stat-card"><div class="stat-num" style="color:var(--rose);">${totalAll}</div><div class="stat-label">Total BK</div></div>
         <div class="stat-card"><div class="stat-num" style="color:#1a6b3a;">${totalL}</div><div class="stat-label">Laki-laki</div></div>
