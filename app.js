@@ -9297,8 +9297,10 @@ async function renderMusyawarah() {
   let musInlineAbsensi = {}; // peserta_id → status
   let musInlineTamu = []; // [{nama, jabatan, no_hp}]
   let musInlinePeserta = []; // daftar peserta tetap
+  let musInlineLevel = null;
 
   window.MUS_loadAbsensiInline = async (level) => {
+    musInlineLevel = level;
     const absensiArea = document.getElementById('musAbsensiArea');
     const notulensiArea = document.getElementById('musNotulensiArea');
     const saveBtn = document.getElementById('musSaveInline');
@@ -9412,17 +9414,30 @@ async function renderMusyawarah() {
     // Kelompokkan peserta berdasarkan kelompok_id / desa_id / daerah
     if (!App.cache.kelompok) App.cache.kelompok = [];
     const groups = {};
-    musInlinePeserta.forEach(p => {
-      let groupKey = 'Lainnya';
-      if (p.level_daerah) groupKey = '🏛️ Pengurus Daerah';
-      else if (p.desa_id && !p.kelompok_id) groupKey = '🏘️ ' + (p.desa_id || 'Desa');
-      else if (p.kelompok_id) {
-        const klp = (App.cache.kelompok||[]).find(k => k.id === p.kelompok_id);
-        groupKey = '👥 ' + (klp?.nama || p.kelompok_id);
-      }
-      if (!groups[groupKey]) groups[groupKey] = [];
-      groups[groupKey].push(p);
-    });
+    if (musInlineLevel === 'ppg_daerah') {
+      // Khusus Musyawarah PPG Daerah: 3 bagian sesuai struktur Data Pengurus,
+      // sudah terurut (Unsur Daerah -> Unsur Desa -> Unsur PPG)
+      urutkanPesertaDaerah(musInlinePeserta).forEach(p => {
+        const rank = rankPesertaDaerah(p);
+        const groupKey = rank[0] === 0 ? '🏛️ Unsur Daerah'
+          : rank[0] === 1 ? '🏘️ Unsur Desa'
+          : rank[0] === 2 ? '📋 Unsur PPG'
+          : '📌 Lainnya';
+        (groups[groupKey] ||= []).push(p);
+      });
+    } else {
+      musInlinePeserta.forEach(p => {
+        let groupKey = 'Lainnya';
+        if (p.level_daerah) groupKey = '🏛️ Pengurus Daerah';
+        else if (p.desa_id && !p.kelompok_id) groupKey = '🏘️ ' + (p.desa_id || 'Desa');
+        else if (p.kelompok_id) {
+          const klp = (App.cache.kelompok||[]).find(k => k.id === p.kelompok_id);
+          groupKey = '👥 ' + (klp?.nama || p.kelompok_id);
+        }
+        if (!groups[groupKey]) groups[groupKey] = [];
+        groups[groupKey].push(p);
+      });
+    }
 
     let html = '';
     for (const [group, members] of Object.entries(groups)) {
@@ -10593,6 +10608,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
           Centang dapukan yang <b>wajib hadir</b> di musyawarah ini. Peserta dengan dapukan yang dicentang akan otomatis muncul di form absensi.
         </div>
+        ${levelMus === 'ppg_daerah' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="KONFIG_tambahDariDesa()">+ Tambah Dapukan dari Level Desa (Kyai, PJP KBM, PJP SarPras)</button>` : ''}
         <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">Dipilih: ${selectedDapukan.size} dapukan</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px;">
           ${checkboxes}
@@ -10608,6 +10624,11 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   window.KONFIG_toggle = (dapukan) => {
     if (selectedDapukan.has(dapukan)) selectedDapukan.delete(dapukan);
     else selectedDapukan.add(dapukan);
+    renderKonfig();
+  };
+
+  window.KONFIG_tambahDariDesa = () => {
+    ['Kyai', 'PJP KBM', 'PJP SarPras'].forEach(d => selectedDapukan.add(d));
     renderKonfig();
   };
 
