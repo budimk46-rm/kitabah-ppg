@@ -1268,6 +1268,7 @@ const NAV_ITEMS = {
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
+    { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah', section: 'LAPORAN' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
@@ -1594,6 +1595,7 @@ function getQuickMenuItems() {
     { page: 'santri', emoji: '👥', label: 'Data Santri', roles: ['admin','kelompok','pjp_kelompok','desa'] },
     { page: 'rekap', emoji: '📊', label: 'Rekap KBM', roles: ['admin','kelompok','pjp_kelompok','wali_kbm'] },
     { page: 'sarpras', emoji: '📦', label: 'Data Sarpras', roles: ['kelompok','pjp_kelompok','desa'] },
+    { page: 'data_jamaah', emoji: '🕌', label: 'Data Jamaah', roles: ['kelompok','pjp_kelompok','desa','daerah','admin'] },
     { page: 'musyawarah', emoji: '💬', label: 'Musyawarah', roles: ['kelompok','pjp_kelompok','guru','desa'] },
     { page: 'rekap_desa', emoji: '🏡', label: 'Rekap Desa', roles: ['admin','desa'] },
     { page: 'monitor_mus', emoji: '📋', label: 'Monitoring Musyawarah', roles: ['desa'] },
@@ -6337,7 +6339,7 @@ async function renderUserTidakAktif() {
 /* ===== PAGE: DATA JAMAAH ===== */
 async function renderDataJamaah() {
   const u = App.user;
-  if (u.role === 'pjp_kelompok') return renderJamaahEntry();
+  if (u.role === 'pjp_kelompok' || u.role === 'kelompok') return renderJamaahEntry();
   return renderJamaahRekap();
 }
 
@@ -6395,6 +6397,7 @@ function jamaahKategoriTableHtml(list) {
 async function renderJamaahEntry() {
   const main = document.getElementById('mainContent');
   const u = App.user;
+  const canEdit = u.role === 'pjp_kelompok';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
@@ -6402,14 +6405,14 @@ async function renderJamaahEntry() {
   const linkedSet = new Set((await SB.jamaahKeluarga.getBySantriIds(santriKlp.map(s => s.id)) || []).map(r => r.santri_id));
   const santriBelumTertaut = santriKlp.filter(s => !linkedSet.has(s.id));
 
-  const pendingHtml = await renderPendingSection('jamaah', 'kelompok', u.kelompok_id, FORM_CONFIGS.jamaah, async (data) => {
+  const pendingHtml = canEdit ? await renderPendingSection('jamaah', 'kelompok', u.kelompok_id, FORM_CONFIGS.jamaah, async (data) => {
     await SB.jamaah.insert({
       kelompok_id: u.kelompok_id, nama: toTitleCase(data.nama||''), jenis_kelamin: data.jenis_kelamin || null,
       tgl_lahir: data.tgl_lahir || null, status_menikah: data.status_menikah || null,
       no_hp: data.no_hp || null, keterangan: data.keterangan || null, aktif: true,
     });
     return true;
-  });
+  }) : '';
 
   function render() {
     main.innerHTML = `
@@ -6418,10 +6421,10 @@ async function renderJamaahEntry() {
           <h1 class="page-title">Data Jamaah</h1>
           <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Sensus keluarga lengkap kelompok — dasar data absensi Pengajian Kelompok</p>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        ${canEdit ? `<div style="display:flex; gap:8px; flex-wrap:wrap;">
           ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
           <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>
-        </div>
+        </div>` : ''}
       </div>
 
       ${pendingHtml}
@@ -6454,7 +6457,7 @@ async function renderJamaahEntry() {
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">No. HP</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Keterangan</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:90px;">Generus</th>
-            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>
+            ${canEdit ? '<th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>' : ''}
           </tr></thead>
           <tbody>
             ${list.map(x => {
@@ -6470,16 +6473,16 @@ async function renderJamaahEntry() {
                 <td style="padding:7px 10px; text-align:center;">
                   ${x.santri_id
                     ? '<span style="font-size:10.5px; font-weight:700; color:var(--green);">✅ Generus</span>'
-                    : (['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
+                    : (canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
                         ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_jadikanSantri('${x.id}')">Jadikan Santri</button>`
                         : '<span style="font-size:11px; color:var(--ink-soft);">-</span>')}
                 </td>
-                <td style="padding:7px 10px; text-align:center;">
+                ${canEdit ? `<td style="padding:7px 10px; text-align:center;">
                   <div style="display:flex; gap:3px; justify-content:center;">
                     <button class="btn-icon" onclick="JMH_edit('${x.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
                     <button class="btn-icon danger" onclick="JMH_hapus('${x.id}','${escHtml(x.nama)}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
                   </div>
-                </td>
+                </td>` : ''}
               </tr>`;
             }).join('')}
           </tbody>
