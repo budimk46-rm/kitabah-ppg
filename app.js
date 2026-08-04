@@ -6431,6 +6431,7 @@ async function renderJamaahEntry() {
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff; width:100px;">Kategori</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">No. HP</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Keterangan</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:90px;">Generus</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>
           </tr></thead>
           <tbody>
@@ -6444,6 +6445,13 @@ async function renderJamaahEntry() {
                 <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Istimewa'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Istimewa'?'700':'500'};">${escHtml(kat)}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.keterangan||'-')}</td>
+                <td style="padding:7px 10px; text-align:center;">
+                  ${x.santri_id
+                    ? '<span style="font-size:10.5px; font-weight:700; color:var(--green);">✅ Generus</span>'
+                    : (['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
+                        ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_jadikanSantri('${x.id}')">Jadikan Santri</button>`
+                        : '<span style="font-size:11px; color:var(--ink-soft);">-</span>')}
+                </td>
                 <td style="padding:7px 10px; text-align:center;">
                   <div style="display:flex; gap:3px; justify-content:center;">
                     <button class="btn-icon" onclick="JMH_edit('${x.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
@@ -6467,6 +6475,62 @@ async function renderJamaahEntry() {
     showToast('Data jamaah dihapus');
     list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
     render();
+  };
+
+  window.JMH_jadikanSantri = async (jamaahId) => {
+    const jm = list.find(x => x.id === jamaahId);
+    if (!jm) return;
+    const kelasKlp = sortKelas(await SB.kelas.getByKelompok(u.kelompok_id) || []);
+
+    let el = document.getElementById('jadikanSantriModal');
+    if (!el) { el = document.createElement('div'); el.id = 'jadikanSantriModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">Jadikan Data Santri — ${escHtml(jm.nama)}</h3><button class="modal-close" onclick="closeModal('jadikanSantriModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="background:var(--green-soft); border-radius:8px; padding:12px; margin-bottom:14px; font-size:12.5px; line-height:1.7;">
+          <b>${escHtml(jm.nama)}</b><br>
+          ${jm.jenis_kelamin==='L'?'Laki-laki':'Perempuan'} · Lahir ${jm.tgl_lahir ? fmtDateShort(jm.tgl_lahir) : '-'}
+        </div>
+        <div class="form-group">
+          <label>Masukkan ke Kelas *</label>
+          <select id="jsKelas">
+            <option value="">Pilih kelas...</option>
+            ${kelasKlp.map(k => `<option value="${k.id}">${escHtml(k.nama_kelas)} (${escHtml(k.jenjang)})</option>`).join('')}
+          </select>
+        </div>
+        ${!kelasKlp.length ? '<div style="font-size:12px; color:var(--rose);">Belum ada kelas di kelompok ini. Buat kelas dulu lewat menu Kelola Kelas Generus.</div>' : ''}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('jadikanSantriModal')">Batal</button>
+        <button class="btn btn-green" id="jsSaveBtn">Jadikan Santri</button>
+      </div>
+    </div>`;
+
+    document.getElementById('jsSaveBtn').onclick = async () => {
+      const kelasId = document.getElementById('jsKelas').value;
+      if (!kelasId) { showToast('Pilih kelas dulu', true); return; }
+      const btn = document.getElementById('jsSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      try {
+        const res = await SB.santri.insert({
+          nama: toTitleCase(jm.nama||''), jenis_kel: jm.jenis_kelamin || null,
+          tgl_lahir: jm.tgl_lahir || null, kelas_id: kelasId, aktif: true,
+        });
+        const santriId = res?.[0]?.id;
+        await SB.jamaah.update(jm.id, { santri_id: santriId });
+        App.cache.allSantri = null;
+        logActivity('tambah', 'Data Jamaah', `Menjadikan "${jm.nama}" sebagai data santri`);
+        showToast(`${jm.nama} berhasil dijadikan data santri ✓`);
+        closeModal('jadikanSantriModal');
+        list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+        render();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+        btn.disabled = false; btn.textContent = 'Jadikan Santri';
+      }
+    };
+
+    openModal('jadikanSantriModal');
   };
 
   window.JMH_toggleBelumTertaut = () => {
