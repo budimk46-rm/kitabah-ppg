@@ -4864,6 +4864,7 @@ async function renderDataBK() {
 
   // Load data per kelompok
   const bkData = {}; // klpId → [{santri, kelas, pct, h, total}]
+  const pertemuanCount = {}; // klpId → total pertemuan bulan ini (semua kelas, apapun hasil BK-nya)
   async function loadBKData(bulan) {
     // Fase 1: kumpulkan kelas + pertemuan + santri per kelompok (paralel, belum ambil absensi)
     const klpMeta = await Promise.all(kelompokList.map(async klp => {
@@ -4877,7 +4878,7 @@ async function renderDataBK() {
         if (!ptList.length) return null;
         let santriList = await SB.santri.getByKelas(kls.id);
         if (kls._isGab) santriList = santriList.filter(s => s.kelompok_asal_id === klp.id);
-        if (!santriList.length) return null;
+        // Tetap dipertahankan meski santriList kosong — supaya jumlah pertemuan tidak hilang dari hitungan
         return { kls, ptList, santriList };
       }));
       return { klp, kelasMeta: kelasMeta.filter(Boolean) };
@@ -4892,6 +4893,7 @@ async function renderDataBK() {
     // Fase 3: hitung dari data yang sudah ada di memori — tidak ada fetch lagi
     klpMeta.forEach(({ klp, kelasMeta }) => {
       bkData[klp.id] = [];
+      pertemuanCount[klp.id] = kelasMeta.reduce((sum, m) => sum + m.ptList.length, 0);
       kelasMeta.forEach(({ kls, ptList, santriList }) => {
         santriList.forEach(s => {
           let h = 0;
@@ -4985,7 +4987,9 @@ async function renderDataBK() {
             </tr>`).join('')}</tbody>
           </table></div>
         </div>`).join('')
-        : '<div class="card" style="text-align:center; padding:24px;"><div style="font-size:24px; margin-bottom:8px;">✅</div><div style="font-size:14px; color:var(--green); font-weight:700;">Alhamdulillah, tidak ada generus di bawah 50% kehadiran bulan ini.</div></div>';
+        : (kelompokList[0] && !pertemuanCount[kelompokList[0].id]
+            ? '<div class="card" style="text-align:center; padding:24px;"><div style="font-size:24px; margin-bottom:8px;">📭</div><div style="font-size:14px; color:var(--ink-soft); font-weight:700;">Belum ada pertemuan di kelompok ini bulan ini.</div></div>'
+            : '<div class="card" style="text-align:center; padding:24px;"><div style="font-size:24px; margin-bottom:8px;">✅</div><div style="font-size:14px; color:var(--green); font-weight:700;">Alhamdulillah, tidak ada generus di bawah 50% kehadiran bulan ini.</div></div>');
     } else {
       // === Level Desa/Daerah: jumlah per kelompok ===
       const byDesa = {};
@@ -5004,9 +5008,11 @@ async function renderDataBK() {
           const kb = bkData[k.id] || [];
           const kL = kb.filter(d => d.santri.jenis_kel === 'L').length;
           const kP = kb.filter(d => d.santri.jenis_kel === 'P').length;
+          const ptmCount = pertemuanCount[k.id] || 0;
           return `<tr style="border-bottom:1px solid var(--line);">
             <td style="padding:6px 10px; font-size:12.5px; font-weight:600; color:#111;">${escHtml(k.nama)}</td>
-            <td style="padding:6px 8px; text-align:center; font-size:13px; font-weight:700; color:${kb.length?'var(--rose)':'var(--green)'};">${kb.length || '✅'}</td>
+            <td style="padding:6px 8px; text-align:center; font-size:12px; color:${ptmCount?'#111':'var(--ink-soft)'};">${ptmCount ? ptmCount+'x' : '<i>belum ada</i>'}</td>
+            <td style="padding:6px 8px; text-align:center; font-size:13px; font-weight:700; color:${!ptmCount ? 'var(--ink-soft)' : (kb.length?'var(--rose)':'var(--green)')};">${!ptmCount ? '—' : (kb.length || '✅')}</td>
             <td style="padding:6px 8px; text-align:center; font-size:12px; color:#1a6b3a; font-weight:700;">${kL||'—'}</td>
             <td style="padding:6px 8px; text-align:center; font-size:12px; color:#a6483b; font-weight:700;">${kP||'—'}</td>
           </tr>`;
@@ -5020,7 +5026,8 @@ async function renderDataBK() {
           <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
             <thead><tr style="background:var(--rose);">
               <th style="padding:6px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
-              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">Total</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">Ptm</th>
+              <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">BK</th>
               <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">L</th>
               <th style="padding:6px 8px; text-align:center; font-size:11px; color:#fff;">P</th>
             </tr></thead>
