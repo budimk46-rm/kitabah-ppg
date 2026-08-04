@@ -9835,6 +9835,55 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
   openModal('musyawarahModal');
 }
 
+// Urutan tampil peserta Musyawarah PPG Daerah di layar Absensi:
+// 1. Unsur Daerah (4S)
+// 2. Unsur Desa — Kyai, PJP KBM, PJP SarPras dari tiap desa (6 desa)
+// 3. Unsur PPG — Pengurus Harian lalu Pengurus Bidang per bidang
+// Yang jabatannya tidak cocok daftar ini (misal Tim 7) tetap muncul di akhir, urut abjad.
+const DAERAH_4S_URUTAN = ['Kyai', 'Wakil Kyai', 'KU', 'Penulis KU', 'Penerobos', 'Mubalegh', 'Aghnia'];
+const DESA_UNSUR_URUTAN = ['Kyai', 'PJP KBM', 'PJP SarPras'];
+const PPG_URUTAN = [
+  'Ketua PPG', 'Wakil Ketua', 'Sekretaris', 'Bendahara',
+  'Kurikulum', 'Tenaga Pendidik', 'Seni & Olahraga', 'Kemandirian', 'Keputrian',
+  'KMM Daerah', 'Tahfidz', 'Sarana dan Prasarana', 'Penggalang Dana', 'Bimbingan Konseling',
+];
+const DESA_URUTAN_MAP = {'D1':1,'D2':2,'D3':3,'D4':4,'D5':5,'D6':6,
+  'Desa Barat 1':1,'Desa Barat 2':2,'Desa Tengah 1':3,'Desa Tengah 2':4,'Desa Timur 1':5,'Desa Timur 2':6};
+
+function rankPesertaDaerah(p) {
+  if (p.level_daerah) {
+    const i = DAERAH_4S_URUTAN.indexOf(p.jabatan);
+    if (i !== -1) return [0, i, 0];
+    const j = PPG_URUTAN.indexOf(p.jabatan);
+    if (j !== -1) return [2, j, 0];
+    return [3, 1, 0]; // unsur daerah lain (Tim 7, dst)
+  }
+  if (p.desa_id) {
+    const i = DESA_UNSUR_URUTAN.indexOf(p.jabatan);
+    if (i !== -1) return [1, i, DESA_URUTAN_MAP[p.desa_id] || 99];
+    return [3, 2, 0]; // unsur desa lain di luar Kyai/PJP KBM/PJP SarPras
+  }
+  return [3, 3, 0];
+}
+function urutkanPesertaDaerah(list) {
+  return [...list].sort((a, b) => {
+    const ra = rankPesertaDaerah(a), rb = rankPesertaDaerah(b);
+    for (let i = 0; i < 3; i++) { if (ra[i] !== rb[i]) return ra[i] - rb[i]; }
+    return (a.nama||'').localeCompare(b.nama||'');
+  });
+}
+
+// Ambil Kyai/PJP KBM/PJP SarPras dari SEMUA desa (6), buat gabung ke Absensi Musyawarah Daerah
+async function loadUnsurDesaUntukMusDaerah() {
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const results = await Promise.all(Object.keys(DESA_NAMA_MAP).map(async did => {
+    const [p1, p2] = await Promise.all([SB.musPeserta.getByDesa(did), SB.musPeserta.getByDesa(DESA_NAMA_MAP[did])]);
+    const seen = new Set();
+    return [...(p1||[]), ...(p2||[])].filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+  }));
+  return results.flat().filter(p => DESA_UNSUR_URUTAN.includes(p.jabatan));
+}
+
 async function openMusAbsensiModal(musId, level, u) {
   let el = document.getElementById('musAbsensiModal');
   if (!el) {
@@ -9850,7 +9899,11 @@ async function openMusAbsensiModal(musId, level, u) {
     'D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
   try {
     if (level === 'ppg_daerah') {
-      pesertaTetap = await SB.musPeserta.getByDaerah();
+      const [unsurDaerah, unsurDesa] = await Promise.all([
+        SB.musPeserta.getByDaerah(),
+        loadUnsurDesaUntukMusDaerah(),
+      ]);
+      pesertaTetap = urutkanPesertaDaerah([...(unsurDaerah||[]), ...unsurDesa]);
     } else if (level === 'pjp_desa') {
       // User punya desa_id = D1, tapi peserta disimpan dengan desa_id = "Desa Barat 1"
       const desaId = u.desa_id || '';
