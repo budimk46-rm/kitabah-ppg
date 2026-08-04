@@ -584,9 +584,16 @@ const sbJamaahKeluarga = {
     if (!ids.length) return Promise.resolve([]);
     return sbFetch(`jamaah_keluarga?santri_id=in.(${ids.join(',')})&select=*`);
   },
-  insertBulk: (rows) => {
-    if (!rows.length) return Promise.resolve(null);
-    return sbFetch('jamaah_keluarga', { method:'POST', headers:{'Prefer':'return=minimal,resolution=ignore-duplicates'}, body: JSON.stringify(rows) });
+  insertBulk: async (rows) => {
+    if (!rows.length) return null;
+    // Simpan satu-satu (bukan 1 request gabungan) — kalau ada 1 baris bermasalah,
+    // baris lain tetap berhasil tersimpan, tidak ikut gagal semua.
+    for (const row of rows) {
+      try {
+        await sbFetch('jamaah_keluarga', { method:'POST', headers:{'Prefer':'return=minimal,resolution=ignore-duplicates'}, body: JSON.stringify(row) });
+      } catch(e) { console.error('Gagal tautkan 1 anak:', row, e); }
+    }
+    return null;
   },
   deleteByIds: (ids) => {
     if (!ids.length) return Promise.resolve(null);
