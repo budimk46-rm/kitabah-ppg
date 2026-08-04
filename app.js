@@ -8321,12 +8321,14 @@ async function renderPengurus() {
               <div style="flex:1; min-width:150px;">
                 <div style="font-weight:700; font-size:12.5px; color:#111;">${escHtml(dp)}</div>
                 ${people.length ? people.map(p => `
-                  <div style="display:flex; align-items:center; gap:5px; margin-top:4px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px;">
                     <span style="font-size:12.5px; color:var(--ink-soft);">${escHtml(p.nama)}${p.tgl_lahir ? ` <span style="color:var(--ink-soft);">· ${hitungUsia(p.tgl_lahir)} th</span>` : ''}</span>
-                    ${waBtn(p)}
-                    ${canEdit ? `
-                    <button class="btn-icon" onclick="PGR_editSlot('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
-                    <button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
+                    <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
+                      ${waBtn(p)}
+                      ${canEdit ? `
+                      <button class="btn-icon" onclick="PGR_editSlot('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                      <button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
+                    </div>
                   </div>`).join('') : `<div style="font-size:11.5px; color:var(--ink-soft); font-style:italic; margin-top:2px;">Belum diisi</div>`}
               </div>
               ${canEdit && !isFull ? `<button class="btn btn-outline btn-sm" style="font-size:11px;" data-scope="${escHtml(scopeKey)}" data-level="${escHtml(level)}" data-dapukan="${escHtml(dp)}" onclick="PGR_tambahDapukan(this.dataset.scope, this.dataset.level, this.dataset.dapukan)">+ Tambah</button>` : ''}
