@@ -584,6 +584,11 @@ const sbJamaahKeluarga = {
     if (!ids.length) return Promise.resolve([]);
     return sbFetch(`jamaah_keluarga?santri_id=in.(${ids.join(',')})&select=*`);
   },
+  getByJamaahIds: (jamaahIds) => {
+    const ids = [...new Set(jamaahIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`jamaah_keluarga?jamaah_id=in.(${ids.join(',')})&select=*`);
+  },
   insertBulk: async (rows) => {
     if (!rows.length) return null;
     // Simpan satu-satu (bukan 1 request gabungan) — kalau ada 1 baris bermasalah,
