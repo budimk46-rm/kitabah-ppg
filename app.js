@@ -6601,7 +6601,7 @@ async function renderJamaahEntry() {
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff; width:100px;">Kategori</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">No. HP</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Keterangan</th>
-            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:90px;">Generus</th>
+            <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:110px;">Transfer Data</th>
             ${canEdit ? '<th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>' : ''}
           </tr></thead>
           <tbody>
@@ -6620,7 +6620,9 @@ async function renderJamaahEntry() {
                     ? '<span style="font-size:10.5px; font-weight:700; color:var(--green);">✅ Generus</span>'
                     : (canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
                         ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_jadikanSantri('${x.id}')">Jadikan Santri</button>`
-                        : '<span style="font-size:11px; color:var(--ink-soft);">-</span>')}
+                        : (canEdit && ['Dewasa','Istimewa'].includes(kat)
+                            ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_transferDewasa('${x.id}')">🔄 Transfer Data</button>`
+                            : '<span style="font-size:11px; color:var(--ink-soft);">-</span>'))}
                 </td>
                 ${canEdit ? `<td style="padding:7px 10px; text-align:center;">
                   <div style="display:flex; gap:3px; justify-content:center;">
@@ -6701,6 +6703,169 @@ async function renderJamaahEntry() {
     };
 
     openModal('jadikanSantriModal');
+  };
+
+  // Transfer data jamaah Dewasa/Istimewa ke MT/MS, Data Pengurus, atau Guru Sekolah —
+  // hindari input ulang nama yang sama kalau orangnya sudah punya beberapa peran sekaligus.
+  window.JMH_transferDewasa = async (jamaahId) => {
+    const jm = list.find(x => x.id === jamaahId);
+    if (!jm) return;
+    if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+    const myKlp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
+    const myDesaId = myKlp?.desa_id || '';
+    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+
+    let el = document.getElementById('jmhTransferModal');
+    if (!el) { el = document.createElement('div'); el.id = 'jmhTransferModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+
+    function render() {
+      el.innerHTML = `<div class="modal modal-lg">
+        <div class="modal-head"><h3 class="modal-title">Transfer Data — ${escHtml(jm.nama)}</h3><button class="modal-close" onclick="closeModal('jmhTransferModal')">✕</button></div>
+        <div class="modal-body">
+          <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--green);">
+            Pilih peran yang mau dibuatkan datanya — nama, jenis kelamin, tanggal lahir, dan No. HP otomatis kecopy dari Data Jamaah, tidak perlu ketik ulang. 1 orang boleh punya lebih dari 1 peran.
+          </div>
+
+          <div class="card" style="margin-bottom:12px; ${jm.mtms_id?'opacity:.6;':''}">
+            <div class="fw-bold" style="font-size:13px; margin-bottom:8px;">📋 MT / MS</div>
+            ${jm.mtms_id ? `<div style="font-size:12px; color:var(--green); font-weight:700;">✅ Sudah jadi data MT/MS</div>` : `
+            <div class="form-group" style="margin-bottom:8px;">
+              <select id="jtMtmsDapukan"><option value="">Pilih dapukan...</option><option value="MT">MT</option><option value="MS">MS</option></select>
+            </div>
+            <button class="btn btn-outline btn-sm" id="jtMtmsBtn">+ Jadikan MT/MS</button>`}
+          </div>
+
+          <div class="card" style="margin-bottom:12px;">
+            <div class="fw-bold" style="font-size:13px; margin-bottom:8px;">🤝 Data Pengurus</div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;">Level</label>
+              <select id="jtPgrLevel" onchange="JMH_transferPgrLevelChange()">
+                <option value="kelompok">Kelompok Saya (${escHtml(myKlp?.nama||'-')})</option>
+                <option value="desa">Desa ${escHtml(DESA_NAMA_MAP[myDesaId]||'')}</option>
+                <option value="daerah">Daerah</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;">Kategori</label>
+              <select id="jtPgrKategori" onchange="JMH_transferPgrKategoriChange()"><option value="">Pilih level dulu</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;">Dapukan</label>
+              <select id="jtPgrDapukan"><option value="">Pilih kategori dulu</option></select>
+            </div>
+            <button class="btn btn-outline btn-sm" id="jtPgrBtn">+ Tambahkan sebagai Pengurus</button>
+          </div>
+
+          <div class="card" style="${jm.guru_sekolah_id?'opacity:.6;':''}">
+            <div class="fw-bold" style="font-size:13px; margin-bottom:8px;">🎓 Guru Sekolah</div>
+            ${jm.guru_sekolah_id ? `<div style="font-size:12px; color:var(--green); font-weight:700;">✅ Sudah jadi data Guru Sekolah</div>` : `
+            <div class="form-group" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;">Status Kepegawaian</label>
+              <select id="jtGuruStatus"><option value="">Pilih...</option><option value="PNS">PNS</option><option value="PPPK">PPPK</option><option value="GTT">GTT</option><option value="GTY">GTY</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;">Pendidikan Terakhir</label>
+              <select id="jtGuruPendidikan"><option value="">Pilih...</option>${['SMA/SMK','D1','D2','D3','D4','S1','S2','S3'].map(p=>`<option value="${p}">${p}</option>`).join('')}</select>
+            </div>
+            <div class="form-group" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;">Penugasan Saat Ini</label>
+              <input id="jtGuruPenugasan" placeholder="Misal: Guru Kelas 4 SDN 1">
+            </div>
+            <button class="btn btn-outline btn-sm" id="jtGuruBtn">+ Jadikan Guru Sekolah</button>`}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-outline" onclick="closeModal('jmhTransferModal')">Tutup</button>
+        </div>
+      </div>`;
+
+      if (!jm.mtms_id) {
+        document.getElementById('jtMtmsBtn').onclick = async () => {
+          const dapukan = document.getElementById('jtMtmsDapukan').value;
+          if (!dapukan) { showToast('Pilih dapukan MT/MS dulu', true); return; }
+          const btn = document.getElementById('jtMtmsBtn');
+          btn.disabled = true; btn.textContent = 'Menyimpan...';
+          try {
+            const res = await SB.mtMs.insert({
+              kelompok_id: u.kelompok_id, nama_lengkap: (jm.nama||'').toUpperCase(),
+              gender: jm.jenis_kelamin || null, tgl_lahir: jm.tgl_lahir || null,
+              dapukan, no_hp: jm.no_hp || null, dibuat_oleh: u.id,
+            });
+            await SB.jamaah.update(jm.id, { mtms_id: res?.[0]?.id });
+            jm.mtms_id = res?.[0]?.id;
+            logActivity('tambah', 'Data Jamaah', `Menjadikan "${jm.nama}" sebagai data MT/MS`);
+            showToast(`${jm.nama} berhasil dijadikan MT/MS ✓`);
+            render();
+          } catch(e) { showToast('Gagal: ' + e.message, true); btn.disabled=false; btn.textContent='+ Jadikan MT/MS'; }
+        };
+      }
+
+      document.getElementById('jtPgrBtn').onclick = async () => {
+        const level = document.getElementById('jtPgrLevel').value;
+        const dapukan = document.getElementById('jtPgrDapukan').value;
+        if (!dapukan) { showToast('Pilih dapukan dulu', true); return; }
+        const btn = document.getElementById('jtPgrBtn');
+        btn.disabled = true; btn.textContent = 'Menyimpan...';
+        try {
+          let currentList = [];
+          const payload = { nama: toTitleCase(jm.nama||''), jabatan: dapukan, tgl_lahir: jm.tgl_lahir || null, status_menikah: jm.status_menikah || null, no_hp: jm.no_hp || null, aktif: true };
+          if (level === 'kelompok') { payload.kelompok_id = u.kelompok_id; currentList = await SB.musPeserta.getByKelompok(u.kelompok_id) || []; }
+          else if (level === 'desa') { payload.desa_id = myDesaId; currentList = await SB.musPeserta.getByDesa(myDesaId) || []; }
+          else { payload.level_daerah = true; currentList = await SB.musPeserta.getByDaerah() || []; }
+          if (DAPUKAN_SOLO.has(dapukan) && currentList.some(p => p.jabatan === dapukan)) {
+            showToast(`${dapukan} di level itu sudah ada orangnya`, true);
+            btn.disabled = false; btn.textContent = '+ Tambahkan sebagai Pengurus';
+            return;
+          }
+          await SB.musPeserta.insert(payload);
+          logActivity('tambah', 'Data Jamaah', `Menjadikan "${jm.nama}" sebagai Pengurus (${dapukan})`);
+          showToast(`${jm.nama} berhasil ditambahkan sebagai ${dapukan} ✓`);
+          btn.disabled = false; btn.textContent = '+ Tambahkan sebagai Pengurus';
+        } catch(e) { showToast('Gagal: ' + e.message, true); btn.disabled=false; btn.textContent='+ Tambahkan sebagai Pengurus'; }
+      };
+
+      if (!jm.guru_sekolah_id) {
+        document.getElementById('jtGuruBtn').onclick = async () => {
+          const btn = document.getElementById('jtGuruBtn');
+          btn.disabled = true; btn.textContent = 'Menyimpan...';
+          try {
+            const res = await SB.guruSekolah.insert({
+              kelompok_id: u.kelompok_id, nama_lengkap: (jm.nama||'').toUpperCase(),
+              gender: jm.jenis_kelamin || null, tgl_lahir: jm.tgl_lahir || null,
+              status_kepegawaian: document.getElementById('jtGuruStatus').value || null,
+              pendidikan_terakhir: document.getElementById('jtGuruPendidikan').value || null,
+              penugasan_saat_ini: document.getElementById('jtGuruPenugasan').value.trim() || null,
+              no_wa: jm.no_hp || null, dibuat_oleh: u.id,
+            });
+            await SB.jamaah.update(jm.id, { guru_sekolah_id: res?.[0]?.id });
+            jm.guru_sekolah_id = res?.[0]?.id;
+            logActivity('tambah', 'Data Jamaah', `Menjadikan "${jm.nama}" sebagai data Guru Sekolah`);
+            showToast(`${jm.nama} berhasil dijadikan Guru Sekolah ✓`);
+            render();
+          } catch(e) { showToast('Gagal: ' + e.message, true); btn.disabled=false; btn.textContent='+ Jadikan Guru Sekolah'; }
+        };
+      }
+
+      JMH_transferPgrLevelChange();
+    }
+
+    window.JMH_transferPgrLevelChange = () => {
+      const level = document.getElementById('jtPgrLevel')?.value;
+      const catalog = DAPUKAN_CATALOG[level];
+      const sel = document.getElementById('jtPgrKategori');
+      if (!sel || !catalog) return;
+      sel.innerHTML = `<option value="">Pilih kategori...</option>${Object.keys(catalog).map(g => `<option value="${escHtml(g)}">${escHtml(g)}</option>`).join('')}`;
+      document.getElementById('jtPgrDapukan').innerHTML = '<option value="">Pilih kategori dulu</option>';
+    };
+    window.JMH_transferPgrKategoriChange = () => {
+      const level = document.getElementById('jtPgrLevel')?.value;
+      const kategori = document.getElementById('jtPgrKategori')?.value;
+      const dapukanList = DAPUKAN_CATALOG[level]?.[kategori] || [];
+      document.getElementById('jtPgrDapukan').innerHTML = `<option value="">Pilih dapukan...</option>${dapukanList.map(d => `<option value="${escHtml(d)}">${escHtml(d)}</option>`).join('')}`;
+    };
+
+    render();
+    openModal('jmhTransferModal');
   };
 
   window.JMH_toggleBelumTertaut = () => {
