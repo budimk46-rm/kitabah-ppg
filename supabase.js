@@ -89,7 +89,9 @@ const sbUsers = {
   reject: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),
   delete: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'DELETE' }),
   register: async (data) => {
-    // Direct fetch — Supabase selalu return 409 tapi data tetap masuk
+    // RPC daftar_anggota kadang balas status non-2xx meski datanya SUNGGUHAN masuk
+    // (kuirk lama Supabase) — jadi jangan langsung percaya/curigai dari status fetch-nya.
+    // Cara paling pasti: cek ULANG ke database apakah barisnya benar-benar kebuat.
     await fetch(`${SUPABASE_URL}/rest/v1/rpc/daftar_anggota`, {
       method: 'POST',
       headers: SB_HEADERS,
@@ -103,6 +105,10 @@ const sbUsers = {
         p_desa_id: data.desa_id || null,
       })
     });
+    const cek = await sbFetch(`anggota?username=eq.${encodeURIComponent(data.username)}&select=id`);
+    if (!cek || !cek.length) {
+      throw new Error('Pendaftaran gagal tersimpan. Coba lagi beberapa saat, atau hubungi admin kalau terus berulang.');
+    }
     // No. HP belum didukung oleh RPC daftar_anggota (fungsi lama) — kirim lewat
     // PATCH terpisah begitu barisnya sudah kebuat, dicocokkan lewat username.
     if (data.no_hp) {

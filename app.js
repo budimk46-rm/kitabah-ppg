@@ -1144,8 +1144,8 @@ async function doRegister() {
       no_hp: noHp,
     });
 
-    // Register selalu berhasil (data masuk meski Supabase return 409)
-    // Tampilkan pesan sukses langsung di form
+    // SB.anggota.register() sudah verifikasi sendiri ke database — kalau sampai di sini
+    // tanpa error, datanya memang benar-benar tersimpan.
     document.getElementById('wizStep3').innerHTML = `
       <div style="text-align:center; padding:20px 0;">
         <div style="width:56px; height:56px; border-radius:50%; background:#e8f5e9; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:28px;">✓</div>
