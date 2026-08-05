@@ -585,7 +585,7 @@ const sbPenerobosan = {
     if (!list.length) return Promise.resolve([]);
     return sbFetch(`penerobosan_laporan?kelompok_id=in.(${list.join(',')})&bulan=eq.${bulan}&tahun=eq.${tahun}&select=*`);
   },
-  upsert: (data) => sbFetch('penerobosan_laporan', {
+  upsert: (data) => sbFetch('penerobosan_laporan?on_conflict=kelompok_id,bulan,tahun', {
     method: 'POST', headers: {'Prefer':'return=representation,resolution=merge-duplicates'}, body: JSON.stringify(data),
   }),
 };

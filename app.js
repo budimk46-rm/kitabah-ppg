@@ -6622,7 +6622,7 @@ async function renderPenerobosanEntry() {
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { totalJamaah.L += jamaahCount[k].L; totalJamaah.P += jamaahCount[k].P; });
     const totalPengurus = p4s.length + pLain.length;
     const desaNama = klp?.desa?.nama || '';
-    const daerahNama = 'PPG Sidoarjo Utara';
+    const daerahNama = 'Sidoarjo Utara';
     const K = PENEROBOSAN_KATEGORI_ORDER;
 
     const R = () => new Array(30).fill('');
@@ -6740,7 +6740,7 @@ async function renderPenerobosanEntry() {
       const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fReg = await doc.embedFont(StandardFonts.Helvetica);
       // Landscape A4 — 30 kolom virtual meniru form aslinya, jadi butuh halaman lebar
-      const W = 842, H = 595, ML = 18, MT = 96;
+      const W = 842, H = 595, ML = 18, MT = 122;
       const nCols = 30, nRows = rows.length;
       const gridW = W - ML*2, colW = gridW / nCols;
       const gridH = H - MT - 20, rowH = gridH / nRows;
@@ -6755,11 +6755,11 @@ async function renderPenerobosanEntry() {
       page.drawText(t2, { x: W/2 - fReg.widthOfTextAtSize(t2,9)/2, y:H-38, font:fReg, size:9, color:rgb(0.9,0.95,0.9) });
 
       // Kelompok / Desa / Daerah / Bulan / Tahun — teks bebas, TANPA garis/kotak
-      let hy = H - 62;
+      let hy = H - 75;
       const lbl = (label, val, x) => { page.drawText(esc(label), {x, y:hy, font:fBold, size:9, color:DARK}); page.drawText(esc(val), {x:x+50, y:hy, font:fReg, size:9, color:DARK}); };
-      lbl('Kelompok :', klp?.nama||'', ML); lbl('Bulan :', bulan, ML+330); hy -= 14;
-      lbl('Desa :', klp?.desa?.nama||'', ML); lbl('Tahun :', String(tahun), ML+330); hy -= 14;
-      lbl('Daerah :', 'PPG Sidoarjo Utara', ML);
+      lbl('Kelompok :', klp?.nama||'', ML); lbl('Bulan :', bulan, ML+330); hy -= 15;
+      lbl('Desa :', klp?.desa?.nama||'', ML); lbl('Tahun :', String(tahun), ML+330); hy -= 15;
+      lbl('Daerah :', 'Sidoarjo Utara', ML);
 
       const top = H - MT;
       const cellX = c => ML + c*colW;
