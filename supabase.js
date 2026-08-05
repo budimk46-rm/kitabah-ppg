@@ -576,6 +576,20 @@ const sbNavLog = {
 };
 
 // ============ DATA JAMAAH ============
+// ============ PENEROBOSAN PUSAT ============
+const sbPenerobosan = {
+  getByKelompokBulan: (klpId, bulan, tahun) =>
+    sbFetch(`penerobosan_laporan?kelompok_id=eq.${klpId}&bulan=eq.${bulan}&tahun=eq.${tahun}&select=*`),
+  getByKelompokIds: (ids, bulan, tahun) => {
+    const list = [...new Set(ids)].filter(Boolean);
+    if (!list.length) return Promise.resolve([]);
+    return sbFetch(`penerobosan_laporan?kelompok_id=in.(${list.join(',')})&bulan=eq.${bulan}&tahun=eq.${tahun}&select=*`);
+  },
+  upsert: (data) => sbFetch('penerobosan_laporan', {
+    method: 'POST', headers: {'Prefer':'return=representation,resolution=merge-duplicates'}, body: JSON.stringify(data),
+  }),
+};
+
 const sbJamaah = {
   getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=*&order=nama`),
   getByKelompokIds: (ids) => {
@@ -664,5 +678,6 @@ window.SB = {
   navLog: sbNavLog,
   jamaah: sbJamaah,
   jamaahKeluarga: sbJamaahKeluarga,
+  penerobosan: sbPenerobosan,
   formSubmissions: sbFormSubmissions,
 };

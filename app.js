@@ -1213,6 +1213,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
+    { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
@@ -1237,6 +1238,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
+    { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
@@ -1257,6 +1259,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
+    { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
@@ -1279,6 +1282,7 @@ const NAV_ITEMS = {
     { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
+    { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
@@ -1326,6 +1330,7 @@ const NAV_ITEMS = {
     { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
+    { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
@@ -1480,6 +1485,7 @@ async function renderPage(page) {
       case 'log_aktivitas': await renderLogAktivitas(); break;
       case 'user_tidak_aktif': await renderUserTidakAktif(); break;
       case 'data_jamaah': await renderDataJamaah(); break;
+      case 'penerobosan': await renderPenerobosan(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
       case 'rekap_raport': await renderRekapRaport(); break;
       case 'profil_saya': await renderProfilSaya(); break;
@@ -6439,6 +6445,265 @@ async function renderUserTidakAktif() {
 }
 
 /* ===== PAGE: DATA JAMAAH ===== */
+/* ===== PAGE: PENEROBOSAN PUSAT ===== */
+const PENEROBOSAN_KATEGORI_MAP = {
+  'Bayi': 'BALITA', 'PAUD/TK': 'CBR/PAUD-SD', 'Caberawit': 'CBR/PAUD-SD',
+  'Pra Remaja': 'PRA REMAJA', 'Remaja': 'REMAJA', 'Pra Nikah': 'USIA NIKAH',
+  'Dewasa': 'DEWASA', 'Istimewa': 'DEWASA',
+};
+const PENEROBOSAN_KATEGORI_ORDER = ['BALITA','CBR/PAUD-SD','PRA REMAJA','REMAJA','USIA NIKAH','DEWASA'];
+const PENEROBOSAN_4S = ['Kyai','Wakil Kyai','Penerobos','Mubalegh','KU','Aghnia'];
+const BULAN_LIST = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+async function renderPenerobosan() {
+  const u = App.user;
+  if (u.role === 'pjp_kelompok' || u.role === 'kelompok') return renderPenerobosanEntry();
+  return renderPenerobosanRekap();
+}
+
+async function renderPenerobosanEntry() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const canEdit = u.role === 'pjp_kelompok';
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const klp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
+
+  let bulan = BULAN_LIST[new Date().getMonth()];
+  let tahun = new Date().getFullYear();
+
+  async function loadAuto() {
+    const jamaahList = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+    const jamaahCount = {};
+    PENEROBOSAN_KATEGORI_ORDER.forEach(k => { jamaahCount[k] = { L:0, P:0 }; });
+    jamaahList.forEach(x => {
+      const kat = PENEROBOSAN_KATEGORI_MAP[kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)];
+      if (!kat) return;
+      if (x.jenis_kelamin === 'L') jamaahCount[kat].L++;
+      else if (x.jenis_kelamin === 'P') jamaahCount[kat].P++;
+    });
+
+    const pengurus = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
+    const p4s = PENEROBOSAN_4S.map(d => pengurus.find(p => p.jabatan === d)).filter(Boolean);
+    const pLain = pengurus.filter(p => !PENEROBOSAN_4S.includes(p.jabatan));
+
+    const existing = (await SB.penerobosan.getByKelompokBulan(u.kelompok_id, bulan, tahun) || [])[0] || null;
+
+    return { jamaahCount, p4s, pLain, existing };
+  }
+
+  function render(data) {
+    const { jamaahCount, p4s, pLain, existing } = data;
+    const totalJamaah = { L:0, P:0 };
+    PENEROBOSAN_KATEGORI_ORDER.forEach(k => { totalJamaah.L += jamaahCount[k].L; totalJamaah.P += jamaahCount[k].P; });
+
+    const n = (key) => existing?.[key] ?? 0;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Penerobosan Pusat</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">${escHtml(klp?.nama||'')} · Laporan bulanan ke Pusat</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
+          <select id="penBulan" onchange="PEN_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
+        </div>
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
+          <select id="penTahun" onchange="PEN_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
+        </div>
+        ${existing ? '<span style="font-size:11px; font-weight:700; color:var(--green); background:var(--green-soft); padding:4px 10px; border-radius:10px;">✓ Sudah pernah disimpan</span>' : '<span style="font-size:11px; color:var(--ink-soft);">Belum ada laporan periode ini</span>'}
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">👥 Jumlah Jamaah — otomatis dari Data Jamaah</div>
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:400px;">
+          <thead><tr style="background:var(--green-soft);">
+            <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:var(--green);">Kategori</th>
+            <th style="padding:6px 8px; text-align:center; font-size:10.5px; color:var(--green);">L</th>
+            <th style="padding:6px 8px; text-align:center; font-size:10.5px; color:var(--green);">P</th>
+            <th style="padding:6px 8px; text-align:center; font-size:10.5px; color:var(--green);">Jumlah</th>
+          </tr></thead>
+          <tbody>
+            ${PENEROBOSAN_KATEGORI_ORDER.map(k => `<tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:5px 10px; font-size:12px; font-weight:600;">${k}</td>
+              <td style="padding:5px 8px; text-align:center; font-size:12px;">${jamaahCount[k].L}</td>
+              <td style="padding:5px 8px; text-align:center; font-size:12px;">${jamaahCount[k].P}</td>
+              <td style="padding:5px 8px; text-align:center; font-size:12px; font-weight:700;">${jamaahCount[k].L+jamaahCount[k].P}</td>
+            </tr>`).join('')}
+            <tr style="background:var(--cream-2);">
+              <td style="padding:6px 10px; font-size:12px; font-weight:800;">TOTAL JIWA JAMAAH</td>
+              <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:800;">${totalJamaah.L}</td>
+              <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:800;">${totalJamaah.P}</td>
+              <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:800; color:var(--green);">${totalJamaah.L+totalJamaah.P}</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <div style="font-size:11px; color:var(--ink-soft); margin-top:8px;">Data ini bersumber dari menu Data Jamaah. Kalau ada yang kurang/salah, perbaiki di sana, otomatis ikut berubah di sini.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">🤝 Jumlah & Nama Pengurus — otomatis dari Data Pengurus</div>
+        <div style="font-size:12px; margin-bottom:10px;"><b>${p4s.length}</b> pengurus 4-S · <b>${pLain.length}</b> pengurus lain · <b style="color:var(--green);">${p4s.length+pLain.length}</b> total</div>
+        <div style="font-size:10.5px; font-weight:700; color:var(--gold); text-transform:uppercase; margin-bottom:4px;">4-S</div>
+        ${p4s.length ? p4s.map(p => `<div style="font-size:12px; padding:3px 0; border-bottom:1px dashed var(--line);">${escHtml(p.nama)} <span style="color:var(--ink-soft);">— ${escHtml(p.jabatan)}</span></div>`).join('') : '<div style="font-size:11.5px; color:var(--ink-soft); font-style:italic;">Belum ada data di Data Pengurus</div>'}
+        <div style="font-size:10.5px; font-weight:700; color:var(--gold); text-transform:uppercase; margin:10px 0 4px;">Kepengurusan Lain</div>
+        ${pLain.length ? pLain.map(p => `<div style="font-size:12px; padding:3px 0; border-bottom:1px dashed var(--line);">${escHtml(p.nama)} <span style="color:var(--ink-soft);">— ${escHtml(p.jabatan)}</span></div>`).join('') : '<div style="font-size:11.5px; color:var(--ink-soft); font-style:italic;">Belum ada data di Data Pengurus</div>'}
+        <div style="font-size:11px; color:var(--ink-soft); margin-top:8px;">Data ini bersumber dari menu Data Pengurus. Perbaikan dilakukan di sana.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">🕌 Sarana & Prasarana <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(isi manual)</span></div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;">
+          ${[['sarpras_masjid','Masjid'],['sarpras_aula','Aula'],['sarpras_madrasah','Madrasah'],['sarpras_jeding','Jeding (Kamar Mandi)'],
+             ['sarpras_sekolah_putra','Sekolah (Putra)'],['sarpras_sekolah_putri','Sekolah (Putri)'],['sarpras_pondok','Pondok'],
+             ['sarpras_kamar_mt','Kamar MT'],['sarpras_kamar_ms','Kamar MS'],['sarpras_kamar_tamu','Kamar Tamu']]
+            .map(([key,label]) => `<div class="form-group" style="margin:0;"><label style="font-size:11px;">${label}</label><input type="number" min="0" id="pen_${key}" value="${n(key)}" ${!canEdit?'disabled':''}></div>`).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">📅 Kegiatan Kelompok / Minggu <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(isi manual)</span></div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;">
+          ${[['kegiatan_klp','Kelompok'],['kegiatan_muda_mudi','Muda-mudi'],['kegiatan_cbr','Caberawit'],
+             ['kegiatan_ibu2','Ibu-ibu'],['kegiatan_5unsur','5 Unsur'],['kegiatan_musyawarah','Musyawarah']]
+            .map(([key,label]) => `<div class="form-group" style="margin:0;"><label style="font-size:11px;">${label}</label><input type="number" min="0" id="pen_${key}" value="${n(key)}" ${!canEdit?'disabled':''}></div>`).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">📊 Sub / KK / Persenan <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(angka laporan manual kelompok)</span></div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;">
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Sub</label><input type="number" min="0" id="pen_sub" value="${existing?.sub ?? ''}" ${!canEdit?'disabled':''}></div>
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">KK (Kepala Keluarga)</label><input type="number" min="0" id="pen_kk" value="${existing?.kk ?? ''}" ${!canEdit?'disabled':''}></div>
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Persenan (%)</label><input type="number" min="0" max="100" step="0.1" id="pen_persenan" value="${existing?.persenan ?? ''}" ${!canEdit?'disabled':''}></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">📝 Catatan</div>
+        <textarea id="pen_catatan" rows="3" style="width:100%; resize:vertical;" ${!canEdit?'disabled':''}>${escHtml(existing?.catatan||'')}</textarea>
+      </div>
+
+      ${canEdit ? `<button class="btn btn-green" style="width:100%; padding:12px;" id="penSaveBtn" onclick="PEN_simpan()">💾 Simpan Laporan ${bulan} ${tahun}</button>` : ''}
+    `;
+  }
+
+  window.PEN_gantiPeriode = async () => {
+    bulan = document.getElementById('penBulan').value;
+    tahun = parseInt(document.getElementById('penTahun').value);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    render(await loadAuto());
+  };
+
+  window.PEN_simpan = async () => {
+    const btn = document.getElementById('penSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      const getNum = (id) => { const v = document.getElementById(id).value; return v === '' ? null : Number(v); };
+      const payload = {
+        kelompok_id: u.kelompok_id, bulan, tahun,
+        sarpras_masjid: getNum('pen_sarpras_masjid')||0, sarpras_aula: getNum('pen_sarpras_aula')||0,
+        sarpras_madrasah: getNum('pen_sarpras_madrasah')||0, sarpras_jeding: getNum('pen_sarpras_jeding')||0,
+        sarpras_sekolah_putra: getNum('pen_sarpras_sekolah_putra')||0, sarpras_sekolah_putri: getNum('pen_sarpras_sekolah_putri')||0,
+        sarpras_pondok: getNum('pen_sarpras_pondok')||0, sarpras_kamar_mt: getNum('pen_sarpras_kamar_mt')||0,
+        sarpras_kamar_ms: getNum('pen_sarpras_kamar_ms')||0, sarpras_kamar_tamu: getNum('pen_sarpras_kamar_tamu')||0,
+        kegiatan_klp: getNum('pen_kegiatan_klp')||0, kegiatan_muda_mudi: getNum('pen_kegiatan_muda_mudi')||0,
+        kegiatan_cbr: getNum('pen_kegiatan_cbr')||0, kegiatan_ibu2: getNum('pen_kegiatan_ibu2')||0,
+        kegiatan_5unsur: getNum('pen_kegiatan_5unsur')||0, kegiatan_musyawarah: getNum('pen_kegiatan_musyawarah')||0,
+        sub: getNum('pen_sub'), kk: getNum('pen_kk'), persenan: getNum('pen_persenan'),
+        catatan: document.getElementById('pen_catatan').value.trim() || null,
+        dibuat_oleh: u.id, updated_at: new Date().toISOString(),
+      };
+      await SB.penerobosan.upsert(payload);
+      logActivity('tambah', 'Penerobosan Pusat', `Simpan laporan ${bulan} ${tahun}`);
+      showToast('Laporan tersimpan ✓');
+      render(await loadAuto());
+    } catch(e) {
+      showToast('Gagal menyimpan: ' + e.message, true);
+      btn.disabled = false; btn.textContent = `💾 Simpan Laporan ${bulan} ${tahun}`;
+    }
+  };
+
+  render(await loadAuto());
+}
+
+async function renderPenerobosanRekap() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const isAdmin = u.role === 'admin', isDaerah = u.role === 'daerah', isDesa = u.role === 'desa';
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokScope = (isAdmin || isDaerah)
+    ? (App.cache.kelompok || [])
+    : (App.cache.kelompok || []).filter(k => k.desa_id === u.desa_id);
+
+  let bulan = BULAN_LIST[new Date().getMonth()];
+  let tahun = new Date().getFullYear();
+
+  async function load() {
+    const laporan = await SB.penerobosan.getByKelompokIds(kelompokScope.map(k=>k.id), bulan, tahun) || [];
+    const byKlp = {};
+    laporan.forEach(l => { byKlp[l.kelompok_id] = l; });
+    return byKlp;
+  }
+
+  function render(byKlp) {
+    const sudah = kelompokScope.filter(k => byKlp[k.id]).length;
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Penerobosan Pusat</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Rekap status laporan bulanan tiap kelompok</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
+          <select id="penrBulan" onchange="PENR_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
+        </div>
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
+          <select id="penrTahun" onchange="PENR_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
+        </div>
+        <span style="font-size:12px; font-weight:700; color:var(--green);">${sudah} / ${kelompokScope.length} kelompok sudah lapor</span>
+      </div>
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Status</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Sub</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">KK</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Persenan</th>
+          </tr></thead>
+          <tbody>
+            ${kelompokScope.map(k => {
+              const l = byKlp[k.id];
+              return `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
+                <td style="padding:6px 10px; text-align:center;">${l ? '<span style="font-size:11px; font-weight:700; color:var(--green); background:var(--green-soft); padding:2px 8px; border-radius:8px;">✓ Sudah</span>' : '<span style="font-size:11px; color:var(--ink-soft);">Belum</span>'}</td>
+                <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.sub ?? '-'}</td>
+                <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.kk ?? '-'}</td>
+                <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.persenan!=null ? l.persenan+'%' : '-'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+      </div>
+    `;
+  }
+
+  window.PENR_gantiPeriode = async () => {
+    bulan = document.getElementById('penrBulan').value;
+    tahun = parseInt(document.getElementById('penrTahun').value);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    render(await load());
+  };
+
+  render(await load());
+}
+
 async function renderDataJamaah() {
   const u = App.user;
   if (u.role === 'pjp_kelompok' || u.role === 'kelompok') return renderJamaahEntry();
