@@ -5957,9 +5957,11 @@ async function renderMtMs() {
   window.MTMS_edit = (id) => openMtMsModal(allData.find(d=>d.id===id));
   window.MTMS_hapus = async (id) => {
     if (!confirm('Hapus data MT/MS ini?')) return;
-    await SB.mtMs.delete(id);
-    allData = allData.filter(d=>d.id!==id);
-    showToast('Dihapus'); render();
+    try {
+      await SB.mtMs.delete(id);
+      allData = allData.filter(d=>d.id!==id);
+      showToast('Dihapus'); render();
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
   };
 
   function openMtMsModal(existing) {
@@ -6227,9 +6229,11 @@ async function renderGuruSekolah() {
   window.GS_edit = (id) => openGuruSekolahModal(allData.find(d=>d.id===id));
   window.GS_hapus = async (id) => {
     if (!confirm('Hapus data guru ini?')) return;
-    await SB.guruSekolah.delete(id);
-    allData = allData.filter(d=>d.id!==id);
-    showToast('Dihapus'); render();
+    try {
+      await SB.guruSekolah.delete(id);
+      allData = allData.filter(d=>d.id!==id);
+      showToast('Dihapus'); render();
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
   };
 
   function openGuruSekolahModal(existing) {
@@ -6496,6 +6500,8 @@ async function renderJamaahEntry() {
   const main = document.getElementById('mainContent');
   const u = App.user;
   const canEdit = u.role === 'pjp_kelompok';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.nama || '';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [];
@@ -6566,10 +6572,15 @@ async function renderJamaahEntry() {
           <h1 class="page-title">Data Jamaah</h1>
           <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Sensus keluarga lengkap kelompok — dasar data absensi Pengajian Kelompok</p>
         </div>
-        ${canEdit ? `<div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="JMH_downloadPdf()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download PDF
+          </button>
+          ${canEdit ? `
           ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
-          <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>
-        </div>` : ''}
+          <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>` : ''}
+        </div>
       </div>
 
       ${pendingHtml}
@@ -6808,7 +6819,7 @@ async function renderJamaahEntry() {
         btn.disabled = true; btn.textContent = 'Menyimpan...';
         try {
           let currentList = [];
-          const payload = { nama: toTitleCase(jm.nama||''), jabatan: dapukan, tgl_lahir: jm.tgl_lahir || null, status_menikah: jm.status_menikah || null, no_hp: jm.no_hp || null, aktif: true };
+          const payload = { nama: toTitleCase(jm.nama||''), jabatan: dapukan, tgl_lahir: jm.tgl_lahir || null, no_hp: jm.no_hp || null, aktif: true };
           if (level === 'kelompok') { payload.kelompok_id = u.kelompok_id; currentList = await SB.musPeserta.getByKelompok(u.kelompok_id) || []; }
           else if (level === 'desa') { payload.desa_id = myDesaId; currentList = await SB.musPeserta.getByDesa(myDesaId) || []; }
           else { payload.level_daerah = true; currentList = await SB.musPeserta.getByDaerah() || []; }
@@ -6866,6 +6877,90 @@ async function renderJamaahEntry() {
 
     render();
     openModal('jmhTransferModal');
+  };
+
+  window.JMH_downloadPdf = async () => {
+    if (!listUrut.length) { showToast('Belum ada data jamaah untuk diunduh', true); return; }
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = res; s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s2.onload = res; s2.onerror = rej; document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const W = 595, H = 842, ML = 40, MR = 40, MT = 44;
+      const GREEN = rgb(0.106, 0.227, 0.173), GOLD = rgb(0.66, 0.5, 0.15), GRAY = rgb(0.45, 0.45, 0.45);
+      const LGREEN = rgb(0.93, 0.96, 0.93), WHITE = rgb(1, 1, 1), DARK = rgb(0.1, 0.1, 0.1);
+      const COLS = [
+        { key:'no', label:'No', x: ML,       w:22 },
+        { key:'nama', label:'Nama', x: ML+24, w:150 },
+        { key:'jk', label:'L/P', x: ML+176, w:26 },
+        { key:'usia', label:'Usia', x: ML+204, w:34 },
+        { key:'kat', label:'Kategori', x: ML+240, w:82 },
+        { key:'hp', label:'No. HP', x: ML+324, w:90 },
+        { key:'ket', label:'Keterangan', x: ML+416, w: W-MR-(ML+416) },
+      ];
+
+      let page, y, no = 1;
+      function drawHeader() {
+        page.drawRectangle({ x:0, y:H-40, width:W, height:40, color:GREEN });
+        page.drawText('DATA JAMAAH', { x:ML, y:H-26, font:fBold, size:13, color:WHITE });
+        page.drawText(escLatin(kelompokNama||''), { x:ML, y:H-38, font:fReg, size:8, color:rgb(0.85,0.9,0.85) });
+        page.drawText('Dicetak: '+new Date().toLocaleDateString('id-ID'), { x:W-MR-120, y:H-26, font:fReg, size:8, color:rgb(0.85,0.9,0.85) });
+        y = H - 58;
+        // Header tabel
+        page.drawRectangle({ x:ML, y:y-4, width:W-ML-MR, height:16, color:GOLD });
+        COLS.forEach(c => page.drawText(c.label, { x:c.x+2, y:y, font:fBold, size:8, color:WHITE }));
+        y -= 18;
+      }
+      function newPage() { page = doc.addPage([W,H]); drawHeader(); }
+      function checkY() { if (y < 50) newPage(); }
+      function escLatin(s) { return String(s||'').replace(/[^\x00-\xFF]/g, ''); }
+
+      newPage();
+      listUrut.forEach((x, i) => {
+        checkY();
+        const usia = x.tgl_lahir ? hitungUsia(x.tgl_lahir) : null;
+        const kat = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+        const bg = i % 2 === 0 ? LGREEN : WHITE;
+        page.drawRectangle({ x:ML, y:y-3, width:W-ML-MR, height:13, color:bg });
+        const vals = {
+          no: String(no++), nama: escLatin(x.nama||'-'), jk: x.jenis_kelamin||'-',
+          usia: usia!=null ? usia+' th' : '-', kat: escLatin(kat),
+          hp: x.no_hp||'-', ket: escLatin(x.keterangan||'-'),
+        };
+        COLS.forEach(c => {
+          let text = String(vals[c.key]||'-');
+          const maxChars = Math.floor(c.w / 4.4);
+          if (text.length > maxChars) text = text.slice(0, maxChars-1)+'.';
+          page.drawText(text, { x:c.x+2, y, font: c.key==='nama'?fBold:fReg, size:7.8, color: c.key==='nama'?DARK:rgb(0.3,0.3,0.3) });
+        });
+        y -= 13;
+      });
+
+      doc.getPages().forEach((p, i) => {
+        p.drawText('Hal '+(i+1)+'/'+doc.getPageCount(), { x:W/2-20, y:20, font:fReg, size:8, color:GRAY });
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type:'application/pdf' });
+      const urlObj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj; a.download = `Data_Jamaah_${(kelompokNama||'kelompok').replace(/\s+/g,'_')}.pdf`; a.click();
+      URL.revokeObjectURL(urlObj);
+      showToast('PDF berhasil diunduh');
+    } catch(e) { showToast('Gagal membuat PDF: ' + e.message, true); }
   };
 
   window.JMH_toggleBelumTertaut = () => {
