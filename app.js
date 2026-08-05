@@ -1044,42 +1044,34 @@ function WIZ_resetWizard() {
   document.getElementById('desaField').style.display = 'none';
   document.getElementById('kelompokField').style.display = 'none';
 
-  // Restore step 3 HTML (bisa ter-replace setelah daftar sukses)
+  // Selalu bangun ulang bersih — sebelumnya ada logika "skip kalau sudah ada regNama"
+  // yang rawan: kalau DOM lama (sebelum ada field baru seperti No. HP) masih nempel,
+  // elemen barunya jadi tidak ketemu (null) dan bikin error pas submit.
   const step3 = document.getElementById('wizStep3');
-  if (!step3.querySelector('#regNama')) {
-    step3.innerHTML = `
-      <div id="wizSummary" style="background:#f0f7f2; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#1B3A2C;"></div>
-      <div id="wizAlert"></div>
-      <div class="field">
-        <label>Nama Lengkap</label>
-        <input type="text" id="regNama" placeholder="Nama Anda sesuai data">
-      </div>
-      <div class="field">
-        <label>Nama Pengguna</label>
-        <input type="text" id="regUser" placeholder="contoh: budi.santoso" autocomplete="username">
-      </div>
-      <div class="field">
-        <label>Kata Sandi</label>
-        <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
-      </div>
-      <div class="field">
-        <label>No. HP / WhatsApp</label>
-        <input type="tel" inputmode="numeric" id="regNoHp" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-      </div>
-      <div style="display:flex; gap:8px; margin-top:4px;">
-        <button class="btn-outline" style="flex:1;" onclick="WIZ_back(3)">\u2190 Kembali</button>
-        <button class="btn-primary" style="flex:2;" id="regBtn" onclick="doRegister()">Daftar Sekarang</button>
-      </div>
-      <div class="login-hint" style="margin-top:12px;">Setelah mendaftar, akun perlu disetujui admin sebelum dapat masuk.</div>`;
-  } else {
-    // Reset form fields
-    document.getElementById('regNama').value = '';
-    document.getElementById('regUser').value = '';
-    document.getElementById('regPass').value = '';
-    document.getElementById('regNoHp').value = '';
-    const wizAlert = document.getElementById('wizAlert');
-    if (wizAlert) wizAlert.innerHTML = '';
-  }
+  step3.innerHTML = `
+    <div id="wizSummary" style="background:#f0f7f2; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; color:#1B3A2C;"></div>
+    <div id="wizAlert"></div>
+    <div class="field">
+      <label>Nama Lengkap</label>
+      <input type="text" id="regNama" placeholder="Nama Anda sesuai data">
+    </div>
+    <div class="field">
+      <label>Nama Pengguna</label>
+      <input type="text" id="regUser" placeholder="contoh: budi.santoso" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Kata Sandi</label>
+      <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>No. HP / WhatsApp</label>
+      <input type="tel" inputmode="numeric" id="regNoHp" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <div style="display:flex; gap:8px; margin-top:4px;">
+      <button class="btn-outline" style="flex:1;" onclick="WIZ_back(3)">\u2190 Kembali</button>
+      <button class="btn-primary" style="flex:2;" id="regBtn" onclick="doRegister()">Daftar Sekarang</button>
+    </div>
+    <div class="login-hint" style="margin-top:12px;">Setelah mendaftar, akun perlu disetujui admin sebelum dapat masuk.</div>`;
 
   // Tampilkan step 1, sembunyikan lainnya
   document.getElementById('wizStep1').style.display = 'block';
@@ -1089,10 +1081,18 @@ function WIZ_resetWizard() {
 }
 
 async function doRegister() {
-  const namaLengkap = document.getElementById('regNama').value.trim();
-  const username = document.getElementById('regUser').value.trim();
-  const password = document.getElementById('regPass').value;
-  const noHp = document.getElementById('regNoHp').value.trim();
+  const elNama = document.getElementById('regNama');
+  const elUser = document.getElementById('regUser');
+  const elPass = document.getElementById('regPass');
+  const elNoHp = document.getElementById('regNoHp');
+  if (!elNama || !elUser || !elPass || !elNoHp) {
+    showToast('Form belum siap, coba muat ulang halaman (F5).', true);
+    return;
+  }
+  const namaLengkap = elNama.value.trim();
+  const username = elUser.value.trim();
+  const password = elPass.value;
+  const noHp = elNoHp.value.trim();
   const alertEl = document.getElementById('wizAlert') || document.getElementById('loginAlert');
   if (alertEl) alertEl.innerHTML = '';
 
