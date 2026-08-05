@@ -6678,20 +6678,11 @@ async function renderPenerobosanEntry() {
     return rows;
   }
 
-  window.PEN_downloadExcel = async () => {
-    if (!lastData) return;
-    if (!window.XLSX) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
-        s.onload = res; s.onerror = rej; document.head.appendChild(s);
-      });
-    }
-    const rows = buildPenerobosanGrid();
+  // Daftar sel gabungan (dipakai Excel !merges & border kotak PDF) — meniru koordinat form asli
+  function penerobosanMerges() {
     const colIdx = (letters) => letters.split('').reduce((n,c)=> n*26 + (c.charCodeAt(0)-64), 0) - 1;
-    const ws = window.XLSX.utils.aoa_to_sheet(rows);
-    const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { s:{r:+r1-1,c:colIdx(c1)}, e:{r:+r2-1,c:colIdx(c2)} }; };
-    ws['!merges'] = [
+    const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { r1:+r1-1, c1:colIdx(c1), r2:+r2-1, c2:colIdx(c2) }; };
+    return [
       M('E1','AD1'), M('E2','AD2'), M('E3','F3'), M('E4','F4'), M('T4','U4'), M('E5','F5'), M('T5','U5'), M('AB6','AD6'),
       M('B7','Y7'), M('Z7','Z9'), M('AA7','AA9'), M('AB7','AD9'),
       M('B8','D8'), M('E8','G8'), M('H8','J8'), M('K8','M8'), M('N8','P8'), M('Q8','S8'), M('T8','V8'), M('W8','Y8'),
@@ -6705,6 +6696,20 @@ async function renderPenerobosanEntry() {
       M('C27','D27'), M('S27','AB27'),
       M('S29','V29'), M('X29','AB29'),
     ];
+  }
+
+  window.PEN_downloadExcel = async () => {
+    if (!lastData) return;
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+    const rows = buildPenerobosanGrid();
+    const ws = window.XLSX.utils.aoa_to_sheet(rows);
+    ws['!merges'] = penerobosanMerges().map(m => ({ s:{r:m.r1,c:m.c1}, e:{r:m.r2,c:m.c2} }));
     ws['!cols'] = new Array(30).fill({wch:9});
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, 'Penerobosan');
@@ -6729,16 +6734,17 @@ async function renderPenerobosanEntry() {
     }
     try {
       const rows = buildPenerobosanGrid();
+      const merges = penerobosanMerges();
       const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
       const doc = await PDFDocument.create();
       const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fReg = await doc.embedFont(StandardFonts.Helvetica);
       // Landscape A4 — 30 kolom virtual meniru form aslinya, jadi butuh halaman lebar
-      const W = 842, H = 595, ML = 18, MT = 60;
+      const W = 842, H = 595, ML = 18, MT = 62;
       const nCols = 30, nRows = rows.length;
       const gridW = W - ML*2, colW = gridW / nCols;
       const gridH = H - MT - 20, rowH = gridH / nRows;
-      const GREEN = rgb(0.106,0.227,0.173), GRAY = rgb(0.55,0.55,0.55), WHITE = rgb(1,1,1), DARK = rgb(0.1,0.1,0.1), LINE = rgb(0.75,0.75,0.75);
+      const GREEN = rgb(0.106,0.227,0.173), GRAY = rgb(0.55,0.55,0.55), WHITE = rgb(1,1,1), DARK = rgb(0.1,0.1,0.1), LINE = rgb(0.55,0.55,0.55);
       const esc = s => String(s??'').toString().replace(/[^\x00-\xFF]/g, '');
 
       const page = doc.addPage([W,H]);
@@ -6747,23 +6753,45 @@ async function renderPenerobosanEntry() {
       page.drawText(esc(`${klp?.nama||''} · Bulan ${bulan} ${tahun} · Dicetak ${new Date().toLocaleDateString('id-ID')}`), { x:ML, y:H-37, font:fReg, size:8, color:rgb(0.85,0.9,0.85) });
 
       const top = H - MT;
-      // Garis horizontal pembatas antar bagian utama (sesuai baris pemisah form asli)
-      const sectionBreaks = new Set([2,6,11,17,26,28]); // index 0-based row SEBELUM baris ini butuh garis tebal
-      for (let r=0; r<=nRows; r++) {
-        const isBreak = sectionBreaks.has(r);
-        page.drawLine({ start:{x:ML, y:top-r*rowH}, end:{x:ML+gridW, y:top-r*rowH}, thickness: isBreak?1:0.3, color: isBreak?DARK:LINE });
-      }
-      page.drawLine({ start:{x:ML, y:top}, end:{x:ML, y:top-nRows*rowH}, thickness:1, color:DARK });
-      page.drawLine({ start:{x:ML+gridW, y:top}, end:{x:ML+gridW, y:top-nRows*rowH}, thickness:1, color:DARK });
+      const cellX = c => ML + c*colW;
+      const cellY = r => top - r*rowH;
 
+      // Bikin daftar kotak sel yang BENERAN ada (gabungan dari sel merge + sel tunggal),
+      // cuma untuk baris yang memang berbentuk tabel — bukan judul/footer.
+      const mergeMap = new Map();
+      merges.forEach((m, idx) => { for (let r=m.r1; r<=m.r2; r++) for (let c=m.c1; c<=m.c2; c++) mergeMap.set(`${r},${c}`, idx); });
+      const griddedRanges = [[2,14],[17,24]]; // baris 3-15 & 18-25 (1-indexed) -> 0-indexed
+      const cellRects = [];
+      const addedMergeIdx = new Set();
+      griddedRanges.forEach(([rs,re]) => {
+        for (let r=rs; r<=re; r++) {
+          for (let c=0; c<nCols; c++) {
+            const key = `${r},${c}`;
+            if (mergeMap.has(key)) {
+              const idx = mergeMap.get(key);
+              if (!addedMergeIdx.has(idx)) { addedMergeIdx.add(idx); cellRects.push(merges[idx]); }
+            } else {
+              cellRects.push({ r1:r, c1:c, r2:r, c2:c });
+            }
+          }
+        }
+      });
+
+      // Gambar kotak per sel (garis tegak DAN mendatar, cuma di batas sel yang beneran ada)
+      cellRects.forEach(({r1,c1,r2,c2}) => {
+        const x = cellX(c1), yTop = cellY(r1), w = (c2-c1+1)*colW, h = (r2-r1+1)*rowH;
+        page.drawRectangle({ x, y: yTop-h, width:w, height:h, borderColor:LINE, borderWidth:0.5 });
+      });
+
+      // Isi teks tiap sel (posisi & ukuran mengikuti kotak masing-masing)
       rows.forEach((row, r) => {
         row.forEach((val, c) => {
           if (val === '' || val == null) return;
-          const x = ML + c*colW + 2;
-          const y = top - r*rowH - rowH*0.68;
+          const x = cellX(c) + 2;
+          const y = cellY(r) - rowH*0.68;
           const isTitle = r === 0 || r === 1;
           const isSectionLabel = [6,11,17].includes(r) || (r===26 && c===3);
-          const size = isTitle ? 9 : (isSectionLabel ? 7.5 : 6.3);
+          const size = isTitle ? 9 : (isSectionLabel ? 7.5 : 6.2);
           const font = (isTitle || isSectionLabel || r===7 || r===9 || r===12 || r===13 || r===17) ? fBold : fReg;
           let text = esc(val);
           const maxChars = Math.floor((colW*3 - 4) / (size*0.55));
@@ -6771,6 +6799,9 @@ async function renderPenerobosanEntry() {
           page.drawText(text, { x, y, font, size, color: isTitle||isSectionLabel ? GREEN : DARK });
         });
       });
+
+      // Garis pemisah tipis di area catatan/footer (bukan grid penuh)
+      page.drawLine({ start:{x:ML, y:cellY(26)}, end:{x:ML+gridW, y:cellY(26)}, thickness:0.5, color:LINE });
 
       page.drawText('Hal 1/1', { x:W/2-15, y:8, font:fReg, size:7, color:GRAY });
 
