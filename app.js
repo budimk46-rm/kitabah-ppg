@@ -6631,10 +6631,10 @@ async function renderPenerobosanEntry() {
     const set = (r,c,v) => { rows[r-1][c] = v; };
 
     set(1,4,'LAPORAN PENEROBOSAN UMUM');
-    set(2,4,'JUMLAH JAMAAH, PERSENAN DAN KEGIATAN KELOMPOK');
-    set(3,4,'KELOMPOK'); set(3,7, klp?.nama||'');
-    set(4,4,'DESA'); set(4,7, desaNama); set(4,19,'BULAN'); set(4,21, bulan);
-    set(5,4,'DAERAH'); set(5,7, daerahNama); set(5,19,'TAHUN'); set(5,21, tahun);
+    set(2,4,'JUMLAH JAMAAH , PERSENAN DAN KEGIATAN KELOMPOK');
+    set(3,4,'Kelompok :'); set(3,7, klp?.nama||''); set(3,19,'Bulan :'); set(3,21, bulan);
+    set(4,4,'Desa :'); set(4,7, desaNama); set(4,19,'Tahun :'); set(4,21, tahun);
+    set(5,4,'Daerah :'); set(5,7, daerahNama);
     set(6,27,'DIISI KELOMPOK');
     set(7,1,'JUMLAH JAMAAH'); set(7,25,'SUB'); set(7,26,'KK'); set(7,27,'PERSENAN');
     set(8,1,'BALITA'); set(8,4,'CBR/PAUD-SD'); set(8,7,'PRA REMAJA'); set(8,10,'REMAJA'); set(8,13,'USIA NIKAH'); set(8,16,'DEWASA'); set(8,19,'TOTAL JIWA JAMAAH'); set(8,22,'JUMLAH PENGURUS');
@@ -6683,7 +6683,7 @@ async function renderPenerobosanEntry() {
     const colIdx = (letters) => letters.split('').reduce((n,c)=> n*26 + (c.charCodeAt(0)-64), 0) - 1;
     const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { r1:+r1-1, c1:colIdx(c1), r2:+r2-1, c2:colIdx(c2) }; };
     return [
-      M('E1','AD1'), M('E2','AD2'), M('E3','F3'), M('E4','F4'), M('T4','U4'), M('E5','F5'), M('T5','U5'), M('AB6','AD6'),
+      M('E1','AD1'), M('E2','AD2'), M('AB6','AD6'),
       M('B7','Y7'), M('Z7','Z9'), M('AA7','AA9'), M('AB7','AD9'),
       M('B8','D8'), M('E8','G8'), M('H8','J8'), M('K8','M8'), M('N8','P8'), M('Q8','S8'), M('T8','V8'), M('W8','Y8'),
       M('T10','V10'), M('AB10','AD10'),
@@ -6740,27 +6740,37 @@ async function renderPenerobosanEntry() {
       const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fReg = await doc.embedFont(StandardFonts.Helvetica);
       // Landscape A4 — 30 kolom virtual meniru form aslinya, jadi butuh halaman lebar
-      const W = 842, H = 595, ML = 18, MT = 62;
+      const W = 842, H = 595, ML = 18, MT = 96;
       const nCols = 30, nRows = rows.length;
       const gridW = W - ML*2, colW = gridW / nCols;
       const gridH = H - MT - 20, rowH = gridH / nRows;
-      const GREEN = rgb(0.106,0.227,0.173), GRAY = rgb(0.55,0.55,0.55), WHITE = rgb(1,1,1), DARK = rgb(0.1,0.1,0.1), LINE = rgb(0.55,0.55,0.55);
+      const GREEN = rgb(0.106,0.227,0.173), LGREEN = rgb(0.85,0.93,0.86), GRAY = rgb(0.55,0.55,0.55), WHITE = rgb(1,1,1), DARK = rgb(0.1,0.1,0.1), LINE = rgb(0.55,0.55,0.55);
       const esc = s => String(s??'').toString().replace(/[^\x00-\xFF]/g, '');
 
       const page = doc.addPage([W,H]);
-      page.drawRectangle({ x:0, y:H-40, width:W, height:40, color:GREEN });
-      page.drawText('LAPORAN PENEROBOSAN UMUM', { x:ML, y:H-25, font:fBold, size:13, color:WHITE });
-      page.drawText(esc(`${klp?.nama||''} · Bulan ${bulan} ${tahun} · Dicetak ${new Date().toLocaleDateString('id-ID')}`), { x:ML, y:H-37, font:fReg, size:8, color:rgb(0.85,0.9,0.85) });
+      // Header — 2 baris judul, rata tengah
+      page.drawRectangle({ x:0, y:H-52, width:W, height:52, color:GREEN });
+      const t1 = 'LAPORAN PENEROBOSAN UMUM', t2 = 'JUMLAH JAMAAH , PERSENAN DAN KEGIATAN KELOMPOK';
+      page.drawText(t1, { x: W/2 - fBold.widthOfTextAtSize(t1,14)/2, y:H-24, font:fBold, size:14, color:WHITE });
+      page.drawText(t2, { x: W/2 - fReg.widthOfTextAtSize(t2,9)/2, y:H-38, font:fReg, size:9, color:rgb(0.9,0.95,0.9) });
+
+      // Kelompok / Desa / Daerah / Bulan / Tahun — teks bebas, TANPA garis/kotak
+      let hy = H - 62;
+      const lbl = (label, val, x) => { page.drawText(esc(label), {x, y:hy, font:fBold, size:9, color:DARK}); page.drawText(esc(val), {x:x+50, y:hy, font:fReg, size:9, color:DARK}); };
+      lbl('Kelompok :', klp?.nama||'', ML); lbl('Bulan :', bulan, ML+330); hy -= 14;
+      lbl('Desa :', klp?.desa?.nama||'', ML); lbl('Tahun :', String(tahun), ML+330); hy -= 14;
+      lbl('Daerah :', 'PPG Sidoarjo Utara', ML);
 
       const top = H - MT;
       const cellX = c => ML + c*colW;
       const cellY = r => top - r*rowH;
 
       // Bikin daftar kotak sel yang BENERAN ada (gabungan dari sel merge + sel tunggal),
-      // cuma untuk baris yang memang berbentuk tabel — bukan judul/footer.
+      // cuma untuk baris yang memang berbentuk tabel — bukan judul/header info/footer.
       const mergeMap = new Map();
       merges.forEach((m, idx) => { for (let r=m.r1; r<=m.r2; r++) for (let c=m.c1; c<=m.c2; c++) mergeMap.set(`${r},${c}`, idx); });
-      const griddedRanges = [[2,14],[17,24]]; // baris 3-15 & 18-25 (1-indexed) -> 0-indexed
+      const griddedRanges = [[6,14],[17,24]]; // baris 7-15 & 18-25 (1-indexed) -> 0-indexed
+      const HEADER_ROWS = new Set([6,7,8, 11,12,13, 17]); // baris label/judul dalam grid -> BG hijau muda
       const cellRects = [];
       const addedMergeIdx = new Set();
       griddedRanges.forEach(([rs,re]) => {
@@ -6777,26 +6787,41 @@ async function renderPenerobosanEntry() {
         }
       });
 
-      // Gambar kotak per sel (garis tegak DAN mendatar, cuma di batas sel yang beneran ada)
+      // Gambar kotak per sel — BG hijau muda utk baris header/label, transparan utk baris angka
       cellRects.forEach(({r1,c1,r2,c2}) => {
         const x = cellX(c1), yTop = cellY(r1), w = (c2-c1+1)*colW, h = (r2-r1+1)*rowH;
-        page.drawRectangle({ x, y: yTop-h, width:w, height:h, borderColor:LINE, borderWidth:0.5 });
+        const isHeader = HEADER_ROWS.has(r1);
+        page.drawRectangle({ x, y: yTop-h, width:w, height:h, borderColor:LINE, borderWidth:0.5, color: isHeader?LGREEN:undefined });
       });
 
-      // Isi teks tiap sel (posisi & ukuran mengikuti kotak masing-masing)
-      rows.forEach((row, r) => {
-        row.forEach((val, c) => {
+      // Isi teks tiap sel — rata TENGAH (horizontal) & MIDDLE (vertikal) di dalam kotaknya masing-masing
+      cellRects.forEach(({r1,c1,r2,c2}) => {
+        const val = rows[r1][c1];
+        if (val === '' || val == null) return;
+        const isHeader = HEADER_ROWS.has(r1);
+        const w = (c2-c1+1)*colW, h = (r2-r1+1)*rowH;
+        const cx = cellX(c1) + w/2, cy = cellY(r1) - h/2;
+        const size = isHeader ? 7 : 7.5;
+        const font = isHeader ? fBold : fReg;
+        let text = esc(val);
+        const maxChars = Math.floor((w - 4) / (size*0.55));
+        if (text.length > maxChars && maxChars > 3) text = text.slice(0, maxChars-1) + '.';
+        const tw = font.widthOfTextAtSize(text, size);
+        page.drawText(text, { x: cx - tw/2, y: cy - size*0.35, font, size, color: isHeader ? GREEN : DARK });
+      });
+
+      // Bagian non-grid (judul, footer) — teks bebas, rata tengah horizontal di dalam lebar halaman
+      const freeRows = [0,1, 5, 25,26,27,28,29,30,31,32];
+      freeRows.forEach(r => {
+        rows[r].forEach((val, c) => {
           if (val === '' || val == null) return;
+          if (r === 0 || r === 1) return; // sudah digambar sbg judul di atas
           const x = cellX(c) + 2;
           const y = cellY(r) - rowH*0.68;
-          const isTitle = r === 0 || r === 1;
-          const isSectionLabel = [6,11,17].includes(r) || (r===26 && c===3);
-          const size = isTitle ? 9 : (isSectionLabel ? 7.5 : 6.2);
-          const font = (isTitle || isSectionLabel || r===7 || r===9 || r===12 || r===13 || r===17) ? fBold : fReg;
-          let text = esc(val);
-          const maxChars = Math.floor((colW*3 - 4) / (size*0.55));
-          if (text.length > maxChars && maxChars > 3) text = text.slice(0, maxChars-1) + '.';
-          page.drawText(text, { x, y, font, size, color: isTitle||isSectionLabel ? GREEN : DARK });
+          const isSectionLabel = (r===26 && c===3);
+          const size = isSectionLabel ? 8 : 7;
+          const font = (isSectionLabel || r===5) ? fBold : fReg;
+          page.drawText(esc(val), { x, y, font, size, color: isSectionLabel ? GREEN : DARK });
         });
       });
 
