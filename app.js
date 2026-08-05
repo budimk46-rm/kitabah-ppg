@@ -6471,6 +6471,7 @@ async function renderPenerobosanEntry() {
 
   let bulan = BULAN_LIST[new Date().getMonth()];
   let tahun = new Date().getFullYear();
+  let lastData = null;
 
   async function loadAuto() {
     const jamaahList = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
@@ -6487,13 +6488,18 @@ async function renderPenerobosanEntry() {
     const p4s = PENEROBOSAN_4S.map(d => pengurus.find(p => p.jabatan === d)).filter(Boolean);
     const pLain = pengurus.filter(p => !PENEROBOSAN_4S.includes(p.jabatan));
 
+    const mtMsList = await SB.mtMs.getByKelompok(u.kelompok_id) || [];
+    const jumlahMT = mtMsList.filter(x => x.dapukan === 'MT').length;
+    const jumlahMS = mtMsList.filter(x => x.dapukan === 'MS').length;
+
     const existing = (await SB.penerobosan.getByKelompokBulan(u.kelompok_id, bulan, tahun) || [])[0] || null;
 
-    return { jamaahCount, p4s, pLain, existing };
+    return { jamaahCount, p4s, pLain, jumlahMT, jumlahMS, existing };
   }
 
   function render(data) {
-    const { jamaahCount, p4s, pLain, existing } = data;
+    lastData = data;
+    const { jamaahCount, p4s, pLain, jumlahMT, jumlahMS, existing } = data;
     const totalJamaah = { L:0, P:0 };
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { totalJamaah.L += jamaahCount[k].L; totalJamaah.P += jamaahCount[k].P; });
 
@@ -6555,11 +6561,16 @@ async function renderPenerobosanEntry() {
       </div>
 
       <div class="card" style="margin-bottom:14px;">
-        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">🕌 Sarana & Prasarana <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(isi manual)</span></div>
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">🕌 Sarana & Prasarana</div>
+        <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; gap:20px; flex-wrap:wrap;">
+          <div><span style="font-size:11px; color:var(--ink-soft);">MT (otomatis dari Data MT/MS)</span><div style="font-size:18px; font-weight:800; color:var(--green);">${jumlahMT}</div></div>
+          <div><span style="font-size:11px; color:var(--ink-soft);">MS (otomatis dari Data MT/MS)</span><div style="font-size:18px; font-weight:800; color:var(--green);">${jumlahMS}</div></div>
+        </div>
+        <div style="font-size:11px; color:var(--ink-soft); margin-bottom:8px;">Yang di bawah ini isi manual:</div>
         <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;">
           ${[['sarpras_masjid','Masjid'],['sarpras_aula','Aula'],['sarpras_madrasah','Madrasah'],['sarpras_jeding','Jeding (Kamar Mandi)'],
-             ['sarpras_sekolah_putra','Sekolah (Putra)'],['sarpras_sekolah_putri','Sekolah (Putri)'],['sarpras_pondok','Pondok'],
-             ['sarpras_kamar_mt','Kamar MT'],['sarpras_kamar_ms','Kamar MS'],['sarpras_kamar_tamu','Kamar Tamu']]
+             ['sarpras_sekolah','Sekolah'],['sarpras_pondok','Pondok'],
+             ['sarpras_kamar_mt','Kamar MT'],['sarpras_kamar_tamu','Kamar Tamu']]
             .map(([key,label]) => `<div class="form-group" style="margin:0;"><label style="font-size:11px;">${label}</label><input type="number" min="0" id="pen_${key}" value="${n(key)}" ${!canEdit?'disabled':''}></div>`).join('')}
         </div>
       </div>
@@ -6587,7 +6598,11 @@ async function renderPenerobosanEntry() {
         <textarea id="pen_catatan" rows="3" style="width:100%; resize:vertical;" ${!canEdit?'disabled':''}>${escHtml(existing?.catatan||'')}</textarea>
       </div>
 
-      ${canEdit ? `<button class="btn btn-green" style="width:100%; padding:12px;" id="penSaveBtn" onclick="PEN_simpan()">💾 Simpan Laporan ${bulan} ${tahun}</button>` : ''}
+      ${existing ? `<div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="PEN_downloadExcel()">📥 Download Excel</button>
+        <button class="btn btn-outline" style="flex:1;" onclick="PEN_downloadPdf()">📥 Download PDF</button>
+      </div>` : ''}
+      ${canEdit ? `<button class="btn btn-green" style="width:100%; padding:12px;" id="penSaveBtn" onclick="PEN_simpan()">💾 ${existing?'Simpan Perubahan':'Simpan Laporan'} ${bulan} ${tahun}</button>` : ''}
     `;
   }
 
@@ -6596,6 +6611,146 @@ async function renderPenerobosanEntry() {
     tahun = parseInt(document.getElementById('penTahun').value);
     main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
     render(await loadAuto());
+  };
+
+  window.PEN_downloadExcel = async () => {
+    if (!lastData) return;
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+    const { jamaahCount, p4s, pLain, jumlahMT, jumlahMS, existing } = lastData;
+    const totalJamaah = { L:0, P:0 };
+    PENEROBOSAN_KATEGORI_ORDER.forEach(k => { totalJamaah.L += jamaahCount[k].L; totalJamaah.P += jamaahCount[k].P; });
+    const desaNama = klp?.desa?.nama || '';
+    const aoa = [
+      ['LAPORAN PENEROBOSAN UMUM'],
+      [`Kelompok: ${klp?.nama||''}   Desa: ${desaNama}   Bulan: ${bulan}   Tahun: ${tahun}`],
+      [],
+      ['JUMLAH JAMAAH', '', 'L', 'P', 'Jumlah'],
+      ...PENEROBOSAN_KATEGORI_ORDER.map(k => [k, '', jamaahCount[k].L, jamaahCount[k].P, jamaahCount[k].L+jamaahCount[k].P]),
+      ['TOTAL JIWA JAMAAH', '', totalJamaah.L, totalJamaah.P, totalJamaah.L+totalJamaah.P],
+      [],
+      ['PENGURUS 4-S', p4s.length], ...p4s.map(p => ['', p.nama, p.jabatan]),
+      ['KEPENGURUSAN LAIN', pLain.length], ...pLain.map(p => ['', p.nama, p.jabatan]),
+      [],
+      ['SARANA & PRASARANA'],
+      ['MT (otomatis)', jumlahMT], ['MS (otomatis)', jumlahMS],
+      ['Masjid', existing?.sarpras_masjid||0], ['Aula', existing?.sarpras_aula||0],
+      ['Madrasah', existing?.sarpras_madrasah||0], ['Jeding', existing?.sarpras_jeding||0],
+      ['Sekolah', existing?.sarpras_sekolah||0], ['Pondok', existing?.sarpras_pondok||0],
+      ['Kamar MT', existing?.sarpras_kamar_mt||0], ['Kamar Tamu', existing?.sarpras_kamar_tamu||0],
+      [],
+      ['KEGIATAN KELOMPOK / MINGGU'],
+      ['Kelompok', existing?.kegiatan_klp||0], ['Muda-mudi', existing?.kegiatan_muda_mudi||0],
+      ['Caberawit', existing?.kegiatan_cbr||0], ['Ibu-ibu', existing?.kegiatan_ibu2||0],
+      ['5 Unsur', existing?.kegiatan_5unsur||0], ['Musyawarah', existing?.kegiatan_musyawarah||0],
+      [],
+      ['Sub', existing?.sub ?? ''], ['KK', existing?.kk ?? ''], ['Persenan (%)', existing?.persenan ?? ''],
+      [],
+      ['Catatan', existing?.catatan || ''],
+    ];
+    const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:22},{wch:24},{wch:14},{wch:10},{wch:10}];
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Penerobosan');
+    window.XLSX.writeFile(wb, `Penerobosan_${(klp?.nama||'kelompok').replace(/\s+/g,'_')}_${bulan}_${tahun}.xlsx`);
+    showToast('Excel berhasil diunduh');
+  };
+
+  window.PEN_downloadPdf = async () => {
+    if (!lastData) return;
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = res; s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s2.onload = res; s2.onerror = rej; document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      });
+    }
+    try {
+      const { jamaahCount, p4s, pLain, jumlahMT, jumlahMS, existing } = lastData;
+      const totalJamaah = { L:0, P:0 };
+      PENEROBOSAN_KATEGORI_ORDER.forEach(k => { totalJamaah.L += jamaahCount[k].L; totalJamaah.P += jamaahCount[k].P; });
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const W = 595, H = 842, ML = 40, MR = 40;
+      const GREEN = rgb(0.106,0.227,0.173), GOLD = rgb(0.66,0.5,0.15), GRAY = rgb(0.45,0.45,0.45), WHITE = rgb(1,1,1), DARK = rgb(0.1,0.1,0.1);
+      const esc = s => String(s||'').replace(/[^\x00-\xFF]/g, '');
+
+      let page, y;
+      function drawHeader() {
+        page.drawRectangle({ x:0, y:H-46, width:W, height:46, color:GREEN });
+        page.drawText('LAPORAN PENEROBOSAN UMUM', { x:ML, y:H-22, font:fBold, size:13, color:WHITE });
+        page.drawText(esc(`${klp?.nama||''} · ${klp?.desa?.nama||''} · ${bulan} ${tahun}`), { x:ML, y:H-38, font:fReg, size:9, color:rgb(0.85,0.9,0.85) });
+        y = H - 62;
+      }
+      function newPage() { page = doc.addPage([W,H]); drawHeader(); }
+      function checkY(n=16) { if (y < n+30) newPage(); }
+      function sectionTitle(t) { checkY(20); page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:16,color:GOLD}); page.drawText(esc(t), {x:ML+5,y,font:fBold,size:9,color:WHITE}); y-=20; }
+      function line(label, val, bold) {
+        checkY();
+        page.drawText(esc(label), { x:ML, y, font: bold?fBold:fReg, size:9, color:DARK });
+        page.drawText(esc(String(val)), { x:ML+260, y, font:fBold, size:9, color:GREEN });
+        y -= 14;
+      }
+
+      newPage();
+      sectionTitle('JUMLAH JAMAAH');
+      checkY(); page.drawText('Kategori', {x:ML,y,font:fBold,size:8,color:GRAY}); page.drawText('L', {x:ML+260,y,font:fBold,size:8,color:GRAY}); page.drawText('P', {x:ML+300,y,font:fBold,size:8,color:GRAY}); page.drawText('Jml', {x:ML+340,y,font:fBold,size:8,color:GRAY}); y-=13;
+      PENEROBOSAN_KATEGORI_ORDER.forEach(k => {
+        checkY();
+        page.drawText(esc(k), {x:ML,y,font:fReg,size:9,color:DARK});
+        page.drawText(String(jamaahCount[k].L), {x:ML+260,y,font:fReg,size:9,color:DARK});
+        page.drawText(String(jamaahCount[k].P), {x:ML+300,y,font:fReg,size:9,color:DARK});
+        page.drawText(String(jamaahCount[k].L+jamaahCount[k].P), {x:ML+340,y,font:fBold,size:9,color:DARK});
+        y -= 13;
+      });
+      line('TOTAL JIWA JAMAAH', totalJamaah.L+totalJamaah.P, true);
+
+      sectionTitle('PENGURUS 4-S (' + p4s.length + ')');
+      p4s.forEach(p => line(esc(p.nama), esc(p.jabatan)));
+      sectionTitle('KEPENGURUSAN LAIN (' + pLain.length + ')');
+      pLain.forEach(p => line(esc(p.nama), esc(p.jabatan)));
+
+      sectionTitle('SARANA & PRASARANA');
+      line('MT (otomatis)', jumlahMT); line('MS (otomatis)', jumlahMS);
+      line('Masjid', existing?.sarpras_masjid||0); line('Aula', existing?.sarpras_aula||0);
+      line('Madrasah', existing?.sarpras_madrasah||0); line('Jeding', existing?.sarpras_jeding||0);
+      line('Sekolah', existing?.sarpras_sekolah||0); line('Pondok', existing?.sarpras_pondok||0);
+      line('Kamar MT', existing?.sarpras_kamar_mt||0); line('Kamar Tamu', existing?.sarpras_kamar_tamu||0);
+
+      sectionTitle('KEGIATAN KELOMPOK / MINGGU');
+      line('Kelompok', existing?.kegiatan_klp||0); line('Muda-mudi', existing?.kegiatan_muda_mudi||0);
+      line('Caberawit', existing?.kegiatan_cbr||0); line('Ibu-ibu', existing?.kegiatan_ibu2||0);
+      line('5 Unsur', existing?.kegiatan_5unsur||0); line('Musyawarah', existing?.kegiatan_musyawarah||0);
+
+      sectionTitle('LAIN-LAIN');
+      line('Sub', existing?.sub ?? '-'); line('KK', existing?.kk ?? '-'); line('Persenan', (existing?.persenan!=null? existing.persenan+'%':'-'));
+      checkY(30);
+      page.drawText('Catatan:', {x:ML,y,font:fBold,size:9,color:DARK}); y-=13;
+      page.drawText(esc(existing?.catatan||'-'), {x:ML,y,font:fReg,size:9,color:DARK}); y-=13;
+
+      doc.getPages().forEach((p,i)=>{ p.drawText('Hal '+(i+1)+'/'+doc.getPageCount(), {x:W/2-20,y:20,font:fReg,size:8,color:GRAY}); });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type:'application/pdf' });
+      const urlObj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj; a.download = `Penerobosan_${(klp?.nama||'kelompok').replace(/\s+/g,'_')}_${bulan}_${tahun}.pdf`; a.click();
+      URL.revokeObjectURL(urlObj);
+      showToast('PDF berhasil diunduh');
+    } catch(e) { showToast('Gagal membuat PDF: ' + e.message, true); }
   };
 
   window.PEN_simpan = async () => {
@@ -6607,9 +6762,9 @@ async function renderPenerobosanEntry() {
         kelompok_id: u.kelompok_id, bulan, tahun,
         sarpras_masjid: getNum('pen_sarpras_masjid')||0, sarpras_aula: getNum('pen_sarpras_aula')||0,
         sarpras_madrasah: getNum('pen_sarpras_madrasah')||0, sarpras_jeding: getNum('pen_sarpras_jeding')||0,
-        sarpras_sekolah_putra: getNum('pen_sarpras_sekolah_putra')||0, sarpras_sekolah_putri: getNum('pen_sarpras_sekolah_putri')||0,
+        sarpras_sekolah: getNum('pen_sarpras_sekolah')||0,
         sarpras_pondok: getNum('pen_sarpras_pondok')||0, sarpras_kamar_mt: getNum('pen_sarpras_kamar_mt')||0,
-        sarpras_kamar_ms: getNum('pen_sarpras_kamar_ms')||0, sarpras_kamar_tamu: getNum('pen_sarpras_kamar_tamu')||0,
+        sarpras_kamar_tamu: getNum('pen_sarpras_kamar_tamu')||0,
         kegiatan_klp: getNum('pen_kegiatan_klp')||0, kegiatan_muda_mudi: getNum('pen_kegiatan_muda_mudi')||0,
         kegiatan_cbr: getNum('pen_kegiatan_cbr')||0, kegiatan_ibu2: getNum('pen_kegiatan_ibu2')||0,
         kegiatan_5unsur: getNum('pen_kegiatan_5unsur')||0, kegiatan_musyawarah: getNum('pen_kegiatan_musyawarah')||0,
