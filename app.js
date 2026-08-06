@@ -6458,6 +6458,7 @@ const BULAN_LIST = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Ag
 async function renderPenerobosan() {
   const u = App.user;
   if (u.role === 'pjp_kelompok' || u.role === 'kelompok') return renderPenerobosanEntry();
+  if (u.role === 'desa') return renderPenerobosanDesa();
   return renderPenerobosanRekap();
 }
 
@@ -6687,7 +6688,7 @@ async function renderPenerobosanEntry() {
       M('B7','Y7'), M('Z7','Z9'), M('AA7','AA9'), M('AB7','AD9'),
       M('B8','D8'), M('E8','G8'), M('H8','J8'), M('K8','M8'), M('N8','P8'), M('Q8','S8'), M('T8','V8'), M('W8','Y8'),
       M('AB10','AD10'),
-      M('B12','L12'), M('M12','N14'), M('O12','P14'), M('Q12','Q14'), M('R12','R14'), M('S12','T13'), M('U12','V13'), M('W12','AD13'),
+      M('B12','L12'), M('M12','N14'), M('O12','P14'), M('Q12','Q14'), M('R12','R14'), M('S12','T14'), M('U12','V14'), M('W12','AD13'),
       M('B13','C14'), M('D13','E14'), M('F13','H14'), M('I13','L13'),
       M('I14','J14'), M('K14','L14'), M('AA14','AB14'), M('AC14','AD14'),
       M('B15','C15'), M('D15','E15'), M('F15','H15'), M('I15','J15'), M('K15','L15'), M('M15','N15'), M('O15','P15'), M('S15','T15'), M('U15','V15'), M('AA15','AB15'), M('AC15','AD15'),
@@ -6877,6 +6878,195 @@ async function renderPenerobosanEntry() {
   };
 
   render(await loadAuto());
+}
+
+/* --- Mode Desa: rekap per kelompok + kepengurusan desa + input manual --- */
+const PENEROBOSAN_KATEGORI_MAP_DESA = {
+  'Bayi': 'CBR/PAUD-SD', 'PAUD/TK': 'CBR/PAUD-SD', 'Caberawit': 'CBR/PAUD-SD',
+  'Pra Remaja': 'PRA REMAJA', 'Remaja': 'REMAJA', 'Pra Nikah': 'USIA NIKAH',
+  'Dewasa': 'DEWASA', 'Istimewa': 'DEWASA',
+};
+const PENEROBOSAN_KATEGORI_ORDER_DESA = ['CBR/PAUD-SD','PRA REMAJA','REMAJA','USIA NIKAH','DEWASA'];
+const PENEROBOSAN_4S_DESA = [
+  { dapukan:'Kyai', label:'Imam Desa (Kyai Desa)' },
+  { dapukan:'Wakil Kyai', label:'Wakil Desa' },
+  { dapukan:'Penerobos', label:'Penerobos Desa' },
+  { dapukan:'Mubalegh', label:'Muballigh Desa' },
+  { dapukan:'KU', label:'KU Desa' },
+  { dapukan:'Aghnia', label:"Aghniya' Desa" },
+];
+
+async function renderPenerobosanDesa() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const kelompokList = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
+  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const desaNama = DESA_NAMA_MAP[u.desa_id] || u.desa_id;
+
+  let bulan = BULAN_LIST[new Date().getMonth()];
+  let tahun = new Date().getFullYear();
+
+  async function loadData() {
+    const perKelompok = await Promise.all(kelompokList.map(async klp => {
+      const jamaahList = await SB.jamaah.getByKelompok(klp.id) || [];
+      const cnt = {}; PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { cnt[k] = { L:0, P:0 }; });
+      jamaahList.forEach(x => {
+        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)];
+        if (!kat) return;
+        if (x.jenis_kelamin === 'L') cnt[kat].L++; else if (x.jenis_kelamin === 'P') cnt[kat].P++;
+      });
+      const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
+      const jml4s = pengurus.filter(p => PENEROBOSAN_4S.includes(p.jabatan)).length;
+      const jmlLain = pengurus.length - jml4s;
+      const lapKlp = (await SB.penerobosan.getByKelompokBulan(klp.id, bulan, tahun) || [])[0] || null;
+      return { klp, cnt, jml4s, jmlLain, lapKlp };
+    }));
+
+    const pengurusDesa = await SB.musPeserta.getByDesa(u.desa_id) || [];
+    const desa4s = PENEROBOSAN_4S_DESA.map(d => ({ ...d, orang: pengurusDesa.find(p => p.jabatan === d.dapukan) }));
+    const desaLain = pengurusDesa.filter(p => !PENEROBOSAN_4S.includes(p.jabatan));
+
+    const existing = (await SB.penerobosanDesa.getByDesaBulan(u.desa_id, bulan, tahun) || [])[0] || null;
+
+    return { perKelompok, desa4s, desaLain, existing };
+  }
+
+  function render(data) {
+    const { perKelompok, desa4s, desaLain, existing } = data;
+    const n = (key) => existing?.[key] ?? 0;
+
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0 };
+    PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
+    perKelompok.forEach(({ cnt, jml4s, jmlLain, lapKlp }) => {
+      PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
+      totals.jml4s += jml4s; totals.jmlLain += jmlLain;
+      totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
+    });
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Penerobosan Pusat</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">${escHtml(desaNama)} · Rekap semua kelompok</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
+          <select id="penDBulan" onchange="PEND_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
+        </div>
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
+          <select id="penDTahun" onchange="PEND_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
+        </div>
+        ${existing ? '<span style="font-size:11px; font-weight:700; color:var(--green); background:var(--green-soft); padding:4px 10px; border-radius:10px;">✓ Sudah pernah disimpan</span>' : ''}
+      </div>
+
+      <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); padding:12px 14px 0;">👥 Jumlah Jamaah per Kelompok — otomatis dari Data Jamaah & Data Pengurus</div>
+        <div class="table-wrap" style="margin-top:8px;"><table style="width:100%; border-collapse:collapse; min-width:900px;">
+          <thead><tr style="background:var(--green-soft);">
+            <th style="padding:6px 8px; text-align:left; font-size:10px; color:var(--green);">Kelompok</th>
+            ${PENEROBOSAN_KATEGORI_ORDER_DESA.map(k=>`<th colspan="2" style="padding:6px 4px; text-align:center; font-size:9px; color:var(--green);">${k}</th>`).join('')}
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">Sub</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">KK</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">4-S</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">Lain</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">Persenan</th>
+          </tr></thead>
+          <tbody>
+            ${perKelompok.map(({klp,cnt,jml4s,jmlLain,lapKlp}) => `<tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:5px 8px; font-size:12px; font-weight:600;">${escHtml(klp.nama)}</td>
+              ${PENEROBOSAN_KATEGORI_ORDER_DESA.map(k=>`<td style="padding:5px 3px; text-align:center; font-size:11px;">${cnt[k].L}</td><td style="padding:5px 3px; text-align:center; font-size:11px; border-right:1px solid var(--line);">${cnt[k].P}</td>`).join('')}
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.sub ?? '-'}</td>
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.kk ?? '-'}</td>
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${jml4s}</td>
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${jmlLain}</td>
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.persenan!=null ? lapKlp.persenan+'%' : '-'}</td>
+            </tr>`).join('')}
+            <tr style="background:var(--cream-2); font-weight:800;">
+              <td style="padding:6px 8px; font-size:12px;">JUMLAH</td>
+              ${PENEROBOSAN_KATEGORI_ORDER_DESA.map(k=>`<td style="padding:6px 3px; text-align:center; font-size:11px;">${totals.cnt[k].L}</td><td style="padding:6px 3px; text-align:center; font-size:11px; border-right:1px solid var(--line);">${totals.cnt[k].P}</td>`).join('')}
+              <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.sub}</td>
+              <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.kk}</td>
+              <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.jml4s}</td>
+              <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.jmlLain}</td>
+              <td style="padding:6px 6px; text-align:center; font-size:11px;">-</td>
+            </tr>
+          </tbody>
+        </table></div>
+        <div style="font-size:11px; color:var(--ink-soft); padding:0 14px 12px;">Kolom Sub/KK/Persenan ditarik dari laporan Penerobosan level Kelompok masing-masing (bulan yang sama). Kalau kosong ("-"), berarti kelompok itu belum simpan laporannya bulan ini.</div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">🤝 Kepengurusan Desa — otomatis dari Data Pengurus level Desa</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px;">
+          ${desa4s.map(d => `<div style="font-size:12px; padding:6px 8px; background:var(--cream-2); border-radius:6px;"><b>${escHtml(d.label)}</b><br>${d.orang ? escHtml(d.orang.nama) : '<i style="color:var(--ink-soft);">Belum diisi</i>'}</div>`).join('')}
+        </div>
+        <div style="font-size:10.5px; font-weight:700; color:var(--gold); text-transform:uppercase; margin:12px 0 4px;">Kepengurusan Lain</div>
+        ${desaLain.length ? desaLain.map(p => `<div style="font-size:12px; padding:3px 0; border-bottom:1px dashed var(--line);">${escHtml(p.nama)} <span style="color:var(--ink-soft);">— ${escHtml(p.jabatan)}</span></div>`).join('') : '<div style="font-size:11.5px; color:var(--ink-soft); font-style:italic;">Belum ada data</div>'}
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">🕌 Sarana & Prasarana Desa <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(isi manual — angka desa sendiri)</span></div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;">
+          ${[['sarpras_masjid','Masjid'],['sarpras_jeding','Jeding'],['sarpras_aula','Aula'],['sarpras_madrasah','Madrasah'],['sarpras_pondok','Pondok'],['sarpras_sekolah','Sekolah']]
+            .map(([key,label]) => `<div class="form-group" style="margin:0;"><label style="font-size:11px;">${label}</label><input type="number" min="0" id="pend_${key}" value="${n(key)}"></div>`).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">📅 Kegiatan Desa <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(isi manual)</span></div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px;">
+          ${[['kegiatan_desa','Desa'],['kegiatan_muda_mudi','Muda-mudi'],['kegiatan_ibu2','Ibu-ibu'],['kegiatan_aghniya',"Aghniya'"],['kegiatan_musyawarah','Musyawarah']]
+            .map(([key,label]) => `<div class="form-group" style="margin:0;"><label style="font-size:11px;">${label}</label><input type="number" min="0" id="pend_${key}" value="${n(key)}"></div>`).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">📖 JML Pengajian / Bulan di Desa <span style="font-weight:400; color:var(--ink-soft); font-size:11px;">(isi manual)</span></div>
+        <input type="number" min="0" id="pend_jml_pengajian_bulan" value="${n('jml_pengajian_bulan')}" style="max-width:160px;">
+      </div>
+
+      <button class="btn btn-green" style="width:100%; padding:12px;" id="penDSaveBtn" onclick="PEND_simpan()">💾 ${existing?'Simpan Perubahan':'Simpan Laporan'} ${bulan} ${tahun}</button>
+    `;
+  }
+
+  window.PEND_gantiPeriode = async () => {
+    bulan = document.getElementById('penDBulan').value;
+    tahun = parseInt(document.getElementById('penDTahun').value);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    render(await loadData());
+  };
+
+  window.PEND_simpan = async () => {
+    const btn = document.getElementById('penDSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      const getNum = (id) => { const v = document.getElementById(id).value; return v === '' ? 0 : Number(v); };
+      const payload = {
+        desa_id: u.desa_id, bulan, tahun,
+        sarpras_masjid: getNum('pend_sarpras_masjid'), sarpras_jeding: getNum('pend_sarpras_jeding'),
+        sarpras_aula: getNum('pend_sarpras_aula'), sarpras_madrasah: getNum('pend_sarpras_madrasah'),
+        sarpras_pondok: getNum('pend_sarpras_pondok'), sarpras_sekolah: getNum('pend_sarpras_sekolah'),
+        kegiatan_desa: getNum('pend_kegiatan_desa'), kegiatan_muda_mudi: getNum('pend_kegiatan_muda_mudi'),
+        kegiatan_ibu2: getNum('pend_kegiatan_ibu2'), kegiatan_aghniya: getNum('pend_kegiatan_aghniya'),
+        kegiatan_musyawarah: getNum('pend_kegiatan_musyawarah'),
+        jml_pengajian_bulan: getNum('pend_jml_pengajian_bulan'),
+        dibuat_oleh: u.id, updated_at: new Date().toISOString(),
+      };
+      await SB.penerobosanDesa.upsert(payload);
+      logActivity('tambah', 'Penerobosan Pusat Desa', `Simpan laporan ${bulan} ${tahun}`);
+      showToast('Laporan tersimpan ✓');
+      render(await loadData());
+    } catch(e) {
+      showToast('Gagal menyimpan: ' + e.message, true);
+      btn.disabled = false; btn.textContent = `💾 Simpan Laporan ${bulan} ${tahun}`;
+    }
+  };
+
+  render(await loadData());
 }
 
 async function renderPenerobosanRekap() {

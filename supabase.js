@@ -590,6 +590,15 @@ const sbPenerobosan = {
   }),
 };
 
+// ============ PENEROBOSAN PUSAT - DESA ============
+const sbPenerobosanDesa = {
+  getByDesaBulan: (desaId, bulan, tahun) =>
+    sbFetch(`penerobosan_desa_laporan?desa_id=eq.${encodeURIComponent(desaId)}&bulan=eq.${bulan}&tahun=eq.${tahun}&select=*`),
+  upsert: (data) => sbFetch('penerobosan_desa_laporan?on_conflict=desa_id,bulan,tahun', {
+    method: 'POST', headers: {'Prefer':'return=representation,resolution=merge-duplicates'}, body: JSON.stringify(data),
+  }),
+};
+
 const sbJamaah = {
   getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=*&order=nama`),
   getByKelompokIds: (ids) => {
@@ -679,5 +688,6 @@ window.SB = {
   jamaah: sbJamaah,
   jamaahKeluarga: sbJamaahKeluarga,
   penerobosan: sbPenerobosan,
+  penerobosanDesa: sbPenerobosanDesa,
   formSubmissions: sbFormSubmissions,
 };
