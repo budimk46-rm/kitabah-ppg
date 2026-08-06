@@ -6645,8 +6645,8 @@ async function renderPenerobosanEntry() {
     set(10,22, p4s.length); set(10,23, pLain.length); set(10,24, totalPengurus);
     set(10,25, existing?.sub ?? ''); set(10,26, existing?.kk ?? ''); set(10,27, existing?.persenan ?? '');
 
-    set(12,1,'SARANA DAN PRASARANA'); set(12,12,'SEKOLAH'); set(12,14,'PONDOK'); set(12,16,'MT'); set(12,17,'MS'); set(12,18,'KAMAR'); set(12,20,'KAMAR'); set(12,22,'KEGIATAN KELOMPOK/ MINGGU');
-    set(13,1,'MASJID'); set(13,3,'AULA'); set(13,5,'MADRASAH'); set(13,8,'JEDING'); set(13,18,'MT'); set(13,20,'TAMU');
+    set(12,1,'SARANA DAN PRASARANA'); set(12,12,'SEKOLAH'); set(12,14,'PONDOK'); set(12,16,'MT'); set(12,17,'MS'); set(12,18,'KAMAR MT'); set(12,20,'KAMAR TAMU'); set(12,22,'KEGIATAN KELOMPOK/ MINGGU');
+    set(13,1,'MASJID'); set(13,3,'AULA'); set(13,5,'MADRASAH'); set(13,8,'JEDING');
     set(14,8,'PUTRA'); set(14,10,'PUTRI'); set(14,22,'KLP'); set(14,23,'Muda-di'); set(14,24,'Cbr'); set(14,25,'Ibu-ibu'); set(14,26,'5 Unsur'); set(14,28,'Musyawarah');
     set(15,1, existing?.sarpras_masjid||0); set(15,3, existing?.sarpras_aula||0); set(15,5, existing?.sarpras_madrasah||0);
     set(15,8, existing?.sarpras_jeding_putra||0); set(15,10, existing?.sarpras_jeding_putri||0);
@@ -6686,9 +6686,9 @@ async function renderPenerobosanEntry() {
       M('E1','AD1'), M('E2','AD2'), M('AB6','AD6'),
       M('B7','Y7'), M('Z7','Z9'), M('AA7','AA9'), M('AB7','AD9'),
       M('B8','D8'), M('E8','G8'), M('H8','J8'), M('K8','M8'), M('N8','P8'), M('Q8','S8'), M('T8','V8'), M('W8','Y8'),
-      M('T10','V10'), M('AB10','AD10'),
-      M('B12','L12'), M('M12','N14'), M('O12','P14'), M('Q12','Q14'), M('R12','R14'), M('S12','T12'), M('U12','V12'), M('W12','AD13'),
-      M('B13','C14'), M('D13','E14'), M('F13','H14'), M('I13','L13'), M('S13','T13'), M('U13','V13'),
+      M('AB10','AD10'),
+      M('B12','L12'), M('M12','N14'), M('O12','P14'), M('Q12','Q14'), M('R12','R14'), M('S12','T13'), M('U12','V13'), M('W12','AD13'),
+      M('B13','C14'), M('D13','E14'), M('F13','H14'), M('I13','L13'),
       M('I14','J14'), M('K14','L14'), M('AA14','AB14'), M('AC14','AD14'),
       M('B15','C15'), M('D15','E15'), M('F15','H15'), M('I15','J15'), M('K15','L15'), M('M15','N15'), M('O15','P15'), M('S15','T15'), M('U15','V15'), M('AA15','AB15'), M('AC15','AD15'),
       M('C18','F18'), M('G18','J18'), M('K18','N18'), M('O18','R18'), M('S18','V18'), M('W18','Z18'), M('AA18','AD18'),
