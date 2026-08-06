@@ -7012,15 +7012,16 @@ async function renderPenerobosanDesa() {
 
       <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
         <div class="fw-bold" style="font-size:13.5px; color:var(--green); padding:12px 14px 0;">👥 Jumlah Jamaah per Kelompok — otomatis dari Data Jamaah & Data Pengurus</div>
-        <div class="table-wrap" style="margin-top:8px;"><table style="width:100%; border-collapse:collapse; min-width:900px;">
-          <thead><tr style="background:var(--green-soft);">
-            <th style="padding:6px 8px; text-align:left; font-size:10px; color:var(--green);">Kelompok</th>
-            ${PENEROBOSAN_KATEGORI_ORDER_DESA.map(k=>`<th colspan="2" style="padding:6px 4px; text-align:center; font-size:9px; color:var(--green);">${k}</th>`).join('')}
-            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">Sub</th>
-            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">KK</th>
-            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">4-S</th>
-            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">Lain</th>
-            <th style="padding:6px 6px; text-align:center; font-size:10px; color:var(--green);">Persenan</th>
+        <div class="table-wrap" style="margin-top:8px;"><table style="width:100%; border-collapse:collapse; min-width:960px;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:6px 8px; text-align:left; font-size:10px; color:#fff;">Kelompok</th>
+            ${PENEROBOSAN_KATEGORI_ORDER_DESA.map(k=>`<th colspan="2" style="padding:6px 4px; text-align:center; font-size:9px; color:#fff;">${k}</th>`).join('')}
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:#fff;">Sub</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:#fff;">KK</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:#fff;">4-S</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:#fff;">Lain</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:#fff;">Janda</th>
+            <th style="padding:6px 6px; text-align:center; font-size:10px; color:#fff;">Persenan</th>
           </tr></thead>
           <tbody>
             ${perKelompok.map(({klp,cnt,jml4s,jmlLain,lapKlp}) => `<tr style="border-bottom:1px solid var(--line);">
@@ -7030,7 +7031,8 @@ async function renderPenerobosanDesa() {
               <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.kk ?? '-'}</td>
               <td style="padding:5px 6px; text-align:center; font-size:11px;">${jml4s}</td>
               <td style="padding:5px 6px; text-align:center; font-size:11px;">${jmlLain}</td>
-              <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.persenan!=null ? lapKlp.persenan+'%' : '-'}</td>
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.janda_jml ?? '-'}</td>
+              <td style="padding:5px 6px; text-align:center; font-size:11px;">${lapKlp?.persenan ?? '-'}</td>
             </tr>`).join('')}
             <tr style="background:var(--cream-2); font-weight:800;">
               <td style="padding:6px 8px; font-size:12px;">JUMLAH</td>
@@ -7039,11 +7041,12 @@ async function renderPenerobosanDesa() {
               <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.kk}</td>
               <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.jml4s}</td>
               <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.jmlLain}</td>
+              <td style="padding:6px 6px; text-align:center; font-size:11px;">${totals.jandaJml}</td>
               <td style="padding:6px 6px; text-align:center; font-size:11px;">-</td>
             </tr>
           </tbody>
         </table></div>
-        <div style="font-size:11px; color:var(--ink-soft); padding:0 14px 12px;">Kolom Sub/KK/Persenan ditarik dari laporan Penerobosan level Kelompok masing-masing (bulan yang sama). Kalau kosong ("-"), berarti kelompok itu belum simpan laporannya bulan ini.</div>
+        <div style="font-size:11px; color:var(--ink-soft); padding:0 14px 12px;">Kolom Sub/KK/Persenan/Janda ditarik dari laporan Penerobosan level Kelompok masing-masing (bulan yang sama). Kalau kosong ("-"), berarti kelompok itu belum simpan laporannya bulan ini. Kolom Persenan dalam satuan Rupiah.</div>
       </div>
 
       <div class="card" style="margin-bottom:14px;">
@@ -7111,7 +7114,7 @@ async function renderPenerobosanDesa() {
     set(4,1,'Desa :'); set(4,4, desaNama); set(4,13,'Bulan :'); set(4,15, bulan);
     set(5,1,'Daerah :'); set(5,4,'Sidoarjo Utara'); set(5,13,'Tahun :'); set(5,15, String(tahun));
 
-    set(6,0,'NO'); set(6,1,'KELOMPOK'); set(6,3,'JUMLAH JAMAAH'); set(6,21,'SUB'); set(6,22,'KK'); set(6,23,'JML PENGURUS'); set(6,26,'PERSENAN');
+    set(6,0,'NO'); set(6,1,'KELOMPOK'); set(6,3,'JUMLAH JAMAAH'); set(6,21,'SUB'); set(6,22,'KK'); set(6,23,'JML PENGURUS'); set(6,26,'PERSENAN'); set(6,27,'JANDA');
     set(7,3,'CBR / PAUD - SD'); set(7,6,'PRA REMAJA'); set(7,9,'REMAJA'); set(7,12,'USIA NIKAH'); set(7,15,'DEWASA'); set(7,18,'TOTAL JAMAAH');
     ['L','P','J'].forEach((lbl,i)=>{ for (let g=0; g<6; g++) set(8, 3+g*3+i, lbl); });
     set(8,23,'4 S'); set(8,24,'LAIN'); set(8,25,'JML');
@@ -7124,12 +7127,12 @@ async function renderPenerobosanDesa() {
       set(r,18,kL); set(r,19,kP); set(r,20,kL+kP);
       set(r,21, pk.lapKlp?.sub ?? ''); set(r,22, pk.lapKlp?.kk ?? '');
       set(r,23, pk.jml4s); set(r,24, pk.jmlLain); set(r,25, pk.jml4s+pk.jmlLain);
-      set(r,26, pk.lapKlp?.persenan ?? '');
+      set(r,26, pk.lapKlp?.persenan ?? ''); set(r,27, pk.lapKlp?.janda_jml ?? '');
     });
     set(20,0,'JUMLAH');
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach((k,ki) => { set(20,3+ki*3, totals.cnt[k].L); set(20,4+ki*3, totals.cnt[k].P); set(20,5+ki*3, totals.cnt[k].L+totals.cnt[k].P); });
     set(20,18,totL); set(20,19,totP); set(20,20,totL+totP);
-    set(20,21, totals.sub); set(20,22, totals.kk); set(20,23, totals.jml4s); set(20,24, totals.jmlLain); set(20,25, totals.jml4s+totals.jmlLain);
+    set(20,21, totals.sub); set(20,22, totals.kk); set(20,23, totals.jml4s); set(20,24, totals.jmlLain); set(20,25, totals.jml4s+totals.jmlLain); set(20,27, totals.jandaJml);
 
     set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
     set(22,19, 'JML PENGAJIAN / BULAN DI DESA : ' + (existing?.jml_pengajian_bulan ?? 0));
@@ -7168,11 +7171,11 @@ async function renderPenerobosanDesa() {
     const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { r1:+r1-1, c1:colIdx(c1), r2:+r2-1, c2:colIdx(c2) }; };
     return [
       M('A2','AC2'), M('A3','AC3'),
-      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','V8'), M('W6','W8'), M('X6','Z7'), M('AA6','AC8'),
+      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','V8'), M('W6','W8'), M('X6','Z7'), M('AA6','AA8'), M('AB6','AB8'),
       M('D7','F7'), M('G7','I7'), M('J7','L7'), M('M7','O7'), M('P7','R7'), M('S7','U7'),
       ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`B${r}`,`C${r}`)),
-      ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`AA${r}`,`AC${r}`)),
-      M('A20','C20'), M('AA20','AC20'),
+      ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`AA${r}`,`AA${r}`)),
+      M('A20','C20'), M('AA20','AA20'),
       M('B22','B23'), M('C22','C23'), M('D22','D23'), M('E22','E23'), M('F22','Q22'), M('R22','R23'), M('S22','S23'), M('T22','AC22'),
       M('F23','G23'), M('H23','I23'), M('J23','K23'), M('L23','M23'), M('N23','O23'), M('P23','Q23'),
       M('T23','U23'), M('V23','W23'), M('X23','Y23'), M('Z23','AA23'), M('AB23','AC23'),
