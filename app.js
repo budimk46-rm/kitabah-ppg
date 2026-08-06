@@ -6961,13 +6961,14 @@ async function renderPenerobosanDesa() {
     const { perKelompok, desa4s, desaLain, existing } = data;
     const n = (key) => existing?.[key] ?? 0;
 
-    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0 };
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
     perKelompok.forEach(({ cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp }) => {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
       totals.jml4s += jml4s; totals.jmlLain += jmlLain;
       totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
       totals.mt += jumlahMT; totals.ms += jumlahMS;
+      totals.jandaJml += lapKlp?.janda_jml || 0; totals.jandaBtn += lapKlp?.janda_btn || 0; totals.jandaTran += lapKlp?.janda_tran || 0;
     });
     let totalJiwa = 0;
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totalJiwa += totals.cnt[k].L + totals.cnt[k].P; });
@@ -7003,6 +7004,9 @@ async function renderPenerobosanDesa() {
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Jiwa Jamaah</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totalJiwa}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">MT</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.mt}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">MS</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.ms}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Janda (JML)</span><div style="font-size:16px; font-weight:800; color:var(--gold);">${totals.jandaJml}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Siap Diwayuh — BTN</span><div style="font-size:16px; font-weight:800; color:var(--gold);">${totals.jandaBtn}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Siap Diwayuh — TR-AN</span><div style="font-size:16px; font-weight:800; color:var(--gold);">${totals.jandaTran}</div></div>
         </div>
       </div>
 
@@ -7086,13 +7090,14 @@ async function renderPenerobosanDesa() {
   // Data grid bersama (Excel & PDF) — 29 kolom virtual (A..AC) meniru form Desa asli
   function buildPenerobosanDesaGrid() {
     const { perKelompok, desa4s, desaLain, existing } = lastData;
-    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0 };
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
     perKelompok.forEach(({ cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp }) => {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
       totals.jml4s += jml4s; totals.jmlLain += jmlLain;
       totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
       totals.mt += jumlahMT; totals.ms += jumlahMS;
+      totals.jandaJml += lapKlp?.janda_jml || 0; totals.jandaBtn += lapKlp?.janda_btn || 0; totals.jandaTran += lapKlp?.janda_tran || 0;
     });
     const totL = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].L,0);
     const totP = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].P,0);
@@ -7135,6 +7140,8 @@ async function renderPenerobosanDesa() {
     set(24,11, existing?.sarpras_madrasah||0); set(24,13, existing?.sarpras_pondok||0); set(24,15, existing?.sarpras_sekolah||0);
     set(24,19, existing?.kegiatan_desa||0); set(24,21, existing?.kegiatan_muda_mudi||0); set(24,23, existing?.kegiatan_ibu2||0);
     set(24,25, existing?.kegiatan_aghniya||0); set(24,27, existing?.kegiatan_musyawarah||0);
+
+    set(25,2, `JANDA — JML: ${totals.jandaJml}   Siap Diwayuh (BTN): ${totals.jandaBtn}   Siap Diwayuh (TR-AN): ${totals.jandaTran}`);
 
     const kepCols = [
       { label:'IMAM DESA', c:0, orang: desa4s.find(d=>d.dapukan==='Kyai')?.orang },
@@ -7281,7 +7288,7 @@ async function renderPenerobosanDesa() {
         page.drawText(text, { x: cx - tw/2, y: cy - size*0.35, font, size, color: isHeader ? GREEN : DARK });
       });
 
-      const freeRows = [25,26,27,28,29,30,31, 33,35,38];
+      const freeRows = [24,25,26,27,28,29,30,31, 33,35,38];
       freeRows.forEach(r => {
         rows[r].forEach((val, c) => {
           if (val === '' || val == null) return;
