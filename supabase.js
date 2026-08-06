@@ -36,7 +36,7 @@ async function sbFetch(path, options = {}) {
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
 async function sbLogin(username, password) {
-  const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username)}&select=*`);
+  const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.trim().toLowerCase())}&select=*`);
   if (!data || data.length === 0) throw new Error('Nama pengguna tidak ditemukan.');
   const user = data[0];
   // Simple comparison (app-level, production should use bcrypt)
