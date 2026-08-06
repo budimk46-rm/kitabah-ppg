@@ -6453,7 +6453,7 @@ const PENEROBOSAN_KATEGORI_MAP = {
 };
 const PENEROBOSAN_KATEGORI_ORDER = ['BALITA','CBR/PAUD-SD','PRA REMAJA','REMAJA','USIA NIKAH','DEWASA'];
 const PENEROBOSAN_4S = ['Kyai','Wakil Kyai','Penerobos','Mubalegh','KU','Aghnia'];
-const BULAN_LIST = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const BULAN_LIST = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
 async function renderPenerobosan() {
   const u = App.user;
@@ -6690,7 +6690,7 @@ async function renderPenerobosanEntry() {
       M('B12','L12'), M('M12','N14'), M('O12','P14'), M('Q12','Q14'), M('R12','R14'), M('S12','T12'), M('U12','V12'), M('W12','AD13'),
       M('B13','C14'), M('D13','E14'), M('F13','H14'), M('I13','L13'), M('S13','T13'), M('U13','V13'),
       M('I14','J14'), M('K14','L14'), M('AA14','AB14'), M('AC14','AD14'),
-      M('B15','C15'), M('D15','E15'), M('F15','H15'), M('M15','N15'), M('O15','P15'), M('S15','T15'), M('U15','V15'), M('AA15','AB15'), M('AC15','AD15'),
+      M('B15','C15'), M('D15','E15'), M('F15','H15'), M('I15','J15'), M('K15','L15'), M('M15','N15'), M('O15','P15'), M('S15','T15'), M('U15','V15'), M('AA15','AB15'), M('AC15','AD15'),
       M('C18','F18'), M('G18','J18'), M('K18','N18'), M('O18','R18'), M('S18','V18'), M('W18','Z18'), M('AA18','AD18'),
       ...[19,20,21,22,23,24,25].flatMap(r => [M(`C${r}`,`F${r}`), M(`G${r}`,`J${r}`), M(`K${r}`,`N${r}`), M(`O${r}`,`R${r}`), M(`S${r}`,`V${r}`), M(`W${r}`,`Z${r}`), M(`AA${r}`,`AD${r}`)]),
       M('C27','D27'), M('S27','AB27'),
@@ -6762,20 +6762,26 @@ async function renderPenerobosanEntry() {
       lbl('Daerah :', 'Sidoarjo Utara', ML);
 
       const top = H - MT;
-      const cellX = c => ML + c*colW;
+      // Kolom A (index 0) di form asli selalu kosong — dilewati saja, grid mulai dari kolom B
+      const gridColStart = 1;
+      const effCols = nCols - gridColStart;
+      const colW2 = gridW / effCols;
+      const cellX = c => ML + (c - gridColStart)*colW2;
       const cellY = r => top - r*rowH;
 
       // Bikin daftar kotak sel yang BENERAN ada (gabungan dari sel merge + sel tunggal),
       // cuma untuk baris yang memang berbentuk tabel — bukan judul/header info/footer.
+      // Baris 11 (0-idx 10) sengaja dilewati juga — itu baris kosong pemisah sebelum
+      // Sarana & Prasarana, biar ada jarak tanpa garis, bukan kotak-kotak kosong.
       const mergeMap = new Map();
       merges.forEach((m, idx) => { for (let r=m.r1; r<=m.r2; r++) for (let c=m.c1; c<=m.c2; c++) mergeMap.set(`${r},${c}`, idx); });
-      const griddedRanges = [[6,14],[17,24]]; // baris 7-15 & 18-25 (1-indexed) -> 0-indexed
+      const griddedRanges = [[6,9],[11,14],[17,24]];
       const HEADER_ROWS = new Set([6,7,8, 11,12,13, 17]); // baris label/judul dalam grid -> BG hijau muda
       const cellRects = [];
       const addedMergeIdx = new Set();
       griddedRanges.forEach(([rs,re]) => {
         for (let r=rs; r<=re; r++) {
-          for (let c=0; c<nCols; c++) {
+          for (let c=gridColStart; c<nCols; c++) {
             const key = `${r},${c}`;
             if (mergeMap.has(key)) {
               const idx = mergeMap.get(key);
@@ -6789,7 +6795,7 @@ async function renderPenerobosanEntry() {
 
       // Gambar kotak per sel — BG hijau muda utk baris header/label, transparan utk baris angka
       cellRects.forEach(({r1,c1,r2,c2}) => {
-        const x = cellX(c1), yTop = cellY(r1), w = (c2-c1+1)*colW, h = (r2-r1+1)*rowH;
+        const x = cellX(c1), yTop = cellY(r1), w = (c2-c1+1)*colW2, h = (r2-r1+1)*rowH;
         const isHeader = HEADER_ROWS.has(r1);
         page.drawRectangle({ x, y: yTop-h, width:w, height:h, borderColor:LINE, borderWidth:0.5, color: isHeader?LGREEN:undefined });
       });
@@ -6799,7 +6805,7 @@ async function renderPenerobosanEntry() {
         const val = rows[r1][c1];
         if (val === '' || val == null) return;
         const isHeader = HEADER_ROWS.has(r1);
-        const w = (c2-c1+1)*colW, h = (r2-r1+1)*rowH;
+        const w = (c2-c1+1)*colW2, h = (r2-r1+1)*rowH;
         const cx = cellX(c1) + w/2, cy = cellY(r1) - h/2;
         const size = isHeader ? 7 : 7.5;
         const font = isHeader ? fBold : fReg;
