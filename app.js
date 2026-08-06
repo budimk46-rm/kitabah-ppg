@@ -6940,11 +6940,12 @@ async function renderPenerobosanDesa() {
       const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
       const jml4s = pengurus.filter(p => PENEROBOSAN_4S.includes(p.jabatan)).length;
       const jmlLain = pengurus.length - jml4s;
+      const jmlWakilKyai = pengurus.filter(p => p.jabatan === 'Wakil Kyai').length;
       const mtMsList = await SB.mtMs.getByKelompok(klp.id) || [];
       const jumlahMT = mtMsList.filter(x => x.dapukan === 'MT').length;
       const jumlahMS = mtMsList.filter(x => x.dapukan === 'MS').length;
       const lapKlp = (await SB.penerobosan.getByKelompokBulan(klp.id, bulan, tahun) || [])[0] || null;
-      return { klp, cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp };
+      return { klp, cnt, jml4s, jmlLain, jmlWakilKyai, jumlahMT, jumlahMS, lapKlp };
     }));
 
     const pengurusDesa = await SB.musPeserta.getByDesa(u.desa_id) || [];
@@ -6961,14 +6962,15 @@ async function renderPenerobosanDesa() {
     const { perKelompok, desa4s, desaLain, existing } = data;
     const n = (key) => existing?.[key] ?? 0;
 
-    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, jmlWakilKyai:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
-    perKelompok.forEach(({ cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp }) => {
+    perKelompok.forEach(({ cnt, jml4s, jmlLain, jmlWakilKyai, jumlahMT, jumlahMS, lapKlp }) => {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
       totals.jml4s += jml4s; totals.jmlLain += jmlLain;
       totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
       totals.mt += jumlahMT; totals.ms += jumlahMS;
       totals.jandaJml += lapKlp?.janda_jml || 0; totals.jandaBtn += lapKlp?.janda_btn || 0; totals.jandaTran += lapKlp?.janda_tran || 0;
+      totals.jmlWakilKyai += jmlWakilKyai;
     });
     let totalJiwa = 0;
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totalJiwa += totals.cnt[k].L + totals.cnt[k].P; });
@@ -6999,6 +7001,7 @@ async function renderPenerobosanDesa() {
         <div class="fw-bold" style="font-size:12.5px; color:var(--green); margin-bottom:8px;">📊 Ringkasan Desa — otomatis</div>
         <div style="display:flex; gap:18px; flex-wrap:wrap;">
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Jml Kelompok</span><div style="font-size:16px; font-weight:800; color:var(--green);">${kelompokList.length}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Wakil Kyai Desa</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.jmlWakilKyai}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Sub</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.sub}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">KK</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.kk}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Jiwa Jamaah</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totalJiwa}</div></div>
@@ -7093,14 +7096,15 @@ async function renderPenerobosanDesa() {
   // Data grid bersama (Excel & PDF) — 29 kolom virtual (A..AC) meniru form Desa asli
   function buildPenerobosanDesaGrid() {
     const { perKelompok, desa4s, desaLain, existing } = lastData;
-    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, jmlWakilKyai:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
-    perKelompok.forEach(({ cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp }) => {
+    perKelompok.forEach(({ cnt, jml4s, jmlLain, jmlWakilKyai, jumlahMT, jumlahMS, lapKlp }) => {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
       totals.jml4s += jml4s; totals.jmlLain += jmlLain;
       totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
       totals.mt += jumlahMT; totals.ms += jumlahMS;
       totals.jandaJml += lapKlp?.janda_jml || 0; totals.jandaBtn += lapKlp?.janda_btn || 0; totals.jandaTran += lapKlp?.janda_tran || 0;
+      totals.jmlWakilKyai += jmlWakilKyai;
     });
     const totL = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].L,0);
     const totP = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].P,0);
@@ -7114,10 +7118,10 @@ async function renderPenerobosanDesa() {
     set(4,1,'Desa :'); set(4,4, desaNama); set(4,13,'Bulan :'); set(4,15, bulan);
     set(5,1,'Daerah :'); set(5,4,'Sidoarjo Utara'); set(5,13,'Tahun :'); set(5,15, String(tahun));
 
-    set(6,0,'NO'); set(6,1,'KELOMPOK'); set(6,3,'JUMLAH JAMAAH'); set(6,21,'SUB'); set(6,22,'KK'); set(6,23,'JML PENGURUS'); set(6,26,'PERSENAN'); set(6,27,'JANDA');
+    set(6,0,'NO'); set(6,1,'KELOMPOK'); set(6,3,'JUMLAH JAMAAH'); set(6,21,'JANDA'); set(6,22,'SUB'); set(6,23,'KK'); set(6,24,'JML PENGURUS'); set(6,27,'PERSENAN');
     set(7,3,'CBR / PAUD - SD'); set(7,6,'PRA REMAJA'); set(7,9,'REMAJA'); set(7,12,'USIA NIKAH'); set(7,15,'DEWASA'); set(7,18,'TOTAL JAMAAH');
     ['L','P','J'].forEach((lbl,i)=>{ for (let g=0; g<6; g++) set(8, 3+g*3+i, lbl); });
-    set(8,23,'4 S'); set(8,24,'LAIN'); set(8,25,'JML');
+    set(8,24,'4 S'); set(8,25,'LAIN'); set(8,26,'JML');
 
     perKelompok.slice(0,11).forEach((pk,i) => {
       const r = 9+i;
@@ -7125,17 +7129,20 @@ async function renderPenerobosanDesa() {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach((k,ki) => { set(r,3+ki*3,pk.cnt[k].L); set(r,4+ki*3,pk.cnt[k].P); set(r,5+ki*3,pk.cnt[k].L+pk.cnt[k].P); });
       const kL = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+pk.cnt[k].L,0), kP = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+pk.cnt[k].P,0);
       set(r,18,kL); set(r,19,kP); set(r,20,kL+kP);
-      set(r,21, pk.lapKlp?.sub ?? ''); set(r,22, pk.lapKlp?.kk ?? '');
-      set(r,23, pk.jml4s); set(r,24, pk.jmlLain); set(r,25, pk.jml4s+pk.jmlLain);
-      set(r,26, pk.lapKlp?.persenan ?? ''); set(r,27, pk.lapKlp?.janda_jml ?? '');
+      set(r,21, pk.lapKlp?.janda_jml ?? '');
+      set(r,22, pk.lapKlp?.sub ?? ''); set(r,23, pk.lapKlp?.kk ?? '');
+      set(r,24, pk.jml4s); set(r,25, pk.jmlLain); set(r,26, pk.jml4s+pk.jmlLain);
+      set(r,27, pk.lapKlp?.persenan ?? '');
     });
     set(20,0,'JUMLAH');
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach((k,ki) => { set(20,3+ki*3, totals.cnt[k].L); set(20,4+ki*3, totals.cnt[k].P); set(20,5+ki*3, totals.cnt[k].L+totals.cnt[k].P); });
     set(20,18,totL); set(20,19,totP); set(20,20,totL+totP);
-    set(20,21, totals.sub); set(20,22, totals.kk); set(20,23, totals.jml4s); set(20,24, totals.jmlLain); set(20,25, totals.jml4s+totals.jmlLain); set(20,27, totals.jandaJml);
+    set(20,21, totals.jandaJml);
+    set(20,22, totals.sub); set(20,23, totals.kk); set(20,24, totals.jml4s); set(20,25, totals.jmlLain); set(20,26, totals.jml4s+totals.jmlLain);
 
-    set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
+    set(22,1, totals.jmlWakilKyai); set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
     set(22,19, 'JML PENGAJIAN / BULAN DI DESA : ' + (existing?.jml_pengajian_bulan ?? 0));
+    set(24,1,'Wakil Kyai Desa');
     set(24,2, perKelompok.length); set(24,3, totals.sub); set(24,4, totals.kk); set(24,5, totL+totP); set(24,17, totals.mt); set(24,18, totals.ms);
     set(23,5,'Masjid'); set(23,7,'Jeding'); set(23,9,'Aula'); set(23,11,'Madrasah'); set(23,13,'Pondok'); set(23,15,'Sekolah');
     set(23,19,'Desa'); set(23,21,'Muda-di'); set(23,23,'Ibu-ibu'); set(23,25,"Aghniya'"); set(23,27,'Musyawarah');
@@ -7171,15 +7178,14 @@ async function renderPenerobosanDesa() {
     const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { r1:+r1-1, c1:colIdx(c1), r2:+r2-1, c2:colIdx(c2) }; };
     return [
       M('A2','AC2'), M('A3','AC3'),
-      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','V8'), M('W6','W8'), M('X6','Z7'), M('AA6','AA8'), M('AB6','AB8'),
+      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','V8'), M('W6','W8'), M('X6','X8'), M('Y6','AA7'), M('AB6','AB8'),
       M('D7','F7'), M('G7','I7'), M('J7','L7'), M('M7','O7'), M('P7','R7'), M('S7','U7'),
       ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`B${r}`,`C${r}`)),
-      ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`AA${r}`,`AA${r}`)),
-      M('A20','C20'), M('AA20','AA20'),
+      M('A20','C20'),
       M('B22','B23'), M('C22','C23'), M('D22','D23'), M('E22','E23'), M('F22','Q22'), M('R22','R23'), M('S22','S23'), M('T22','AC22'),
       M('F23','G23'), M('H23','I23'), M('J23','K23'), M('L23','M23'), M('N23','O23'), M('P23','Q23'),
       M('T23','U23'), M('V23','W23'), M('X23','Y23'), M('Z23','AA23'), M('AB23','AC23'),
-      M('F24','G24'), M('H24','I24'), M('J24','K24'), M('L24','M24'), M('N24','O24'), M('P24','Q24'),
+      M('B24','B25'), M('F24','G24'), M('H24','I24'), M('J24','K24'), M('L24','M24'), M('N24','O24'), M('P24','Q24'),
       M('T24','U24'), M('V24','W24'), M('X24','Y24'), M('Z24','AA24'), M('AB24','AC24'),
       M('A26','D26'), M('E26','H26'), M('I26','L26'), M('M26','P26'), M('Q26','U26'), M('V26','Y26'), M('Z26','AC26'),
       ...[27,28,29,30,31,32].flatMap(r => [M(`A${r}`,`D${r}`), M(`E${r}`,`H${r}`), M(`I${r}`,`L${r}`), M(`M${r}`,`P${r}`), M(`Q${r}`,`U${r}`), M(`V${r}`,`Y${r}`), M(`Z${r}`,`AC${r}`)]),
@@ -7247,7 +7253,8 @@ async function renderPenerobosanDesa() {
       lbl('Daerah :', 'Sidoarjo Utara', ML); lbl('Tahun :', String(tahun), ML+330);
 
       const top = H - MT;
-      const gridColStart = 1;
+      // Beda dari versi Kelompok — kolom A di grid Desa DIPAKAI (IMAM DESA, JUMLAH), jadi jangan disembunyikan
+      const gridColStart = 0;
       const effCols = nCols - gridColStart;
       const colW2 = gridW / effCols;
       const cellX = c => ML + (c - gridColStart)*colW2;
