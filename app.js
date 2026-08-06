@@ -6699,7 +6699,7 @@ async function renderPenerobosanEntry() {
       M('E1','AD1'), M('E2','AD2'), M('AB6','AD6'),
       M('B7','Y7'), M('Z7','AB7'), M('Z8','Z9'), M('AA8','AB8'), M('AC7','AC9'), M('AD7','AD9'), M('AE7','AG9'),
       M('B8','D8'), M('E8','G8'), M('H8','J8'), M('K8','M8'), M('N8','P8'), M('Q8','S8'), M('T8','V8'), M('W8','Y8'),
-      M('AB10','AD10'),
+      M('AE10','AG10'),
       M('B12','L12'), M('M12','N14'), M('O12','P14'), M('Q12','Q14'), M('R12','R14'), M('S12','T14'), M('U12','V14'), M('W12','AD13'),
       M('B13','C14'), M('D13','E14'), M('F13','H14'), M('I13','L13'),
       M('I14','J14'), M('K14','L14'), M('AA14','AB14'), M('AC14','AD14'),
@@ -6788,13 +6788,19 @@ async function renderPenerobosanEntry() {
       // Sarana & Prasarana, biar ada jarak tanpa garis, bukan kotak-kotak kosong.
       const mergeMap = new Map();
       merges.forEach((m, idx) => { for (let r=m.r1; r<=m.r2; r++) for (let c=m.c1; c<=m.c2; c++) mergeMap.set(`${r},${c}`, idx); });
-      const griddedRanges = [[6,9],[11,14],[17,24]];
+      // colEnd beda per bagian — cuma baris Jamaah/Janda/Sub/KK/Persenan yang pakai kolom baru (30-32),
+      // Sarpras/Kegiatan & Kepengurusan tetap di lebar asli (30 kolom) biar gak ada kotak kosong nyempil
+      const griddedRanges = [
+        { rows:[6,9], colEnd:nCols },
+        { rows:[11,14], colEnd:30 },
+        { rows:[17,24], colEnd:30 },
+      ];
       const HEADER_ROWS = new Set([6,7,8, 11,12,13, 17]); // baris label/judul dalam grid -> BG hijau muda
       const cellRects = [];
       const addedMergeIdx = new Set();
-      griddedRanges.forEach(([rs,re]) => {
+      griddedRanges.forEach(({rows:[rs,re], colEnd}) => {
         for (let r=rs; r<=re; r++) {
-          for (let c=gridColStart; c<nCols; c++) {
+          for (let c=gridColStart; c<colEnd; c++) {
             const key = `${r},${c}`;
             if (mergeMap.has(key)) {
               const idx = mergeMap.get(key);
