@@ -2200,7 +2200,7 @@ async function renderUsers() {
           ${u.jabatan ? `<br><span style="font-size:11px; color:var(--green);">${escHtml(u.jabatan)}</span>` : ''}
         </td>
         <td><span style="font-size:12px;">${escHtml(ROLE_LABELS[u.role] || u.role)}</span></td>
-        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : '—'}</td>
+        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : (u.desa_id ? escHtml(desaMap[u.desa_id] || u.desa_id) : '—')}</td>
         <td style="font-size:11px; font-family:monospace;">
           <div>👤 ${escHtml(u.username)}</div>
         </td>
