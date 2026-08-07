@@ -1362,7 +1362,8 @@ function getAllowedMenuIds(u) {
 }
 
 function llMenuOptions(level, selected) {
-  const items = (NAV_ITEMS[level] || []).filter(i => i.id !== 'dashboard' && i.id !== 'settings');
+  const navKey = level === 'kelompok' ? 'pjp_kelompok' : level; // akses lintas kelompok setara PJP Kelompok (edit penuh)
+  const items = (NAV_ITEMS[navKey] || []).filter(i => i.id !== 'dashboard' && i.id !== 'settings');
   return items.map(i => `<option value="${i.id}" ${i.id===selected?'selected':''}>${escHtml(i.label)}</option>`).join('');
 }
 
@@ -1374,10 +1375,13 @@ function renderNav() {
 
   const DESA_NAMA_MAP_NAV = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
   const lintasItems = (u.akses_lintas || '').split(',').map(s => s.trim()).filter(Boolean).map(entry => {
-    const [menuId, level, desaId] = entry.split(':');
-    const meta = (NAV_ITEMS[level] || []).find(i => i.id === menuId);
+    const [menuId, level, scopeId] = entry.split(':');
+    const navKey = level === 'kelompok' ? 'pjp_kelompok' : level;
+    const meta = (NAV_ITEMS[navKey] || []).find(i => i.id === menuId);
     if (!meta) return null;
-    const levelLabel = level === 'desa' ? `Desa ${DESA_NAMA_MAP_NAV[desaId] || desaId || ''}`.trim() : 'Daerah';
+    const levelLabel = level === 'desa' ? `Desa ${DESA_NAMA_MAP_NAV[scopeId] || scopeId || ''}`.trim()
+      : level === 'kelompok' ? `Kelompok ${(App.cache.kelompok||[]).find(k=>k.id===scopeId)?.nama || scopeId || ''}`.trim()
+      : 'Daerah';
     return { id: entry, icon: meta.icon, label: `${meta.label} (Level ${levelLabel})` };
   }).filter(Boolean);
 
@@ -1457,11 +1461,13 @@ async function renderPage(page) {
   const originalUser = App.user;
   let swapped = false;
   if (page.includes(':')) {
-    const [menuId, level, desaId] = page.split(':');
+    const [menuId, level, scopeId] = page.split(':');
     baseMenu = menuId;
     App.user = level === 'desa'
-      ? { ...originalUser, role: 'desa', desa_id: desaId || null }
-      : { ...originalUser, role: 'daerah', desa_id: null };
+      ? { ...originalUser, role: 'desa', desa_id: scopeId || null }
+      : level === 'kelompok'
+        ? { ...originalUser, role: 'pjp_kelompok', kelompok_id: scopeId || null, desa_id: null }
+        : { ...originalUser, role: 'daerah', desa_id: null };
     swapped = true;
   }
 
@@ -2418,12 +2424,24 @@ async function renderUsers() {
         : `<select class="llDesa" style="flex:0 0 auto; display:${level==='desa'?'inline-block':'none'};">
              ${desaList.map(d=>`<option value="${d.id}" ${d.id===row.desaId?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
            </select>`;
+      const kelompokChoices = targetDesaId
+        ? kelompokList.filter(k => k.desa_id === targetDesaId)
+        : kelompokList;
+      const kelompokFieldHtml = `<span style="display:${level==='kelompok'?'inline-flex':'none'}; flex-direction:column; gap:2px;">
+             <select class="llKelompok" style="flex:0 0 auto; min-width:140px;">
+               <option value="">Pilih kelompok...</option>
+               ${kelompokChoices.slice().sort((a,b)=>(a.nama||'').localeCompare(b.nama||'')).map(k=>`<option value="${k.id}" ${k.id===row.desaId?'selected':''}>${escHtml(k.nama)}</option>`).join('')}
+             </select>
+             ${targetDesaId ? `<span style="font-size:10px; color:var(--ink-soft);">Cuma kelompok di ${escHtml(targetDesaNama)}</span>` : ''}
+           </span>`;
       return `<div class="ll-row" style="display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap;">
         <select class="llLevel" onchange="LL_onLevelChange(this)" style="flex:0 0 auto;">
           <option value="daerah" ${level==='daerah'?'selected':''}>Level Daerah</option>
           <option value="desa" ${level==='desa'?'selected':''}>Level Desa</option>
+          <option value="kelompok" ${level==='kelompok'?'selected':''}>Level Kelompok</option>
         </select>
         ${desaFieldHtml}
+        ${kelompokFieldHtml}
         <select class="llMenu" style="flex:1 1 auto; min-width:140px;">${llMenuOptions(level, row.menu)}</select>
         <button type="button" class="btn-icon danger" onclick="this.closest('.ll-row').remove()" title="Hapus baris">✕</button>
       </div>`;
@@ -2435,6 +2453,9 @@ async function renderUsers() {
       const desaEl = row.querySelector('.llDesa');
       const wrapper = desaEl.tagName === 'INPUT' ? desaEl.closest('.llDesaFixed') : desaEl;
       if (wrapper) wrapper.style.display = level === 'desa' ? (desaEl.tagName === 'INPUT' ? 'inline-flex' : 'inline-block') : 'none';
+      const klpEl = row.querySelector('.llKelompok');
+      const klpWrapper = klpEl ? klpEl.closest('span') : null;
+      if (klpWrapper) klpWrapper.style.display = level === 'kelompok' ? 'inline-flex' : 'none';
       row.querySelector('.llMenu').innerHTML = llMenuOptions(level, null);
     };
     window.LL_addRow = () => {
@@ -2477,8 +2498,16 @@ async function renderUsers() {
         const level = row.querySelector('.llLevel').value;
         const menu = row.querySelector('.llMenu').value;
         if (!menu) return null;
-        const desaId = row.querySelector('.llDesa').value;
-        return level === 'desa' ? `${menu}:desa:${desaId}` : `${menu}:daerah`;
+        if (level === 'desa') {
+          const desaId = row.querySelector('.llDesa').value;
+          return `${menu}:desa:${desaId}`;
+        }
+        if (level === 'kelompok') {
+          const kelompokId = row.querySelector('.llKelompok').value;
+          if (!kelompokId) return null; // belum pilih kelompok, jangan disimpan
+          return `${menu}:kelompok:${kelompokId}`;
+        }
+        return `${menu}:daerah`;
       }).filter(Boolean);
       const aksesLintas = lintasEntries.length ? lintasEntries.join(',') : null;
 
