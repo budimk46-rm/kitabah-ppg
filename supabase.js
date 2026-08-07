@@ -184,6 +184,7 @@ const sbKelas = {
 const sbSantri = {
   getByKelas: (kelasId) =>
     sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=*&order=nama`),
+  delete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'DELETE' }),
   // Ambil santri untuk BANYAK kelas sekaligus dalam satu request
   getByKelasIds: (kelasIds) => {
     const ids = [...new Set(kelasIds)].filter(Boolean);

@@ -2990,6 +2990,7 @@ async function renderKelolaKelas() {
     selectedKelompokId = kelompokId;
     selectedKelasId = null;
     santriList = [];
+    await loadUnassignedManage();
     if (kelompokId) {
       let kelas = sortKelas(await SB.kelas.getByKelompok(kelompokId));
       // Load kelas gabungan desa
@@ -3083,6 +3084,7 @@ async function renderKelolaKelas() {
   async function loadSantri(kelasId) {
     selectedKelasId = kelasId;
     santriList = await SB.santri.getByKelas(kelasId);
+    await loadUnassignedManage();
     const selectedKelasObj = kelasOptions.find(k => k.id === kelasId);
     if (selectedKelasObj?.desa_id && selectedKelompokId) {
       await loadSantriChecklist();
@@ -3135,8 +3137,11 @@ async function renderKelolaKelas() {
                 <button class="btn-icon" onclick="STR_pindahKelas('${s.id}','${escHtml(s.nama)}')" title="Pindah ke Kelas Lain">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/></svg>
                 </button>
-                <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Keluarkan dari kelas">
+                <button class="btn-icon danger" onclick="STR_delete('${s.id}','${escHtml(s.nama)}')" title="Keluarkan dari kelas (jadi belum masuk kelas, data tetap ada)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                </button>
+                <button class="btn-icon danger" onclick="STR_hapusPermanen('${s.id}','${escHtml(s.nama)}')" title="Hapus Permanen (data generus dihapus total, tidak bisa dikembalikan)" style="background:#fbe4e4;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                 </button>
               </div>
             </td>
@@ -3213,7 +3218,55 @@ async function renderKelolaKelas() {
         ${tableHtml}
         ${canEdit && selectedKelompokId ? unassignedChecklistHtml : ''}
       `) : '<div class="card"><p class="color-soft">Pilih kelompok dan kelas untuk melihat atau mengelola data santri.</p></div>'}
+
+      ${canEdit && selectedKelompokId ? unassignedManageHtml : ''}
     `;
+  }
+
+  // ── Daftar tetap "Generus Belum Masuk Kelas" (beda dari checklist tambah-ke-kelas
+  //    di atas) — supaya generus yang dikeluarkan dari kelas tetap kelihatan & bisa
+  //    dikelola (edit/pindah/hapus), bukan cuma numpang lewat di modal tambah santri.
+  let unassignedManageHtml = '';
+  let unassignedManageList = [];
+  async function loadUnassignedManage() {
+    if (!selectedKelompokId) { unassignedManageHtml = ''; return; }
+    unassignedManageList = (await SB.santri.getUnassigned(selectedKelompokId) || [])
+      .sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    if (!unassignedManageList.length) { unassignedManageHtml = ''; return; }
+    unassignedManageHtml = `
+      <div class="card" style="margin-top:16px; border:1.5px solid var(--gold);">
+        <div class="fw-bold" style="font-size:13.5px; color:#8a6a24; margin-bottom:8px;">🗂️ Generus Belum Masuk Kelas (${unassignedManageList.length})</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;">Generus yang belum/sudah tidak berada di kelas manapun. Tetap tersimpan datanya — pindahkan ke kelas atau hapus dari sini kalau memang perlu.</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>Nama Lengkap</th><th>Tgl Lahir</th><th>Usia</th><th>Tingkatan</th><th>L/P</th><th>Aksi</th></tr></thead>
+          <tbody>${unassignedManageList.map((s,i) => {
+            const tingkatan = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
+            const usia = hitungUsia(s.tgl_lahir);
+            window['_strData_' + s.id] = s;
+            return `<tr>
+              <td>${i+1}</td>
+              <td><b>${escHtml(s.nama)}</b></td>
+              <td>${s.tgl_lahir ? fmtDateShort(s.tgl_lahir) : '—'}</td>
+              <td>${usia !== null ? usia + ' th' : '—'}</td>
+              <td>${tingkatan ? `<span class="badge ${TINGKATAN_COLORS[tingkatan]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[tingkatan]||tingkatan)}</span>` : '—'}</td>
+              <td><span class="badge ${s.jenis_kel==='L'?'badge-green':'badge-rose'}">${s.jenis_kel||'—'}</span></td>
+              <td>
+                <div style="display:flex; gap:4px;">
+                  <button class="btn-icon" onclick="STR_edit('${s.id}')" title="Edit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
+                  </button>
+                  <button class="btn-icon" onclick="STR_pindahKelas('${s.id}','${escHtml(s.nama)}')" title="Masukkan ke Kelas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M7 16l-4-4m0 0l4-4m-4 4h18"/></svg>
+                  </button>
+                  <button class="btn-icon danger" onclick="STR_hapusPermanen('${s.id}','${escHtml(s.nama)}')" title="Hapus Permanen" style="background:#fbe4e4;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      </div>`;
   }
 
   // ── Render checklist gabungan ──
@@ -3572,6 +3625,20 @@ async function renderKelolaKelas() {
     };
 
     openModal('pindahKelasModal');
+  };
+
+  window.STR_hapusPermanen = async (id, nama) => {
+    if (!confirm(`⚠️ HAPUS PERMANEN "${nama}"?\n\nIni BEDA dari "Keluarkan dari Kelas" — data generus ini akan dihapus TOTAL dari sistem, termasuk riwayat absensinya, dan TIDAK BISA DIKEMBALIKAN.\n\nKalau cuma salah kelas atau mau dipindah, pakai tombol "Keluarkan dari kelas" saja, JANGAN pakai ini.\n\nYakin mau hapus permanen?`)) return;
+    if (!confirm(`Konfirmasi sekali lagi — hapus permanen "${nama}"? Langkah ini tidak bisa dibatalkan.`)) return;
+    try {
+      await SB.santri.delete(id);
+      App.cache.allSantri = null;
+      logActivity('hapus', 'Santri', `Hapus permanen data generus "${nama}"`);
+      showToast(`${nama} dihapus permanen ✓`);
+      await loadSantri(selectedKelasId);
+    } catch(e) {
+      showToast('Gagal menghapus: ' + e.message, true);
+    }
   };
 
   window.STR_delete = async (id, nama) => {
