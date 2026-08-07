@@ -1774,7 +1774,7 @@ async function renderKurikulum() {
               <button class="btn-icon" onclick="KUR_edit('${escHtml(item.id)}')" title="Edit">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg>
               </button>
-              <button class="btn-icon danger" onclick="KUR_delete('${escHtml(item.id)}','${escHtml(item.topik || '')}')" title="Hapus">
+              <button class="btn-icon danger" onclick="KUR_delete(this.dataset.id, this.dataset.topik)" data-id="${escHtml(item.id)}" data-topik="${escHtml(item.topik || '')}" title="Hapus">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
               </button>
             </div>` : '';
@@ -2220,10 +2220,10 @@ async function renderUsers() {
               <button class="btn-icon" onclick="USR_aturAkses('${u.id}')" title="Atur Akses Fitur">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
               </button>
-              <button class="btn-icon" onclick="USR_resetPassword('${u.id}','${escHtml(u.nama_lengkap)}')" title="Reset Password">
+              <button class="btn-icon" onclick="USR_resetPassword(this.dataset.id, this.dataset.nama)" data-id="${u.id}" data-nama="${escHtml(u.nama_lengkap)}" title="Reset Password">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="16" r="1"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
               </button>
-              <button class="btn-icon danger" onclick="USR_delete('${u.id}','${escHtml(u.nama_lengkap)}')" title="Hapus">
+              <button class="btn-icon danger" onclick="USR_delete(this.dataset.id, this.dataset.nama)" data-id="${u.id}" data-nama="${escHtml(u.nama_lengkap)}" title="Hapus">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
               </button>` : ''}
           </div>
@@ -4502,7 +4502,7 @@ async function renderPenilaian() {
           const color = val ? NILAI_COLOR[val] : '#ccc';
           const bg = val ? NILAI_BG[val] : '#f5f5f5';
           return `<td style="padding:3px 2px; text-align:center;">
-            <div onclick="PNL_tap('${s.id}','${escHtml(t)}')" title="${escHtml(t)}: ${val ? NILAI_LABEL[val] : 'Belum'}"
+            <div onclick="PNL_tap(this.dataset.sid, this.dataset.topik)" data-sid="${s.id}" data-topik="${escHtml(t)}" title="${escHtml(t)}: ${val ? NILAI_LABEL[val] : 'Belum'}"
               style="width:32px; height:28px; border-radius:6px; margin:0 auto; cursor:pointer; font-size:12px; font-weight:800;
                 background:${bg}; color:${color}; border:1.5px solid ${color};
                 display:flex; align-items:center; justify-content:center; user-select:none;">
@@ -4695,7 +4695,7 @@ async function renderPenilaian() {
           </div>
           <div class="modal-foot">
             <button class="btn btn-outline" onclick="closeModal('pnlDetailModal')">Batal</button>
-            <button class="btn btn-green" onclick="PNL_saveDetail('${santriId}','${escHtml(topik)}')">Simpan</button>
+            <button class="btn btn-green" onclick="PNL_saveDetail(this.dataset.sid, this.dataset.topik)" data-sid="${santriId}" data-topik="${escHtml(topik)}">Simpan</button>
           </div>
         </div>`;
       }
@@ -7724,7 +7724,7 @@ async function renderJamaahEntry() {
                 ${canEdit ? `<td style="padding:7px 10px; text-align:center;">
                   <div style="display:flex; gap:3px; justify-content:center;">
                     <button class="btn-icon" onclick="JMH_edit('${x.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
-                    <button class="btn-icon danger" onclick="JMH_hapus('${x.id}','${escHtml(x.nama)}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+                    <button class="btn-icon danger" onclick="JMH_hapus(this.dataset.id, this.dataset.nama)" data-id="${x.id}" data-nama="${escHtml(x.nama)}" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
                   </div>
                 </td>` : ''}
               </tr>`;
