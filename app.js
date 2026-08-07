@@ -7713,13 +7713,15 @@ async function renderJamaahEntry() {
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.keterangan||'-')}</td>
                 <td style="padding:7px 10px; text-align:center;">
-                  ${x.santri_id
-                    ? '<span style="font-size:10.5px; font-weight:700; color:var(--green);">✅ Generus</span>'
-                    : (canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
-                        ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_jadikanSantri('${x.id}')">Jadikan Santri</button>`
-                        : (canEdit && ['Dewasa','Istimewa'].includes(kat)
-                            ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_transferDewasa('${x.id}')">🔄 Transfer Data</button>`
-                            : '<span style="font-size:11px; color:var(--ink-soft);">-</span>'))}
+                  <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">
+                    ${x.santri_id ? '<span style="font-size:10.5px; font-weight:700; color:var(--green);">✅ Generus</span>' : ''}
+                    ${!x.santri_id && canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
+                      ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_jadikanSantri('${x.id}')">Jadikan Santri</button>` : ''}
+                    ${canEdit && (hitungUsia(x.tgl_lahir) ?? 0) >= 17
+                      ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_transferDewasa('${x.id}')">🔄 Transfer Data</button>` : ''}
+                    ${!x.santri_id && !(canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)) && !(canEdit && (hitungUsia(x.tgl_lahir) ?? 0) >= 17)
+                      ? '<span style="font-size:11px; color:var(--ink-soft);">-</span>' : ''}
+                  </div>
                 </td>
                 ${canEdit ? `<td style="padding:7px 10px; text-align:center;">
                   <div style="display:flex; gap:3px; justify-content:center;">
@@ -7802,7 +7804,7 @@ async function renderJamaahEntry() {
     openModal('jadikanSantriModal');
   };
 
-  // Transfer data jamaah Dewasa/Istimewa ke MT/MS, Data Pengurus, atau Guru Sekolah —
+  // Transfer data jamaah usia 17+ (regardless kategori) ke MT/MS, Data Pengurus, atau Guru Sekolah —
   // hindari input ulang nama yang sama kalau orangnya sudah punya beberapa peran sekaligus.
   window.JMH_transferDewasa = async (jamaahId) => {
     const jm = list.find(x => x.id === jamaahId);
