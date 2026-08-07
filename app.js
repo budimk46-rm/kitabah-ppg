@@ -7335,10 +7335,11 @@ async function renderPenerobosanDesa() {
     const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { r1:+r1-1, c1:colIdx(c1), r2:+r2-1, c2:colIdx(c2) }; };
     return [
       M('A2','AC2'), M('A3','AC3'),
-      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','X6'), M('V7','V8'), M('W7','X7'), M('Y6','Y8'), M('Z6','Z8'), M('AA6','AC7'), M('AD6','AD8'),
+      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','X6'), M('V7','V8'), M('W7','X7'), M('Y6','Y8'), M('Z6','Z8'), M('AA6','AC7'), M('AD6','AE8'),
       M('D7','F7'), M('G7','I7'), M('J7','L7'), M('M7','O7'), M('P7','R7'), M('S7','U7'),
       ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`B${r}`,`C${r}`)),
-      M('A20','C20'),
+      ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`AD${r}`,`AE${r}`)),
+      M('A20','C20'), M('AD20','AE20'),
       M('A22','B23'), M('C22','C23'), M('D22','D23'), M('E22','E23'), M('F22','Q22'), M('R22','R23'), M('S22','S23'), M('T22','AC22'),
       M('F23','G23'), M('H23','I23'), M('J23','K23'), M('L23','M23'), M('N23','O23'), M('P23','Q23'),
       M('T23','U23'), M('V23','W23'), M('X23','Y23'), M('Z23','AA23'), M('AB23','AC23'),
@@ -7422,7 +7423,7 @@ async function renderPenerobosanDesa() {
       // colEnd beda per bagian: tabel utama (row6-20) butuh sampai kolom PERSENAN(29),
       // Ringkasan Desa & Kepengurusan cuma sampai kolom 28 — jangan ikut lebar baru
       const griddedRanges = [
-        { rows:[5,19], colEnd:30 },
+        { rows:[5,19], colEnd:31 },
         { rows:[21,23], colEnd:29 },
         { rows:[25,31], colEnd:29 },
       ];
