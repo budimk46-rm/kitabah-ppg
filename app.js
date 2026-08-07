@@ -119,6 +119,7 @@ const App = {
   chatUnread: false,
   chatUnreadInterval: null,
   onlineHeartbeatInterval: null,
+  aksesRefreshInterval: null,
   kurState: {
     jenjang: 'PAUD TK',
     sem: _defaultSem,
@@ -151,6 +152,7 @@ function clearSession() {
   App.cache = { materi: null, kelompok: null, desa: null, myProgress: null, allSantri: null };
   if (App.chatUnreadInterval) { clearInterval(App.chatUnreadInterval); App.chatUnreadInterval = null; }
   if (App.onlineHeartbeatInterval) { clearInterval(App.onlineHeartbeatInterval); App.onlineHeartbeatInterval = null; }
+  if (App.aksesRefreshInterval) { clearInterval(App.aksesRefreshInterval); App.aksesRefreshInterval = null; }
 }
 
 /* ===== UTILITIES ===== */
@@ -226,14 +228,16 @@ function showPending(username, namaLengkap) {
   }
   loadPendingWaBtn(username, namaLengkap);
 }
-function showShell() {
+async function showShell() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('pendingScreen').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   renderNav();
   navigate('dashboard');
   startChatUnreadWatcher();
   startOnlineHeartbeat();
+  startAksesRefreshWatcher();
 }
 
 // "User Sedang Online" — kirim tanda "masih aktif" tiap 2 menit selama aplikasi terbuka.
@@ -242,6 +246,29 @@ function startOnlineHeartbeat() {
   if (App.onlineHeartbeatInterval) clearInterval(App.onlineHeartbeatInterval);
   SB.anggota.pingActive(App.user.id);
   App.onlineHeartbeatInterval = setInterval(() => SB.anggota.pingActive(App.user.id), 120000);
+}
+
+// Segarkan data akses user sendiri secara berkala — supaya kalau admin baru saja ubah
+// akses_menu/akses_lintas/role, langsung kerasa tanpa perlu logout-login manual.
+function startAksesRefreshWatcher() {
+  if (App.aksesRefreshInterval) clearInterval(App.aksesRefreshInterval);
+  App.aksesRefreshInterval = setInterval(refreshRealUserData, 90000);
+}
+async function refreshRealUserData() {
+  if (!App.realUser?.id) return;
+  try {
+    const rows = await sbFetch(`anggota?id=eq.${App.realUser.id}&select=*`);
+    const fresh = rows?.[0];
+    if (!fresh) return;
+    const navRelevantChanged = fresh.akses_lintas !== App.realUser.akses_lintas
+      || fresh.akses_menu !== App.realUser.akses_menu
+      || fresh.role !== App.realUser.role;
+    App.realUser = fresh;
+    try { localStorage.setItem('kitabah_session', JSON.stringify(fresh)); } catch(e) {}
+    // Kalau lagi BUKAN di halaman akses lintas (identitas gak lagi "dipinjam"), App.user ikut disegarkan juga
+    if (!(App.currentPage && App.currentPage.includes(':'))) App.user = fresh;
+    if (navRelevantChanged && document.getElementById('sidebarNav')) renderNav();
+  } catch(e) { /* diamkan, coba lagi interval berikutnya */ }
 }
 
 // Badge "ada pesan baru" di menu Live Chat — cek ringan (cuma 1 timestamp, bukan isi pesan),
@@ -1359,6 +1386,8 @@ function getAllowedMenuIds(u) {
   if (u.akses_lintas) {
     u.akses_lintas.split(',').map(s => s.trim()).filter(Boolean).forEach(entry => allowed.add(entry));
   }
+  // Menu "User Tidak Aktif" khusus akun admin utama (Budi) — user lain (termasuk role admin/daerah/desa lainnya) tidak perlu ini
+  if (u.username !== 'admin') allowed.delete('user_tidak_aktif');
   return allowed;
 }
 
