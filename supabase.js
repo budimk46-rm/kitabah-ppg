@@ -223,6 +223,11 @@ const sbPertemuan = {
     headers: {'Prefer':'return=representation'},
     body: JSON.stringify(data)
   }),
+  update: (id, data) => sbFetch(`pertemuan?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {'Prefer':'return=representation'},
+    body: JSON.stringify(data)
+  }),
 };
 
 // ============ JURNAL ============
