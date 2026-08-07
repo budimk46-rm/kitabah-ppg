@@ -4096,10 +4096,15 @@ async function renderAbsensi() {
         </div>
         ${!currentPertemuanId ? `
           <div style="padding:10px 14px; background:var(--gold-soft); border-radius:var(--radius-sm); font-size:13px; color:#8a6a24;">
-            Tanggal: <b>${fmtDateShort(new Date().toISOString().slice(0,10))}</b> — pertemuan baru akan dibuat saat Anda simpan.
+            <label style="display:block; font-weight:700; margin-bottom:4px;">Tanggal pertemuan sebenarnya (bisa dipilih tanggal lampau kalau baru sempat diinput hari ini)</label>
+            <input type="date" id="absTglInput" value="${new Date().toISOString().slice(0,10)}" style="padding:7px 10px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
           </div>` : `
           <div style="padding:10px 14px; background:var(--green-soft); border-radius:var(--radius-sm); font-size:13px; color:var(--green);">
-            Mengedit pertemuan tanggal <b>${fmtDateShort(pertemuanList.find(p=>p.id===currentPertemuanId)?.tanggal||'')}</b>
+            <label style="display:block; font-weight:700; margin-bottom:4px;">Mengedit pertemuan — tanggal</label>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <input type="date" id="absTglInput" value="${pertemuanList.find(p=>p.id===currentPertemuanId)?.tanggal||''}" style="padding:7px 10px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
+              <button class="btn btn-outline btn-sm" onclick="ABS_ubahTanggal()">Ubah Tanggal Pertemuan Ini</button>
+            </div>
           </div>`}
       </div>
 
@@ -4196,8 +4201,10 @@ async function renderAbsensi() {
     const btn = document.querySelector('[onclick="ABS_simpanBaru()"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
     try {
-      const tgl = new Date().toISOString().slice(0,10);
-      const bulanNow = currentMonthName();
+      const tglInput = document.getElementById('absTglInput');
+      const tgl = tglInput?.value || new Date().toISOString().slice(0,10);
+      const tglObj = new Date(tgl + 'T00:00:00');
+      const bulanNow = tglObj.toLocaleDateString('id-ID', {month:'long'});
 
       // Hitung pertemuan ke berapa hari ini (support multiple pertemuan 1 hari)
       const pertemuanHariIni = pertemuanList.filter(p => p.tanggal === tgl);
@@ -4209,7 +4216,7 @@ async function renderAbsensi() {
         kelas_id: selectedKelasId,
         tanggal: tgl,
         bulan: bulanNow,
-        tahun: new Date().getFullYear(),
+        tahun: tglObj.getFullYear(),
         pertemuan_ke: kePertemuan,
         created_by: u.id,
       });
@@ -4247,6 +4254,31 @@ async function renderAbsensi() {
       console.error(e);
     }
     if (btn) { btn.disabled = false; btn.textContent = '💾 Simpan Absensi + Jurnal'; }
+  };
+
+  window.ABS_ubahTanggal = async () => {
+    const tglBaru = document.getElementById('absTglInput')?.value;
+    if (!tglBaru) { showToast('Pilih tanggal dulu', true); return; }
+    const p = pertemuanList.find(x => x.id === currentPertemuanId);
+    if (!p) return;
+    if (tglBaru === p.tanggal) { showToast('Tanggalnya sama, tidak ada perubahan'); return; }
+    if (!confirm(`Ubah tanggal pertemuan ini dari ${fmtDateShort(p.tanggal)} jadi ${fmtDateShort(tglBaru)}?`)) return;
+    const btn = document.querySelector('[onclick="ABS_ubahTanggal()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    try {
+      const tglObj = new Date(tglBaru + 'T00:00:00');
+      const bulanBaru = tglObj.toLocaleDateString('id-ID', {month:'long'});
+      await SB.pertemuan.update(currentPertemuanId, { tanggal: tglBaru, bulan: bulanBaru, tahun: tglObj.getFullYear() });
+      logActivity('ubah', 'Absensi', `Ubah tanggal pertemuan ke-${p.pertemuan_ke||'?'} dari ${fmtDateShort(p.tanggal)} ke ${fmtDateShort(tglBaru)}`);
+      showToast('Tanggal pertemuan berhasil diubah ✓');
+      pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId, getTahunAjaran());
+      await refreshProgress();
+      await loadDetail(currentPertemuanId);
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error(e);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Ubah Tanggal Pertemuan Ini'; }
   };
 
   async function doSimpanAll(pId) {
@@ -7139,9 +7171,9 @@ async function renderPenerobosanDesa() {
     set(20,21, totals.jandaJml); set(20,22, totals.jandaBtn); set(20,23, totals.jandaTran);
     set(20,24, totals.sub); set(20,25, totals.kk); set(20,26, totals.jml4s); set(20,27, totals.jmlLain); set(20,28, totals.jml4s+totals.jmlLain);
 
-    set(22,1,'Wakil Kyai Desa'); set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
+    set(22,0,'Wakil Kyai Desa'); set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
     set(22,19, 'JML PENGAJIAN / BULAN DI DESA : ' + (existing?.jml_pengajian_bulan ?? 0));
-    set(24,1, desa4s.find(d=>d.dapukan==='Wakil Kyai')?.orang ? 1 : 0);
+    set(24,0, desa4s.find(d=>d.dapukan==='Wakil Kyai')?.orang ? 1 : 0);
     set(24,2, perKelompok.length); set(24,3, totals.sub); set(24,4, totals.kk); set(24,5, totL+totP); set(24,17, totals.mt); set(24,18, totals.ms);
     set(23,5,'Masjid'); set(23,7,'Jeding'); set(23,9,'Aula'); set(23,11,'Madrasah'); set(23,13,'Pondok'); set(23,15,'Sekolah');
     set(23,19,'Desa'); set(23,21,'Muda-di'); set(23,23,'Ibu-ibu'); set(23,25,"Aghniya'"); set(23,27,'Musyawarah');
@@ -7179,10 +7211,10 @@ async function renderPenerobosanDesa() {
       M('D7','F7'), M('G7','I7'), M('J7','L7'), M('M7','O7'), M('P7','R7'), M('S7','U7'),
       ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`B${r}`,`C${r}`)),
       M('A20','C20'),
-      M('B22','B23'), M('C22','C23'), M('D22','D23'), M('E22','E23'), M('F22','Q22'), M('R22','R23'), M('S22','S23'), M('T22','AC22'),
+      M('A22','B23'), M('C22','C23'), M('D22','D23'), M('E22','E23'), M('F22','Q22'), M('R22','R23'), M('S22','S23'), M('T22','AC22'),
       M('F23','G23'), M('H23','I23'), M('J23','K23'), M('L23','M23'), M('N23','O23'), M('P23','Q23'),
       M('T23','U23'), M('V23','W23'), M('X23','Y23'), M('Z23','AA23'), M('AB23','AC23'),
-      M('B24','B25'), M('F24','G24'), M('H24','I24'), M('J24','K24'), M('L24','M24'), M('N24','O24'), M('P24','Q24'),
+      M('A24','B24'), M('F24','G24'), M('H24','I24'), M('J24','K24'), M('L24','M24'), M('N24','O24'), M('P24','Q24'),
       M('T24','U24'), M('V24','W24'), M('X24','Y24'), M('Z24','AA24'), M('AB24','AC24'),
       M('A26','D26'), M('E26','H26'), M('I26','L26'), M('M26','P26'), M('Q26','U26'), M('V26','Y26'), M('Z26','AC26'),
       ...[27,28,29,30,31,32].flatMap(r => [M(`A${r}`,`D${r}`), M(`E${r}`,`H${r}`), M(`I${r}`,`L${r}`), M(`M${r}`,`P${r}`), M(`Q${r}`,`U${r}`), M(`V${r}`,`Y${r}`), M(`Z${r}`,`AC${r}`)]),
