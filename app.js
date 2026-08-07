@@ -137,6 +137,7 @@ const App = {
 function saveSession(user) {
   try { localStorage.setItem('kitabah_session', JSON.stringify(user)); } catch(e) {}
   App.user = user;
+  App.realUser = user; // identitas asli — jangan pernah diubah oleh impersonasi akses lintas
 }
 function loadSession() {
   try {
@@ -1368,7 +1369,7 @@ function llMenuOptions(level, selected) {
 }
 
 function renderNav() {
-  const u = App.user;
+  const u = App.realUser || App.user; // SELALU identitas asli, bukan yang lagi "dipinjam" buat halaman aktif
   const roleItems = NAV_ITEMS[u.role] || NAV_ITEMS.kelompok;
   const allowed = getAllowedMenuIds(u);
   const items = roleItems.filter(item => allowed.has(item.id));
@@ -1442,6 +1443,11 @@ async function renderPage(page) {
   const main = document.getElementById('mainContent');
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
+  // SELALU mulai dari identitas ASLI dulu, baru terapkan "pinjam role" kalau halaman ini
+  // memang butuh — supaya pinjaman dari halaman SEBELUMNYA tidak nempel ke halaman baru.
+  if (!App.realUser) App.realUser = App.user;
+  App.user = App.realUser;
+
   // Guard: blokir akses ke halaman yang tidak diizinkan untuk user ini,
   // bukan cuma disembunyikan dari sidebar.
   const allowed = getAllowedMenuIds(App.user);
@@ -1454,21 +1460,20 @@ async function renderPage(page) {
     return;
   }
 
-  // Akses lintas peran: id halaman berformat "menu:daerah" atau "menu:desa:desaId".
-  // Selama halaman ini dirender, App.user "dipinjamkan" jadi role level tsb,
-  // supaya pakai logic rekap yang sudah ada untuk role itu. Dikembalikan setelah selesai.
+  // Akses lintas peran: id halaman berformat "menu:daerah"/"menu:desa:desaId"/"menu:kelompok:kelompokId".
+  // App.user "dipinjamkan" jadi role level tsb SELAMA user masih di halaman ini (termasuk saat
+  // klik tombol simpan/edit setelah render awal selesai) — BUKAN cuma pas render pertama, supaya
+  // aksi interaktif (bukan cuma lihat data) ikut kepakai identitas pinjaman itu. Baru dikembalikan
+  // ke identitas asli otomatis di awal navigate() berikutnya (lihat App.user = App.realUser di atas).
   let baseMenu = page;
-  const originalUser = App.user;
-  let swapped = false;
   if (page.includes(':')) {
     const [menuId, level, scopeId] = page.split(':');
     baseMenu = menuId;
     App.user = level === 'desa'
-      ? { ...originalUser, role: 'desa', desa_id: scopeId || null }
+      ? { ...App.realUser, role: 'desa', desa_id: scopeId || null }
       : level === 'kelompok'
-        ? { ...originalUser, role: 'pjp_kelompok', kelompok_id: scopeId || null, desa_id: null }
-        : { ...originalUser, role: 'daerah', desa_id: null };
-    swapped = true;
+        ? { ...App.realUser, role: 'pjp_kelompok', kelompok_id: scopeId || null, desa_id: null }
+        : { ...App.realUser, role: 'daerah', desa_id: null };
   }
 
   try {
@@ -1506,8 +1511,6 @@ async function renderPage(page) {
   } catch(e) {
     main.innerHTML = `<div class="card"><p class="color-soft">Terjadi kesalahan: ${escHtml(e.message)}</p></div>`;
     console.error(e);
-  } finally {
-    if (swapped) App.user = originalUser;
   }
 }
 
@@ -15085,6 +15088,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const session = loadSession();
   if (session) {
     App.user = session;
+    App.realUser = session; // identitas asli — jangan pernah diubah oleh impersonasi akses lintas
     if (!session.no_hp) showWajibNoHpModal(); else showShell();
   } else {
     showLogin();
