@@ -6940,12 +6940,11 @@ async function renderPenerobosanDesa() {
       const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
       const jml4s = pengurus.filter(p => PENEROBOSAN_4S.includes(p.jabatan)).length;
       const jmlLain = pengurus.length - jml4s;
-      const jmlWakilKyai = pengurus.filter(p => p.jabatan === 'Wakil Kyai').length;
       const mtMsList = await SB.mtMs.getByKelompok(klp.id) || [];
       const jumlahMT = mtMsList.filter(x => x.dapukan === 'MT').length;
       const jumlahMS = mtMsList.filter(x => x.dapukan === 'MS').length;
       const lapKlp = (await SB.penerobosan.getByKelompokBulan(klp.id, bulan, tahun) || [])[0] || null;
-      return { klp, cnt, jml4s, jmlLain, jmlWakilKyai, jumlahMT, jumlahMS, lapKlp };
+      return { klp, cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp };
     }));
 
     const pengurusDesa = await SB.musPeserta.getByDesa(u.desa_id) || [];
@@ -6962,15 +6961,14 @@ async function renderPenerobosanDesa() {
     const { perKelompok, desa4s, desaLain, existing } = data;
     const n = (key) => existing?.[key] ?? 0;
 
-    const totals = { cnt:{}, jml4s:0, jmlLain:0, jmlWakilKyai:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
-    perKelompok.forEach(({ cnt, jml4s, jmlLain, jmlWakilKyai, jumlahMT, jumlahMS, lapKlp }) => {
+    perKelompok.forEach(({ cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp }) => {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
       totals.jml4s += jml4s; totals.jmlLain += jmlLain;
       totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
       totals.mt += jumlahMT; totals.ms += jumlahMS;
       totals.jandaJml += lapKlp?.janda_jml || 0; totals.jandaBtn += lapKlp?.janda_btn || 0; totals.jandaTran += lapKlp?.janda_tran || 0;
-      totals.jmlWakilKyai += jmlWakilKyai;
     });
     let totalJiwa = 0;
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totalJiwa += totals.cnt[k].L + totals.cnt[k].P; });
@@ -7001,7 +6999,7 @@ async function renderPenerobosanDesa() {
         <div class="fw-bold" style="font-size:12.5px; color:var(--green); margin-bottom:8px;">📊 Ringkasan Desa — otomatis</div>
         <div style="display:flex; gap:18px; flex-wrap:wrap;">
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Jml Kelompok</span><div style="font-size:16px; font-weight:800; color:var(--green);">${kelompokList.length}</div></div>
-          <div><span style="font-size:10.5px; color:var(--ink-soft);">Wakil Kyai Desa</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.jmlWakilKyai}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Wakil Kyai Desa</span><div style="font-size:16px; font-weight:800; color:var(--green);">${desa4s.find(d=>d.dapukan==='Wakil Kyai')?.orang ? 1 : 0}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Sub</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.sub}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">KK</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totals.kk}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Jiwa Jamaah</span><div style="font-size:16px; font-weight:800; color:var(--green);">${totalJiwa}</div></div>
@@ -7096,15 +7094,14 @@ async function renderPenerobosanDesa() {
   // Data grid bersama (Excel & PDF) — 29 kolom virtual (A..AC) meniru form Desa asli
   function buildPenerobosanDesaGrid() {
     const { perKelompok, desa4s, desaLain, existing } = lastData;
-    const totals = { cnt:{}, jml4s:0, jmlLain:0, jmlWakilKyai:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
+    const totals = { cnt:{}, jml4s:0, jmlLain:0, sub:0, kk:0, mt:0, ms:0, jandaJml:0, jandaBtn:0, jandaTran:0 };
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k] = { L:0, P:0 }; });
-    perKelompok.forEach(({ cnt, jml4s, jmlLain, jmlWakilKyai, jumlahMT, jumlahMS, lapKlp }) => {
+    perKelompok.forEach(({ cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp }) => {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totals.cnt[k].L += cnt[k].L; totals.cnt[k].P += cnt[k].P; });
       totals.jml4s += jml4s; totals.jmlLain += jmlLain;
       totals.sub += lapKlp?.sub || 0; totals.kk += lapKlp?.kk || 0;
       totals.mt += jumlahMT; totals.ms += jumlahMS;
       totals.jandaJml += lapKlp?.janda_jml || 0; totals.jandaBtn += lapKlp?.janda_btn || 0; totals.jandaTran += lapKlp?.janda_tran || 0;
-      totals.jmlWakilKyai += jmlWakilKyai;
     });
     const totL = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].L,0);
     const totP = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].P,0);
@@ -7144,7 +7141,7 @@ async function renderPenerobosanDesa() {
 
     set(22,1,'Wakil Kyai Desa'); set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
     set(22,19, 'JML PENGAJIAN / BULAN DI DESA : ' + (existing?.jml_pengajian_bulan ?? 0));
-    set(24,1, totals.jmlWakilKyai);
+    set(24,1, desa4s.find(d=>d.dapukan==='Wakil Kyai')?.orang ? 1 : 0);
     set(24,2, perKelompok.length); set(24,3, totals.sub); set(24,4, totals.kk); set(24,5, totL+totP); set(24,17, totals.mt); set(24,18, totals.ms);
     set(23,5,'Masjid'); set(23,7,'Jeding'); set(23,9,'Aula'); set(23,11,'Madrasah'); set(23,13,'Pondok'); set(23,15,'Sekolah');
     set(23,19,'Desa'); set(23,21,'Muda-di'); set(23,23,'Ibu-ibu'); set(23,25,"Aghniya'"); set(23,27,'Musyawarah');
