@@ -7109,7 +7109,7 @@ async function renderPenerobosanDesa() {
     const totL = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].L,0);
     const totP = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+totals.cnt[k].P,0);
 
-    const R = () => new Array(29).fill('');
+    const R = () => new Array(31).fill('');
     const rows = []; for (let i=0;i<39;i++) rows.push(R());
     const set = (r,c,v) => { rows[r-1][c] = v; };
 
@@ -7118,10 +7118,12 @@ async function renderPenerobosanDesa() {
     set(4,1,'Desa :'); set(4,4, desaNama); set(4,13,'Bulan :'); set(4,15, bulan);
     set(5,1,'Daerah :'); set(5,4,'Sidoarjo Utara'); set(5,13,'Tahun :'); set(5,15, String(tahun));
 
-    set(6,0,'NO'); set(6,1,'KELOMPOK'); set(6,3,'JUMLAH JAMAAH'); set(6,21,'JANDA'); set(6,22,'SUB'); set(6,23,'KK'); set(6,24,'JML PENGURUS'); set(6,27,'PERSENAN');
+    set(6,0,'NO'); set(6,1,'KELOMPOK'); set(6,3,'JUMLAH JAMAAH'); set(6,21,'JANDA'); set(6,24,'SUB'); set(6,25,'KK'); set(6,26,'JML PENGURUS'); set(6,29,'PERSENAN');
     set(7,3,'CBR / PAUD - SD'); set(7,6,'PRA REMAJA'); set(7,9,'REMAJA'); set(7,12,'USIA NIKAH'); set(7,15,'DEWASA'); set(7,18,'TOTAL JAMAAH');
+    set(7,21,'JML'); set(7,22,'SIAP DIWAYUH');
+    set(8,22,'BTN'); set(8,23,'TR-AN');
     ['L','P','J'].forEach((lbl,i)=>{ for (let g=0; g<6; g++) set(8, 3+g*3+i, lbl); });
-    set(8,24,'4 S'); set(8,25,'LAIN'); set(8,26,'JML');
+    set(8,26,'4 S'); set(8,27,'LAIN'); set(8,28,'JML');
 
     perKelompok.slice(0,11).forEach((pk,i) => {
       const r = 9+i;
@@ -7129,20 +7131,20 @@ async function renderPenerobosanDesa() {
       PENEROBOSAN_KATEGORI_ORDER_DESA.forEach((k,ki) => { set(r,3+ki*3,pk.cnt[k].L); set(r,4+ki*3,pk.cnt[k].P); set(r,5+ki*3,pk.cnt[k].L+pk.cnt[k].P); });
       const kL = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+pk.cnt[k].L,0), kP = PENEROBOSAN_KATEGORI_ORDER_DESA.reduce((s,k)=>s+pk.cnt[k].P,0);
       set(r,18,kL); set(r,19,kP); set(r,20,kL+kP);
-      set(r,21, pk.lapKlp?.janda_jml ?? '');
-      set(r,22, pk.lapKlp?.sub ?? ''); set(r,23, pk.lapKlp?.kk ?? '');
-      set(r,24, pk.jml4s); set(r,25, pk.jmlLain); set(r,26, pk.jml4s+pk.jmlLain);
-      set(r,27, pk.lapKlp?.persenan ?? '');
+      set(r,21, pk.lapKlp?.janda_jml ?? ''); set(r,22, pk.lapKlp?.janda_btn ?? ''); set(r,23, pk.lapKlp?.janda_tran ?? '');
+      set(r,24, pk.lapKlp?.sub ?? ''); set(r,25, pk.lapKlp?.kk ?? '');
+      set(r,26, pk.jml4s); set(r,27, pk.jmlLain); set(r,28, pk.jml4s+pk.jmlLain);
+      set(r,29, pk.lapKlp?.persenan ?? '');
     });
     set(20,0,'JUMLAH');
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach((k,ki) => { set(20,3+ki*3, totals.cnt[k].L); set(20,4+ki*3, totals.cnt[k].P); set(20,5+ki*3, totals.cnt[k].L+totals.cnt[k].P); });
     set(20,18,totL); set(20,19,totP); set(20,20,totL+totP);
-    set(20,21, totals.jandaJml);
-    set(20,22, totals.sub); set(20,23, totals.kk); set(20,24, totals.jml4s); set(20,25, totals.jmlLain); set(20,26, totals.jml4s+totals.jmlLain);
+    set(20,21, totals.jandaJml); set(20,22, totals.jandaBtn); set(20,23, totals.jandaTran);
+    set(20,24, totals.sub); set(20,25, totals.kk); set(20,26, totals.jml4s); set(20,27, totals.jmlLain); set(20,28, totals.jml4s+totals.jmlLain);
 
-    set(22,1, totals.jmlWakilKyai); set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
+    set(22,1,'Wakil Kyai Desa'); set(22,2,'KLP'); set(22,3,'SUB'); set(22,4,'KK'); set(22,5,'JUMLAH'); set(22,17,'MT'); set(22,18,'MS');
     set(22,19, 'JML PENGAJIAN / BULAN DI DESA : ' + (existing?.jml_pengajian_bulan ?? 0));
-    set(24,1,'Wakil Kyai Desa');
+    set(24,1, totals.jmlWakilKyai);
     set(24,2, perKelompok.length); set(24,3, totals.sub); set(24,4, totals.kk); set(24,5, totL+totP); set(24,17, totals.mt); set(24,18, totals.ms);
     set(23,5,'Masjid'); set(23,7,'Jeding'); set(23,9,'Aula'); set(23,11,'Madrasah'); set(23,13,'Pondok'); set(23,15,'Sekolah');
     set(23,19,'Desa'); set(23,21,'Muda-di'); set(23,23,'Ibu-ibu'); set(23,25,"Aghniya'"); set(23,27,'Musyawarah');
@@ -7150,8 +7152,6 @@ async function renderPenerobosanDesa() {
     set(24,11, existing?.sarpras_madrasah||0); set(24,13, existing?.sarpras_pondok||0); set(24,15, existing?.sarpras_sekolah||0);
     set(24,19, existing?.kegiatan_desa||0); set(24,21, existing?.kegiatan_muda_mudi||0); set(24,23, existing?.kegiatan_ibu2||0);
     set(24,25, existing?.kegiatan_aghniya||0); set(24,27, existing?.kegiatan_musyawarah||0);
-
-    set(25,2, `JANDA — JML: ${totals.jandaJml}   Siap Diwayuh (BTN): ${totals.jandaBtn}   Siap Diwayuh (TR-AN): ${totals.jandaTran}`);
 
     const kepCols = [
       { label:'IMAM DESA', c:0, orang: desa4s.find(d=>d.dapukan==='Kyai')?.orang },
@@ -7178,7 +7178,7 @@ async function renderPenerobosanDesa() {
     const M = (a,b) => { const [c1,r1]=a.match(/([A-Z]+)(\d+)/).slice(1), [c2,r2]=b.match(/([A-Z]+)(\d+)/).slice(1); return { r1:+r1-1, c1:colIdx(c1), r2:+r2-1, c2:colIdx(c2) }; };
     return [
       M('A2','AC2'), M('A3','AC3'),
-      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','V8'), M('W6','W8'), M('X6','X8'), M('Y6','AA7'), M('AB6','AB8'),
+      M('A6','A8'), M('B6','C8'), M('D6','U6'), M('V6','X6'), M('V7','V8'), M('W7','X7'), M('Y6','Y8'), M('Z6','Z8'), M('AA6','AC7'), M('AD6','AD8'),
       M('D7','F7'), M('G7','I7'), M('J7','L7'), M('M7','O7'), M('P7','R7'), M('S7','U7'),
       ...[9,10,11,12,13,14,15,16,17,18,19].map(r => M(`B${r}`,`C${r}`)),
       M('A20','C20'),
@@ -7205,7 +7205,7 @@ async function renderPenerobosanDesa() {
     const rows = buildPenerobosanDesaGrid();
     const ws = window.XLSX.utils.aoa_to_sheet(rows);
     ws['!merges'] = penerobosanDesaMerges().map(m => ({ s:{r:m.r1,c:m.c1}, e:{r:m.r2,c:m.c2} }));
-    ws['!cols'] = new Array(29).fill({wch:9});
+    ws['!cols'] = new Array(31).fill({wch:9});
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, 'Penerobosan Desa');
     window.XLSX.writeFile(wb, `Penerobosan_${desaNama.replace(/\s+/g,'_')}_${bulan}_${tahun}.xlsx`);
@@ -7235,7 +7235,7 @@ async function renderPenerobosanDesa() {
       const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fReg = await doc.embedFont(StandardFonts.Helvetica);
       const W = 842, H = 595, ML = 18, MT = 122;
-      const nCols = 29, nRows = rows.length;
+      const nCols = 31, nRows = rows.length;
       const gridW = W - ML*2;
       const gridH = H - MT - 20, rowH = gridH / nRows;
       const GREEN = rgb(0.106,0.227,0.173), LGREEN = rgb(0.85,0.93,0.86), GRAY = rgb(0.55,0.55,0.55), WHITE = rgb(1,1,1), DARK = rgb(0.1,0.1,0.1), LINE = rgb(0.55,0.55,0.55);
@@ -7262,13 +7262,19 @@ async function renderPenerobosanDesa() {
 
       const mergeMap = new Map();
       merges.forEach((m, idx) => { for (let r=m.r1; r<=m.r2; r++) for (let c=m.c1; c<=m.c2; c++) mergeMap.set(`${r},${c}`, idx); });
-      const griddedRanges = [[5,19],[21,23],[25,31]]; // baris 6-20, 22-24, 26-32 (1-idx) -> 0-idx
+      // colEnd beda per bagian: tabel utama (row6-20) butuh sampai kolom PERSENAN(29),
+      // Ringkasan Desa & Kepengurusan cuma sampai kolom 28 — jangan ikut lebar baru
+      const griddedRanges = [
+        { rows:[5,19], colEnd:30 },
+        { rows:[21,23], colEnd:29 },
+        { rows:[25,31], colEnd:29 },
+      ];
       const HEADER_ROWS = new Set([5,6,7, 21,22, 25]);
       const cellRects = [];
       const addedMergeIdx = new Set();
-      griddedRanges.forEach(([rs,re]) => {
+      griddedRanges.forEach(({rows:[rs,re], colEnd}) => {
         for (let r=rs; r<=re; r++) {
-          for (let c=gridColStart; c<nCols; c++) {
+          for (let c=gridColStart; c<colEnd; c++) {
             const key = `${r},${c}`;
             if (mergeMap.has(key)) {
               const idx = mergeMap.get(key);
