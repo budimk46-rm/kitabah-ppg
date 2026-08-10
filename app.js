@@ -7652,7 +7652,7 @@ async function renderJamaahEntry() {
   const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.nama || '';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
-  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [];
+  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map();
 
   // Susun urutan tampil per keluarga: Suami -> Istri -> Anak 1, 2, dst -> keluarga berikutnya.
   // Anak bisa berupa jamaah (belum jadi santri) ATAU jamaah yang sudah "Jadikan Santri" (masih ada barisnya di sini).
@@ -7701,6 +7701,38 @@ async function renderJamaahEntry() {
 
     const sisa = list.filter(x => !processed.has(x.id)).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
     listUrut = families.flat().concat(sisa);
+
+    // Peta anak (baris jamaah, baik yg masih murni jamaah maupun yg udah "Jadikan Santri")
+    // -> record tautannya, dipakai buat tombol "Lepas Tautan" langsung & filter checklist
+    // supaya anak yg SUDAH tertaut ke ortu lain gak muncul lagi sbg kandidat di ortu lain.
+    childLinkMap = new Map();
+    allLinks.forEach(l => {
+      const parentRow = byId.get(l.jamaah_id);
+      if (!parentRow) return;
+      if (l.anak_jamaah_id) {
+        childLinkMap.set(l.anak_jamaah_id, { linkId: l.id, parentNama: parentRow.nama });
+      } else if (l.santri_id && santriIdToJamaahRow.has(l.santri_id)) {
+        childLinkMap.set(santriIdToJamaahRow.get(l.santri_id).id, { linkId: l.id, parentNama: parentRow.nama });
+      }
+    });
+
+    // Deteksi kemiripan nama dgn Data Santri yg SUDAH ADA — buat jamaah yg BELUM ditautkan
+    // (x.santri_id kosong), supaya PJP ketahuan SEBELUM klik "Jadikan Santri" kalau ternyata
+    // orangnya sudah pernah didaftarkan sebagai Santri lewat jalur lain (input manual/import Excel
+    // lama), jadi gak bikin data dobel di kelas.
+    const normNama = (s) => (s||'').toLowerCase().trim().replace(/\s+/g,' ');
+    const santriByNormNama = new Map();
+    santriKlp.forEach(s => {
+      const key = normNama(s.nama);
+      if (!santriByNormNama.has(key)) santriByNormNama.set(key, []);
+      santriByNormNama.get(key).push(s);
+    });
+    dupSantriMap = new Map();
+    list.forEach(x => {
+      if (x.santri_id) return; // udah tertaut resmi, gak perlu dicek lagi
+      const match = (santriByNormNama.get(normNama(x.nama)) || []).find(s => s.id !== x.santri_id);
+      if (match) dupSantriMap.set(x.id, match);
+    });
   }
   await refreshJamaahData();
 
@@ -7741,6 +7773,12 @@ async function renderJamaahEntry() {
         </div>
       </div>` : ''}
 
+      ${dupSantriMap.size ? `
+      <div class="card" style="margin-bottom:16px; border:1.5px solid var(--rose);">
+        <div style="font-size:12.5px; font-weight:700; color:var(--rose);">⚠️ ${dupSantriMap.size} Data Jamaah Mirip dengan Data Santri yang Sudah Ada</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Kemungkinan orang yang sama sudah tercatat 2 kali (di Data Jamaah dan Data Santri terpisah). Cek tanda ⚠️ merah di kolom Keterangan pada tabel di bawah, lalu pilih "Tautkan ke situ" kalau memang orang yang sama — supaya tidak double saat "Jadikan Santri".</div>
+      </div>` : ''}
+
       <div class="card" style="margin-bottom:16px; text-align:center; padding:14px; max-width:180px;">
         <div style="font-size:26px; font-weight:800; color:var(--green);">${list.length}</div>
         <div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div>
@@ -7773,15 +7811,25 @@ async function renderJamaahEntry() {
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'}</td>
                 <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Istimewa'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Istimewa'?'700':'500'};">${escHtml(kat)}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
-                <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.keterangan||'-')}</td>
+                <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">
+                  ${escHtml(x.keterangan||'-')}
+                  ${childLinkMap.has(x.id) ? `<div style="margin-top:2px; font-size:10.5px;">
+                    🔗 Anak dari <b>${escHtml(childLinkMap.get(x.id).parentNama)}</b>
+                    ${canEdit ? ` · <a href="#" onclick="JMH_lepasTautan('${childLinkMap.get(x.id).linkId}','${escHtml(x.nama)}'); return false;" style="color:var(--rose);">Lepas Tautan</a>` : ''}
+                  </div>` : ''}
+                  ${dupSantriMap.has(x.id) ? `<div style="margin-top:2px; font-size:10.5px; color:var(--rose); font-weight:700;">
+                    ⚠️ Mirip data Santri yang sudah ada
+                    ${canEdit ? ` · <a href="#" onclick="JMH_tautkanSantriAda('${x.id}','${dupSantriMap.get(x.id).id}'); return false;" style="color:var(--rose); text-decoration:underline;">Tautkan ke situ</a>` : ''}
+                  </div>` : ''}
+                </td>
                 <td style="padding:7px 10px; text-align:center;">
                   <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">
                     ${x.santri_id ? '<span style="font-size:10.5px; font-weight:700; color:var(--green);">✅ Generus</span>' : ''}
-                    ${!x.santri_id && canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)
+                    ${!x.santri_id && canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja','Pra Nikah'].includes(kat)
                       ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_jadikanSantri('${x.id}')">Jadikan Santri</button>` : ''}
                     ${canEdit && (hitungUsia(x.tgl_lahir) ?? 0) >= 17
                       ? `<button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:4px 8px;" onclick="JMH_transferDewasa('${x.id}')">🔄 Transfer Data</button>` : ''}
-                    ${!x.santri_id && !(canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja'].includes(kat)) && !(canEdit && (hitungUsia(x.tgl_lahir) ?? 0) >= 17)
+                    ${!x.santri_id && !(canEdit && ['PAUD/TK','Caberawit','Pra Remaja','Remaja','Pra Nikah'].includes(kat)) && !(canEdit && (hitungUsia(x.tgl_lahir) ?? 0) >= 17)
                       ? '<span style="font-size:11px; color:var(--ink-soft);">-</span>' : ''}
                   </div>
                 </td>
@@ -7801,6 +7849,35 @@ async function renderJamaahEntry() {
 
   window.JMH_tambah = () => openJamaahModal(null);
   window.JMH_edit = (id) => openJamaahModal(list.find(x => x.id === id));
+
+  window.JMH_tautkanSantriAda = async (jamaahId, santriId) => {
+    const jm = list.find(x => x.id === jamaahId);
+    const st = santriKlp.find(s => s.id === santriId);
+    if (!jm || !st) return;
+    if (!confirm(`Tautkan "${jm.nama}" ke data Santri "${st.nama}" yang sudah ada?\n\nData Jamaah ini akan ditandai sebagai orang yang sama dengan Santri itu — TIDAK akan dibuatkan data Santri baru (menghindari data dobel).`)) return;
+    try {
+      await SB.jamaah.update(jamaahId, { santri_id: santriId });
+      logActivity('ubah', 'Data Jamaah', `Menautkan "${jm.nama}" ke data Santri yang sudah ada`);
+      showToast('Berhasil ditautkan, tidak ada data dobel ✓');
+      await refreshJamaahData();
+      render();
+    } catch(e) {
+      showToast('Gagal menautkan: ' + e.message, true);
+    }
+  };
+
+  window.JMH_lepasTautan = async (linkId, namaAnak) => {
+    if (!confirm(`Lepas tautan keluarga untuk "${namaAnak}"?\nData jamaah/generusnya sendiri tidak akan terhapus, cuma tautan ke orang tuanya saja yang dilepas.`)) return;
+    try {
+      await SB.jamaahKeluarga.deleteByIds([linkId]);
+      logActivity('ubah', 'Data Jamaah', `Melepas tautan keluarga untuk "${namaAnak}"`);
+      showToast('Tautan berhasil dilepas ✓');
+      await refreshJamaahData();
+      render();
+    } catch(e) {
+      showToast('Gagal melepas tautan: ' + e.message, true);
+    }
+  };
   window.JMH_hapus = async (id, nama) => {
     if (!confirm(`Hapus data jamaah "${nama}"?`)) return;
     await SB.jamaah.softDelete(id);
@@ -7824,6 +7901,9 @@ async function renderJamaahEntry() {
           <b>${escHtml(jm.nama)}</b><br>
           ${jm.jenis_kelamin==='L'?'Laki-laki':'Perempuan'} · Lahir ${jm.tgl_lahir ? fmtDateShort(jm.tgl_lahir) : '-'}
         </div>
+        ${dupSantriMap.has(jm.id) ? `<div style="background:#fbe4e4; border-radius:8px; padding:10px 12px; margin-bottom:14px; font-size:12px; color:var(--rose); font-weight:600;">
+          ⚠️ Ada data Santri dengan nama yang mirip: <b>${escHtml(dupSantriMap.get(jm.id).nama)}</b>. Kalau ini orang yang sama, batalkan dan pakai "Tautkan ke situ" di Data Jamaah supaya tidak dobel.
+        </div>` : ''}
         <div class="form-group">
           <label>Masukkan ke Kelas *</label>
           <select id="jsKelas">
@@ -8128,11 +8208,19 @@ async function renderJamaahEntry() {
       linkedSantriIds = new Set(links.filter(l => l.santri_id).map(l => l.santri_id));
       linkedJamaahIds = new Set(links.filter(l => l.anak_jamaah_id).map(l => l.anak_jamaah_id));
     }
-    // Anak yang masih di Data Jamaah (belum jadi Santri) — termasuk Bayi <4th sekalipun
+    // Anak yang masih di Data Jamaah (belum jadi Santri) — termasuk Bayi <4th sekalipun.
+    // Yang SUDAH tertaut ke ortu LAIN gak ditawarkan lagi di sini (biar gak dobel-tautan) —
+    // tapi kalau tertaut ke ortu yang SEDANG diedit ini, tetap ditampilkan (buat uncheck=lepas tautan).
     const ANAK_KATEGORI = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja'];
+    const sudahTertautKeOrtuLain = (id) => childLinkMap.has(id) && !linkedJamaahIds.has(id) && !linkedSantriIds.has(id);
     const jamaahAnakCandidates = existing
-      ? list.filter(x => x.id !== existing.id && !x.santri_id && ANAK_KATEGORI.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)))
+      ? list.filter(x => x.id !== existing.id && !x.santri_id && ANAK_KATEGORI.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)) && !sudahTertautKeOrtuLain(x.id))
       : [];
+    // Santri yang ditawarkan di checklist juga dikecualikan kalau sudah tertaut ke ortu lain
+    const santriKlpForLink = santriKlp.filter(s => {
+      const jRow = santriIdToJamaahRow.get(s.id);
+      return !(jRow && sudahTertautKeOrtuLain(jRow.id));
+    });
     // Kandidat pasangan — jamaah Dewasa/Istimewa lain yang belum ditautkan ke orang lain
     const pasanganCandidates = showKeluarga
       ? list.filter(x => x.id !== existing.id
@@ -8167,9 +8255,9 @@ async function renderJamaahEntry() {
         <div class="form-group">
           <label>Anak — centang semua yang jadi anaknya (termasuk yang masih Bayi)</label>
           <div style="max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius-sm); padding:6px 10px;">
-            ${santriKlp.length || jamaahAnakCandidates.length ? `
-              ${santriKlp.length ? `<div style="font-size:10.5px; font-weight:700; color:var(--green); text-transform:uppercase; margin:4px 0;">Sudah jadi Generus (Data Santri)</div>
-                ${santriKlp.map(s => `
+            ${santriKlpForLink.length || jamaahAnakCandidates.length ? `
+              ${santriKlpForLink.length ? `<div style="font-size:10.5px; font-weight:700; color:var(--green); text-transform:uppercase; margin:4px 0;">Sudah jadi Generus (Data Santri)</div>
+                ${santriKlpForLink.map(s => `
                   <label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; cursor:pointer;">
                     <input type="checkbox" class="jmhAnak" data-tipe="santri" value="${s.id}" ${linkedSantriIds.has(s.id)?'checked':''}> ${escHtml(s.nama)}
                   </label>`).join('')}` : ''}
@@ -8178,7 +8266,7 @@ async function renderJamaahEntry() {
                   <label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; cursor:pointer;">
                     <input type="checkbox" class="jmhAnak" data-tipe="jamaah" value="${x.id}" ${linkedJamaahIds.has(x.id)?'checked':''}> ${escHtml(x.nama)} <span style="font-size:10.5px; color:var(--ink-soft);">(${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</span>
                   </label>`).join('')}` : ''}
-            ` : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada calon anak (Santri/Jamaah) di kelompok ini.</div>'}
+            ` : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada calon anak (Santri/Jamaah) di kelompok ini — mungkin semuanya sudah tertaut ke ortu lain.</div>'}
           </div>
         </div>` : (existing ? `<div style="font-size:11.5px; color:var(--ink-soft);">Penautan anak cuma tersedia untuk jamaah kategori Dewasa/Istimewa.</div>` : '')}
       </div>
