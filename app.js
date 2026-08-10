@@ -8221,12 +8221,16 @@ async function renderJamaahEntry() {
       ? list.filter(x => x.id !== existing.id && !x.santri_id && ANAK_KATEGORI.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))
           && !(globalLinkedAnakJamaahIds.has(x.id) && !linkedJamaahIds.has(x.id)))
       : [];
-    // Santri yang ditawarkan di checklist juga dikecualikan kalau sudah tertaut (langsung via santri_id)
-    // ke ortu lain — dicek pakai santri.id langsung, BUKAN lewat baris jamaah (banyak santri lama
-    // gak punya baris jamaah sendiri sama sekali, jadi gak bisa dicek lewat situ)
-    const santriKlpForLink = santriKlp.filter(s =>
-      !(globalLinkedSantriIds.has(s.id) && !linkedSantriIds.has(s.id))
-    );
+    // Santri yang ditawarkan di checklist juga dikecualikan kalau sudah tertaut ke ortu lain —
+    // dicek 2 jalur: (a) link langsung via santri_id, (b) link LAMA via anak_jamaah_id ke baris
+    // jamaah santri ini SEBELUM dia "Jadikan Santri" (link lama itu gak otomatis pindah waktu transfer,
+    // jadi kalau cuma cek jalur (a) doang, kasus ini kelewat dan anaknya kelihatan gak tertaut lagi).
+    const santriKlpForLink = santriKlp.filter(s => {
+      const directLinked = globalLinkedSantriIds.has(s.id) && !linkedSantriIds.has(s.id);
+      const jRow = santriIdToJamaahRow.get(s.id);
+      const oldJamaahLinked = jRow && globalLinkedAnakJamaahIds.has(jRow.id) && !linkedJamaahIds.has(jRow.id);
+      return !directLinked && !oldJamaahLinked;
+    });
     // Kandidat pasangan — jamaah Dewasa/Istimewa lain yang belum ditautkan ke orang lain
     const pasanganCandidates = showKeluarga
       ? list.filter(x => x.id !== existing.id
@@ -8265,14 +8269,14 @@ async function renderJamaahEntry() {
               ${santriKlpForLink.length ? `<div style="font-size:10.5px; font-weight:700; color:var(--green); text-transform:uppercase; margin:4px 0;">Sudah jadi Generus (Data Santri)</div>
                 ${santriKlpForLink.map(s => `
                   <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);">
-                    <input type="checkbox" id="jmhAnak_s_${s.id}" class="jmhAnak" data-tipe="santri" value="${s.id}" ${linkedSantriIds.has(s.id)?'checked':''} style="flex-shrink:0;">
-                    <label for="jmhAnak_s_${s.id}" style="display:block; font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--ink); margin:0; cursor:pointer;">${escHtml(s.nama)}</label>
+                    <input type="checkbox" id="jmhAnak_s_${s.id}" class="jmhAnak" data-tipe="santri" value="${s.id}" ${linkedSantriIds.has(s.id)?'checked':''} style="flex:0 0 16px; width:16px; height:16px; margin:0;">
+                    <label for="jmhAnak_s_${s.id}" style="flex:1 1 auto; display:block; font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--ink); margin:0; cursor:pointer;">${escHtml(s.nama)}</label>
                   </div>`).join('')}` : ''}
               ${jamaahAnakCandidates.length ? `<div style="font-size:10.5px; font-weight:700; color:var(--gold); text-transform:uppercase; margin:8px 0 4px;">Belum jadi Generus (masih Data Jamaah)</div>
                 ${jamaahAnakCandidates.map(x => `
                   <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);">
-                    <input type="checkbox" id="jmhAnak_j_${x.id}" class="jmhAnak" data-tipe="jamaah" value="${x.id}" ${linkedJamaahIds.has(x.id)?'checked':''} style="flex-shrink:0;">
-                    <label for="jmhAnak_j_${x.id}" style="display:block; font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--ink); margin:0; cursor:pointer;">${escHtml(x.nama)} <span style="font-size:10.5px; color:var(--ink-soft);">(${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</span></label>
+                    <input type="checkbox" id="jmhAnak_j_${x.id}" class="jmhAnak" data-tipe="jamaah" value="${x.id}" ${linkedJamaahIds.has(x.id)?'checked':''} style="flex:0 0 16px; width:16px; height:16px; margin:0;">
+                    <label for="jmhAnak_j_${x.id}" style="flex:1 1 auto; display:block; font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--ink); margin:0; cursor:pointer;">${escHtml(x.nama)} <span style="font-size:10.5px; color:var(--ink-soft);">(${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</span></label>
                   </div>`).join('')}` : ''}
             ` : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada calon anak (Santri/Jamaah) di kelompok ini — mungkin semuanya sudah tertaut ke ortu lain.</div>'}
           </div>
