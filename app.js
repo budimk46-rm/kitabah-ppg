@@ -7652,7 +7652,7 @@ async function renderJamaahEntry() {
   const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.nama || '';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
-  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map();
+  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set();
 
   // Susun urutan tampil per keluarga: Suami -> Istri -> Anak 1, 2, dst -> keluarga berikutnya.
   // Anak bisa berupa jamaah (belum jadi santri) ATAU jamaah yang sudah "Jadikan Santri" (masih ada barisnya di sini).
@@ -7703,8 +7703,7 @@ async function renderJamaahEntry() {
     listUrut = families.flat().concat(sisa);
 
     // Peta anak (baris jamaah, baik yg masih murni jamaah maupun yg udah "Jadikan Santri")
-    // -> record tautannya, dipakai buat tombol "Lepas Tautan" langsung & filter checklist
-    // supaya anak yg SUDAH tertaut ke ortu lain gak muncul lagi sbg kandidat di ortu lain.
+    // -> record tautannya, dipakai buat tombol "Lepas Tautan" langsung di tabel.
     childLinkMap = new Map();
     allLinks.forEach(l => {
       const parentRow = byId.get(l.jamaah_id);
@@ -7715,6 +7714,12 @@ async function renderJamaahEntry() {
         childLinkMap.set(santriIdToJamaahRow.get(l.santri_id).id, { linkId: l.id, parentNama: parentRow.nama });
       }
     });
+    // Set GLOBAL santri_id/anak_jamaah_id yang udah tertaut ke SIAPAPUN — dipakai buat filter
+    // checklist supaya gak nawarin lagi anak yang udah tertaut ke ortu lain. Beda dari childLinkMap
+    // di atas (yang cuma nyimpen link yg SANTRI-nya punya baris jamaah sendiri) — set ini nangkep
+    // SEMUA link apa adanya, termasuk santri lama yg gak pernah lewat "Jadikan Santri".
+    globalLinkedSantriIds = new Set(allLinks.filter(l => l.santri_id).map(l => l.santri_id));
+    globalLinkedAnakJamaahIds = new Set(allLinks.filter(l => l.anak_jamaah_id).map(l => l.anak_jamaah_id));
 
     // Deteksi kemiripan nama dgn Data Santri yg SUDAH ADA — buat jamaah yg BELUM ditautkan
     // (x.santri_id kosong), supaya PJP ketahuan SEBELUM klik "Jadikan Santri" kalau ternyata
@@ -8212,15 +8217,16 @@ async function renderJamaahEntry() {
     // Yang SUDAH tertaut ke ortu LAIN gak ditawarkan lagi di sini (biar gak dobel-tautan) —
     // tapi kalau tertaut ke ortu yang SEDANG diedit ini, tetap ditampilkan (buat uncheck=lepas tautan).
     const ANAK_KATEGORI = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja'];
-    const sudahTertautKeOrtuLain = (id) => childLinkMap.has(id) && !linkedJamaahIds.has(id) && !linkedSantriIds.has(id);
     const jamaahAnakCandidates = existing
-      ? list.filter(x => x.id !== existing.id && !x.santri_id && ANAK_KATEGORI.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)) && !sudahTertautKeOrtuLain(x.id))
+      ? list.filter(x => x.id !== existing.id && !x.santri_id && ANAK_KATEGORI.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))
+          && !(globalLinkedAnakJamaahIds.has(x.id) && !linkedJamaahIds.has(x.id)))
       : [];
-    // Santri yang ditawarkan di checklist juga dikecualikan kalau sudah tertaut ke ortu lain
-    const santriKlpForLink = santriKlp.filter(s => {
-      const jRow = santriIdToJamaahRow.get(s.id);
-      return !(jRow && sudahTertautKeOrtuLain(jRow.id));
-    });
+    // Santri yang ditawarkan di checklist juga dikecualikan kalau sudah tertaut (langsung via santri_id)
+    // ke ortu lain — dicek pakai santri.id langsung, BUKAN lewat baris jamaah (banyak santri lama
+    // gak punya baris jamaah sendiri sama sekali, jadi gak bisa dicek lewat situ)
+    const santriKlpForLink = santriKlp.filter(s =>
+      !(globalLinkedSantriIds.has(s.id) && !linkedSantriIds.has(s.id))
+    );
     // Kandidat pasangan — jamaah Dewasa/Istimewa lain yang belum ditautkan ke orang lain
     const pasanganCandidates = showKeluarga
       ? list.filter(x => x.id !== existing.id
@@ -8258,14 +8264,16 @@ async function renderJamaahEntry() {
             ${santriKlpForLink.length || jamaahAnakCandidates.length ? `
               ${santriKlpForLink.length ? `<div style="font-size:10.5px; font-weight:700; color:var(--green); text-transform:uppercase; margin:4px 0;">Sudah jadi Generus (Data Santri)</div>
                 ${santriKlpForLink.map(s => `
-                  <label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; cursor:pointer;">
-                    <input type="checkbox" class="jmhAnak" data-tipe="santri" value="${s.id}" ${linkedSantriIds.has(s.id)?'checked':''}> ${escHtml(s.nama)}
-                  </label>`).join('')}` : ''}
+                  <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);">
+                    <input type="checkbox" id="jmhAnak_s_${s.id}" class="jmhAnak" data-tipe="santri" value="${s.id}" ${linkedSantriIds.has(s.id)?'checked':''} style="flex-shrink:0;">
+                    <label for="jmhAnak_s_${s.id}" style="display:block; font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--ink); margin:0; cursor:pointer;">${escHtml(s.nama)}</label>
+                  </div>`).join('')}` : ''}
               ${jamaahAnakCandidates.length ? `<div style="font-size:10.5px; font-weight:700; color:var(--gold); text-transform:uppercase; margin:8px 0 4px;">Belum jadi Generus (masih Data Jamaah)</div>
                 ${jamaahAnakCandidates.map(x => `
-                  <label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; cursor:pointer;">
-                    <input type="checkbox" class="jmhAnak" data-tipe="jamaah" value="${x.id}" ${linkedJamaahIds.has(x.id)?'checked':''}> ${escHtml(x.nama)} <span style="font-size:10.5px; color:var(--ink-soft);">(${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</span>
-                  </label>`).join('')}` : ''}
+                  <div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);">
+                    <input type="checkbox" id="jmhAnak_j_${x.id}" class="jmhAnak" data-tipe="jamaah" value="${x.id}" ${linkedJamaahIds.has(x.id)?'checked':''} style="flex-shrink:0;">
+                    <label for="jmhAnak_j_${x.id}" style="display:block; font-size:13px; font-weight:400; text-transform:none; letter-spacing:normal; color:var(--ink); margin:0; cursor:pointer;">${escHtml(x.nama)} <span style="font-size:10.5px; color:var(--ink-soft);">(${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</span></label>
+                  </div>`).join('')}` : ''}
             ` : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada calon anak (Santri/Jamaah) di kelompok ini — mungkin semuanya sudah tertaut ke ortu lain.</div>'}
           </div>
         </div>` : (existing ? `<div style="font-size:11.5px; color:var(--ink-soft);">Penautan anak cuma tersedia untuk jamaah kategori Dewasa/Istimewa.</div>` : '')}
