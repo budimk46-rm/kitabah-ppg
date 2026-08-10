@@ -7668,6 +7668,24 @@ async function renderJamaahEntry() {
     linksByJamaahId = new Map();
     allLinks.forEach(l => { (linksByJamaahId.get(l.jamaah_id) || linksByJamaahId.set(l.jamaah_id, []).get(l.jamaah_id)).push(l); });
 
+    // Santri yang ditautkan lewat santri_id TAPI gak punya baris Data Jamaah sendiri (santri lama,
+    // gak pernah lewat "Jadikan Santri") — dibikinkan baris "virtual" (cuma buat tampilan, gak
+    // tersimpan) supaya tetap bisa ikut ke-grup di bawah nama ortunya di tabel keluarga.
+    const orphanLinkedSantriIds = new Set(
+      allLinks.filter(l => l.santri_id && !santriIdToJamaahRow.has(l.santri_id)).map(l => l.santri_id)
+    );
+    orphanLinkedSantriIds.forEach(sid => {
+      const s = santriKlp.find(x => x.id === sid);
+      if (!s) return;
+      const virtualRow = {
+        id: 'virtual_santri_' + s.id, nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir,
+        santri_id: s.id, status_menikah: null, keterangan: null, no_hp: null, _virtual: true,
+      };
+      list.push(virtualRow);
+      byId.set(virtualRow.id, virtualRow);
+      santriIdToJamaahRow.set(s.id, virtualRow);
+    });
+
     const processed = new Set();
     const families = [];
     const dewasaSorted = [...list]
@@ -7839,10 +7857,11 @@ async function renderJamaahEntry() {
                   </div>
                 </td>
                 ${canEdit ? `<td style="padding:7px 10px; text-align:center;">
+                  ${x._virtual ? '<span style="font-size:10px; color:var(--ink-soft); font-style:italic;">Data Santri</span>' : `
                   <div style="display:flex; gap:3px; justify-content:center;">
                     <button class="btn-icon" onclick="JMH_edit('${x.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
                     <button class="btn-icon danger" onclick="JMH_hapus(this.dataset.id, this.dataset.nama)" data-id="${x.id}" data-nama="${escHtml(x.nama)}" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
-                  </div>
+                  </div>`}
                 </td>` : ''}
               </tr>`;
             }).join('')}
