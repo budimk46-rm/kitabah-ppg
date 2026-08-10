@@ -8423,12 +8423,12 @@ async function renderJamaahRekap() {
     }).join('');
     return `<div id="${idPrefix}" style="display:none; margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow:hidden;">
       <table style="width:100%; border-collapse:collapse;">
-        <thead><tr style="background:var(--green-soft);">
-          <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:var(--green);">Kelompok</th>
-          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">L</th>
-          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">P</th>
-          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Istimewa L</th>
-          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:var(--green);">Istimewa P</th>
+        <thead><tr style="background:var(--green);">
+          <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:#fff;">Kelompok</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">L</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">P</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Istimewa L</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Istimewa P</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
