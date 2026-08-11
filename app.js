@@ -11009,12 +11009,28 @@ async function renderPengurus() {
       page.drawText('Dicetak: '+new Date().toLocaleDateString('id-ID'), {x:ML,y,font:fReg,size:9,color:GRAY});
       y-=8; page.drawLine({start:{x:ML,y},end:{x:W-MR,y},thickness:1.5,color:GREEN}); y-=16;
 
+      // Urutkan: 4S dulu (sesuai urutan EMPAT_S), lalu Tim 7 (sesuai urutan TIM_7),
+      // lalu sisanya (Unsur PPG/Pengurus Harian/Pengurus Bidang) — sort stabil jadi
+      // urutan asli di dalam masing2 tingkatan tetap terjaga.
+      function urutkanPengurus(list) {
+        return [...list].sort((a, b) => {
+          const rank = (j) => {
+            const i4s = EMPAT_S.indexOf(j);
+            if (i4s >= 0) return i4s; // 0..6
+            const iTim7 = TIM_7.indexOf(j);
+            if (iTim7 >= 0) return 100 + iTim7; // 100..106
+            return 1000; // Unsur PPG / Harian / Bidang / lainnya, urutan asli dipertahankan
+          };
+          return rank(a.jabatan) - rank(b.jabatan);
+        });
+      }
+
       function drawSection(title, list) {
         checkY(30);
         page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:18,color:GREEN});
         page.drawText(title, {x:ML+5,y,font:fBold,size:10,color:rgb(1,1,1)});
         y-=22;
-        list.forEach((p,i) => {
+        urutkanPengurus(list).forEach((p,i) => {
           checkY(14);
           const bg = i%2===0?LGREEN:rgb(1,1,1);
           page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:13,color:bg});
@@ -11028,8 +11044,8 @@ async function renderPengurus() {
       }
 
       if (pengurusDaerah.length) drawSection('PENGURUS DAERAH', pengurusDaerah);
-      for (const [dNama, list] of Object.entries(pengurusDesa)) {
-        if (list.length) drawSection('PENGURUS '+dNama.toUpperCase(), list);
+      for (const desaObj of Object.values(pengurusDesa)) {
+        if (desaObj.list.length) drawSection('PENGURUS '+desaObj.nama.toUpperCase(), desaObj.list);
       }
       for (const [kid, list] of Object.entries(pengurusKlp)) {
         const klp = allKlp.find(k=>k.id===kid);
