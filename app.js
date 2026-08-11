@@ -6886,6 +6886,7 @@ async function renderAbsensiPengajian() {
                 <button class="btn btn-outline btn-sm" onclick="PGJ_kelolaPeserta()">👥 Kelola Peserta</button>
                 <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" style="padding:6px 8px; font-size:12px;">
                 <button class="btn btn-outline btn-sm" onclick="PGJ_ubahTanggal()">Ubah Tanggal</button>
+                <button class="btn btn-outline btn-sm" style="color:var(--rose); border-color:var(--rose);" onclick="PGJ_hapusPertemuan(this.dataset.ptmke)" data-ptmke="${p?.pertemuan_ke||'?'}">🗑️ Hapus Pertemuan</button>
               </div>` : ''}
             </div>
             <div class="form-group" style="margin-bottom:14px;">
@@ -7082,6 +7083,20 @@ async function renderAbsensiPengajian() {
       logActivity('ubah', 'Absensi Pengajian', `Simpan materi pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'}`);
       showToast('Materi tersimpan ✓');
     } catch(e) { showToast('Gagal menyimpan materi: ' + e.message, true); }
+  };
+
+  window.PGJ_hapusPertemuan = async (pertemuanKe) => {
+    const p = pertemuanList.find(x => x.id === currentPertemuanId);
+    if (!p) return;
+    if (!confirm(`Hapus pertemuan ke-${pertemuanKe} (${fmtDateShort(p.tanggal)}) beserta SEMUA data absensinya?\n\nIni tidak bisa dibatalkan — cocok dipakai kalau ini cuma data uji coba.`)) return;
+    try {
+      await SB.pengajianPertemuan.delete(currentPertemuanId);
+      logActivity('hapus', 'Absensi Pengajian', `Hapus pertemuan ke-${pertemuanKe} (${jenis==='sub'?'Sub Pengajian':'Kelompok'})`);
+      showToast('Pertemuan dihapus');
+      currentPertemuanId = null;
+      await loadPertemuanList();
+      render();
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
   };
 
   window.PGJ_ubahTanggal = async () => {
