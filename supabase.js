@@ -630,6 +630,15 @@ const sbPengajianAbsensi = {
     method:'POST', headers:{'Prefer':'return=representation,resolution=merge-duplicates'}, body:JSON.stringify(rows),
   }),
 };
+const sbPengajianOverride = {
+  getByScope: (klpId, jenis, subId) => {
+    let url = `pengajian_peserta_override?kelompok_id=eq.${klpId}&jenis=eq.${jenis}`;
+    url += jenis === 'sub' ? `&sub_pengajian_id=eq.${subId}` : '&sub_pengajian_id=is.null';
+    return sbFetch(url + '&select=*');
+  },
+  insert: (data) => sbFetch('pengajian_peserta_override', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`pengajian_peserta_override?id=eq.${id}`, { method:'DELETE' }),
+};
 
 const sbJamaah = {
   getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=*&order=nama`),
@@ -722,6 +731,7 @@ window.SB = {
   subPengajian: sbSubPengajian,
   pengajianPertemuan: sbPengajianPertemuan,
   pengajianAbsensi: sbPengajianAbsensi,
+  pengajianOverride: sbPengajianOverride,
   penerobosan: sbPenerobosan,
   penerobosanDesa: sbPenerobosanDesa,
   formSubmissions: sbFormSubmissions,

@@ -6652,12 +6652,67 @@ async function renderAbsensiPengajian() {
     pertemuanList = await SB.pengajianPertemuan.getByKelompok(u.kelompok_id, jenis, selectedSubId, bulan, tahun) || [];
     currentPertemuanId = null;
   }
+  let allJamaahKelompok = []; // dipakai jg utk cari peserta yang mau ditambah manual
   async function loadEligibleJamaah() {
-    const allJamaah = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
-    jamaahEligible = allJamaah.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
-    if (jenis === 'sub') jamaahEligible = jamaahEligible.filter(x => x.sub_pengajian_id === selectedSubId);
-    jamaahEligible.sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    allJamaahKelompok = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+    let base = allJamaahKelompok.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+    if (jenis === 'sub') base = base.filter(x => x.sub_pengajian_id === selectedSubId);
+
+    // Terapkan tambah/keluarkan manual (di luar kriteria otomatis)
+    const overrides = (jenis === 'sub' && !selectedSubId) ? [] : await SB.pengajianOverride.getByScope(u.kelompok_id, jenis, selectedSubId) || [];
+    const keluarIds = new Set(overrides.filter(o => o.tipe === 'keluar').map(o => o.jamaah_id));
+    const tambahIds = overrides.filter(o => o.tipe === 'tambah').map(o => o.jamaah_id);
+    let hasil = base.filter(x => !keluarIds.has(x.id));
+    tambahIds.forEach(id => {
+      if (!hasil.find(x => x.id === id)) {
+        const x = allJamaahKelompok.find(a => a.id === id);
+        if (x) hasil.push(x);
+      }
+    });
+
+    jamaahEligible = await urutkanSesuaiKeluarga(hasil);
   }
+
+  // Urutkan sesuai keluarga yang sudah ditautkan (pasangan berdampingan, anak yang tertaut
+  // ikut nempel di bawah ortunya) — sama pola dengan Data Jamaah, cuma disederhanakan
+  // krn semua yang muncul di sini sudah pasti usia Pra Remaja ke atas.
+  async function urutkanSesuaiKeluarga(jamList) {
+    if (!jamList.length) return jamList;
+    const byId = new Map(jamList.map(x => [x.id, x]));
+    const links = await SB.jamaahKeluarga.getByJamaahIds(jamList.map(x=>x.id)) || [];
+    const linksByParent = new Map();
+    links.forEach(l => { (linksByParent.get(l.jamaah_id) || linksByParent.set(l.jamaah_id, []).get(l.jamaah_id)).push(l); });
+
+    const processed = new Set();
+    const families = [];
+    const dewasaSorted = jamList.filter(x => ['Dewasa','Istimewa'].includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)))
+      .sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+
+    dewasaSorted.forEach(adult => {
+      if (processed.has(adult.id)) return;
+      const pasangan = adult.pasangan_id ? byId.get(adult.pasangan_id) : null;
+      const anggota = (pasangan && !processed.has(pasangan.id))
+        ? (adult.jenis_kelamin === 'L' ? [adult, pasangan] : [pasangan, adult])
+        : [adult];
+      anggota.forEach(a => processed.add(a.id));
+
+      const childIds = new Set();
+      anggota.forEach(a => (linksByParent.get(a.id)||[]).forEach(l => {
+        if (l.anak_jamaah_id && byId.has(l.anak_jamaah_id)) childIds.add(l.anak_jamaah_id);
+      }));
+      const anak = [...childIds].map(id => byId.get(id)).filter(Boolean)
+        .sort((a,b) => (a.tgl_lahir||'9999-99-99').localeCompare(b.tgl_lahir||'9999-99-99'));
+      anak.forEach(a => processed.add(a.id));
+
+      families.push([...anggota, ...anak]);
+    });
+
+    const sisa = jamList.filter(x => !processed.has(x.id))
+      .sort((a,b) => (a.tgl_lahir||'9999-99-99').localeCompare(b.tgl_lahir||'9999-99-99')); // urut usia tua ke muda
+
+    return families.flat().concat(sisa);
+  }
+
   async function loadDetail(pid) {
     currentPertemuanId = pid;
     await loadEligibleJamaah();
@@ -6817,7 +6872,8 @@ async function renderAbsensiPengajian() {
                 <div class="fw-bold" style="font-size:14px;">Pertemuan Ke-${p?.pertemuan_ke||'?'} ${jenis==='sub'?'· '+escHtml(subNama):''}</div>
                 <div style="font-size:12px; color:var(--ink-soft);">${jamaahEligible.length} orang · Terisi ${Object.keys(absensiMap).length}/${jamaahEligible.length}</div>
               </div>
-              ${canEdit ? `<div style="display:flex; align-items:center; gap:6px;">
+              ${canEdit ? `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-outline btn-sm" onclick="PGJ_kelolaPeserta()">👥 Kelola Peserta</button>
                 <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" style="padding:6px 8px; font-size:12px;">
                 <button class="btn btn-outline btn-sm" onclick="PGJ_ubahTanggal()">Ubah Tanggal</button>
               </div>` : ''}
@@ -6914,6 +6970,99 @@ async function renderAbsensiPengajian() {
       render();
     } catch(e) { showToast('Gagal membuat pertemuan: ' + e.message, true); }
   };
+  window.PGJ_kelolaPeserta = async () => {
+    let el = document.getElementById('pgjPesertaModal');
+    if (!el) { el = document.createElement('div'); el.id = 'pgjPesertaModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+
+    async function renderModal() {
+      const overrides = await SB.pengajianOverride.getByScope(u.kelompok_id, jenis, selectedSubId) || [];
+      const keluarList = overrides.filter(o => o.tipe === 'keluar').map(o => ({ ...o, jamaah: allJamaahKelompok.find(x=>x.id===o.jamaah_id) })).filter(o=>o.jamaah);
+      const tambahList = overrides.filter(o => o.tipe === 'tambah').map(o => ({ ...o, jamaah: allJamaahKelompok.find(x=>x.id===o.jamaah_id) })).filter(o=>o.jamaah);
+      // Kandidat buat ditambah manual: semua jamaah kelompok yang BELUM ada di daftar peserta saat ini
+      const currentIds = new Set(jamaahEligible.map(x=>x.id));
+      const kandidatTambah = allJamaahKelompok.filter(x => !currentIds.has(x.id))
+        .sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+
+      el.innerHTML = `<div class="modal modal-lg">
+        <div class="modal-head"><h3 class="modal-title">👥 Kelola Peserta — ${jenis==='sub' ? escHtml(subList.find(s=>s.id===selectedSubId)?.nama||'') : 'Pengajian Kelompok'}</h3><button class="modal-close" onclick="closeModal('pgjPesertaModal')">✕</button></div>
+        <div class="modal-body">
+          <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--green);">
+            Daftar peserta otomatis mengikuti kriteria usia (Pra Remaja s/d Istimewa)${jenis==='sub'?' + Sub Pengajian yang ditandai di Data Jamaah':''}. Kalau ada yang perlu dikecualikan atau ditambahkan di luar itu, atur di sini.
+          </div>
+
+          <div class="fw-bold" style="font-size:12.5px; margin-bottom:8px;">+ Tambahkan Peserta di Luar Kriteria</div>
+          <select id="pgjTambahSelect" style="width:100%; margin-bottom:8px;">
+            <option value="">Pilih generus...</option>
+            ${kandidatTambah.map(x => `<option value="${x.id}">${escHtml(x.nama)} (${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</option>`).join('')}
+          </select>
+          <button class="btn btn-green btn-sm" onclick="PGJ_tambahPeserta()" style="margin-bottom:16px;">+ Tambahkan</button>
+
+          ${tambahList.length ? `<div class="fw-bold" style="font-size:12.5px; margin-bottom:6px; color:var(--green);">Peserta Tambahan Manual</div>
+            ${tambahList.map(o => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+              <span>${escHtml(o.jamaah.nama)}</span>
+              <button class="btn-icon danger" onclick="PGJ_batalOverride('${o.id}')" title="Batalkan tambahan ini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+            </div>`).join('')}
+          <div style="margin-bottom:16px;"></div>` : ''}
+
+          <div class="fw-bold" style="font-size:12.5px; margin-bottom:6px;">Keluarkan dari Peserta</div>
+          <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin-bottom:10px;">
+            ${jamaahEligible.length ? jamaahEligible.map(x => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+              <span>${escHtml(x.nama)}</span>
+              <button class="btn-icon danger" onclick="PGJ_keluarkanPeserta('${x.id}','${escHtml(x.nama)}')" title="Keluarkan dari daftar peserta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            </div>`).join('') : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada peserta.</div>'}
+          </div>
+
+          ${keluarList.length ? `<div class="fw-bold" style="font-size:12.5px; margin-bottom:6px; color:var(--rose);">Sudah Dikeluarkan</div>
+            ${keluarList.map(o => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+              <span style="color:var(--ink-soft); text-decoration:line-through;">${escHtml(o.jamaah.nama)}</span>
+              <button class="btn btn-outline btn-sm" onclick="PGJ_batalOverride('${o.id}')">Masukkan Lagi</button>
+            </div>`).join('')}` : ''}
+        </div>
+        <div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('pgjPesertaModal')">Tutup</button></div>
+      </div>`;
+    }
+
+    window.PGJ_tambahPeserta = async () => {
+      const jamaahId = document.getElementById('pgjTambahSelect').value;
+      if (!jamaahId) { showToast('Pilih generus dulu', true); return; }
+      try {
+        await SB.pengajianOverride.insert({
+          kelompok_id: u.kelompok_id, jenis, sub_pengajian_id: jenis==='sub'?selectedSubId:null,
+          jamaah_id: jamaahId, tipe: 'tambah',
+        });
+        showToast('Peserta ditambahkan ✓');
+        await loadEligibleJamaah();
+        await renderModal();
+        render();
+      } catch(e) { showToast('Gagal menambah: ' + e.message, true); }
+    };
+    window.PGJ_keluarkanPeserta = async (jamaahId, nama) => {
+      if (!confirm(`Keluarkan "${nama}" dari daftar peserta ${jenis==='sub'?'Sub Pengajian ini':'Pengajian Kelompok'}?`)) return;
+      try {
+        await SB.pengajianOverride.insert({
+          kelompok_id: u.kelompok_id, jenis, sub_pengajian_id: jenis==='sub'?selectedSubId:null,
+          jamaah_id: jamaahId, tipe: 'keluar',
+        });
+        showToast('Peserta dikeluarkan');
+        await loadEligibleJamaah();
+        await renderModal();
+        render();
+      } catch(e) { showToast('Gagal mengeluarkan: ' + e.message, true); }
+    };
+    window.PGJ_batalOverride = async (overrideId) => {
+      try {
+        await SB.pengajianOverride.delete(overrideId);
+        showToast('Berhasil diubah ✓');
+        await loadEligibleJamaah();
+        await renderModal();
+        render();
+      } catch(e) { showToast('Gagal: ' + e.message, true); }
+    };
+
+    await renderModal();
+    openModal('pgjPesertaModal');
+  };
+
   window.PGJ_simpanMateri = async () => {
     const materi = document.getElementById('pgjMateriInput')?.value.trim() || null;
     try {
