@@ -7100,7 +7100,12 @@ async function renderAbsensiPengajian() {
         await new Promise((res, rej) => {
           const s = document.createElement('script');
           s.src = 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';
-          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat pustaka pemindai dari internet — cek koneksi internet, lalu coba lagi'));
+          s.onload = res; s.onerror = () => {
+            const s2 = document.createElement('script');
+            s2.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+            s2.onload = res; s2.onerror = () => rej(new Error('Gagal memuat pustaka pemindai dari internet — cek koneksi internet, lalu coba lagi'));
+            document.head.appendChild(s2);
+          };
           document.head.appendChild(s);
         });
       } catch(e) { showToast(e.message, true); return; }
@@ -8949,33 +8954,23 @@ async function renderJamaahEntry() {
     document.querySelectorAll('.jmhQrCk').forEach(el => { el.checked = checked; });
   };
 
-  window.JMH_cetakKartuQRLanjut = async () => {
+  window.JMH_cetakKartuQRLanjut = () => {
     const dipilihIds = new Set(Array.from(document.querySelectorAll('.jmhQrCk:checked')).map(el => el.value));
     if (!dipilihIds.size) { showToast('Pilih minimal 1 nama dulu', true); return; }
     const kandidat = listUrut.filter(x => dipilihIds.has(x.id));
     closeModal('jmhQrPilihModal');
-    showToast('Menyiapkan kartu QR...');
-    if (!window.QRCode) {
-      try {
-        await new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
-          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat pustaka QR dari internet — cek koneksi internet, lalu coba lagi'));
-          document.head.appendChild(s);
-        });
-      } catch(e) { showToast(e.message, true); return; }
-    }
-    try {
-      const cardsHtml = await Promise.all(kandidat.map(async x => {
-        const dataUrl = await window.QRCode.toDataURL(x.id, { width: 180, margin: 1 });
-        return `<div class="qr-card">
-          <img src="${dataUrl}" width="120" height="120">
+    // Pakai layanan gambar QR langsung (bukan pustaka JS yang perlu dimuat dari CDN) —
+    // lebih tahan terhadap jaringan yang memblokir pemuatan script dari luar.
+    const cardsHtml = kandidat.map(x => {
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=5&data=${encodeURIComponent(x.id)}`;
+      return `<div class="qr-card">
+          <img src="${qrImgUrl}" width="120" height="120" alt="QR ${escHtml(x.nama)}">
           <div class="qr-nama">${escHtml(x.nama)}</div>
           <div class="qr-klp">${escHtml(kelompokNama||'')}</div>
         </div>`;
-      }));
-      const win = window.open('', '_blank');
-      win.document.write(`<!DOCTYPE html><html><head><title>Kartu QR Absensi Pengajian — ${escHtml(kelompokNama||'')}</title>
+    });
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>Kartu QR Absensi Pengajian — ${escHtml(kelompokNama||'')}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 20px; }
           .qr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -8991,9 +8986,8 @@ async function renderJamaahEntry() {
 
         <div class="qr-grid">${cardsHtml.join('')}</div>
       </body></html>`);
-      win.document.close();
-      showToast('Kartu QR siap — dibuka di tab baru ✓');
-    } catch(e) { showToast('Gagal membuat kartu QR: ' + e.message, true); }
+    win.document.close();
+    showToast('Kartu QR siap — dibuka di tab baru ✓');
   };
 
   window.JMH_downloadPdf = async () => {
