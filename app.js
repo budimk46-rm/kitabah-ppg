@@ -6629,6 +6629,12 @@ const BULAN_LIST = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Ag
 const PENGAJIAN_ELIGIBLE_KAT = ['Pra Remaja','Remaja','Pra Nikah','Dewasa','Istimewa'];
 const PENGAJIAN_STATUS_LABEL = { H:'Hadir', S:'Sakit', I:'Izin', A:'Alpa' };
 const PENGAJIAN_STATUS_COLOR = { H:'#1a6b3a', S:'#a67c00', I:'#1a5ba6', A:'#a6483b' };
+// Bp./Ibu untuk yang sudah menikah, Sdra./Sdri. untuk yang belum — dipakai di tampilan Absensi Pengajian
+function gelarNama(x) {
+  const menikah = x.status_menikah === 'menikah';
+  const prefix = x.jenis_kelamin === 'L' ? (menikah ? 'Bp. ' : 'Sdra. ') : (menikah ? 'Ibu ' : 'Sdri. ');
+  return prefix + (x.nama || '');
+}
 
 async function renderAbsensiPengajian() {
   const main = document.getElementById('mainContent');
@@ -6786,7 +6792,7 @@ async function renderAbsensiPengajian() {
             ${perBulanData.map(d => `<th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">${d.bulan.slice(0,3)} ${d.tahun}${!d.totalPtm?' (blm ada ptm)':''}</th>`).join('')}
           </tr></thead>
           <tbody>${jamaahEligible.length ? jamaahEligible.map(x => `<tr style="border-bottom:1px solid var(--line);">
-            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(x.nama)}</td>
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(gelarNama(x))}</td>
             ${perBulanData.map(d => {
               if (!d.totalPtm) return `<td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--ink-soft);">-</td>`;
               const pct = Math.round(((d.absensiPerOrang[x.id]||0) / d.totalPtm) * 100);
@@ -6902,7 +6908,7 @@ async function renderAbsensiPengajian() {
                 <th style="padding:6px 10px; text-align:center; font-size:11px; color:#fff;">Status</th>
               </tr></thead>
               <tbody>${jamaahEligible.map(x => `<tr style="border-bottom:1px solid var(--line);">
-                <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(x.nama)}</td>
+                <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(gelarNama(x))}</td>
                 <td style="padding:6px 10px; text-align:center;">
                   <div style="display:flex; gap:4px; justify-content:center;">
                     ${['H','S','I','A'].map(st => `<button ${canEdit?`onclick="PGJ_setStatus('${x.id}','${st}')"`:'disabled'} style="width:30px; height:26px; border-radius:6px; border:1.5px solid ${absensiMap[x.id]===st?PENGAJIAN_STATUS_COLOR[st]:'var(--line)'}; background:${absensiMap[x.id]===st?PENGAJIAN_STATUS_COLOR[st]:'#fff'}; color:${absensiMap[x.id]===st?'#fff':PENGAJIAN_STATUS_COLOR[st]}; font-size:11px; font-weight:800; cursor:${canEdit?'pointer':'default'};">${st}</button>`).join('')}
@@ -7005,13 +7011,13 @@ async function renderAbsensiPengajian() {
           <div class="fw-bold" style="font-size:12.5px; margin-bottom:8px;">+ Tambahkan Peserta di Luar Kriteria</div>
           <select id="pgjTambahSelect" style="width:100%; margin-bottom:8px;">
             <option value="">Pilih generus...</option>
-            ${kandidatTambah.map(x => `<option value="${x.id}">${escHtml(x.nama)} (${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</option>`).join('')}
+            ${kandidatTambah.map(x => `<option value="${x.id}">${escHtml(gelarNama(x))} (${escHtml(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))})</option>`).join('')}
           </select>
           <button class="btn btn-green btn-sm" onclick="PGJ_tambahPeserta()" style="margin-bottom:16px;">+ Tambahkan</button>
 
           ${tambahList.length ? `<div class="fw-bold" style="font-size:12.5px; margin-bottom:6px; color:var(--green);">Peserta Tambahan Manual</div>
             ${tambahList.map(o => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
-              <span>${escHtml(o.jamaah.nama)}</span>
+              <span>${escHtml(gelarNama(o.jamaah))}</span>
               <button class="btn-icon danger" onclick="PGJ_batalOverride('${o.id}')" title="Batalkan tambahan ini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
             </div>`).join('')}
           <div style="margin-bottom:16px;"></div>` : ''}
@@ -7019,14 +7025,14 @@ async function renderAbsensiPengajian() {
           <div class="fw-bold" style="font-size:12.5px; margin-bottom:6px;">Keluarkan dari Peserta</div>
           <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin-bottom:10px;">
             ${jamaahEligible.length ? jamaahEligible.map(x => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
-              <span>${escHtml(x.nama)}</span>
+              <span>${escHtml(gelarNama(x))}</span>
               <button class="btn-icon danger" onclick="PGJ_keluarkanPeserta('${x.id}','${escHtml(x.nama)}')" title="Keluarkan dari daftar peserta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
             </div>`).join('') : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada peserta.</div>'}
           </div>
 
           ${keluarList.length ? `<div class="fw-bold" style="font-size:12.5px; margin-bottom:6px; color:var(--rose);">Sudah Dikeluarkan</div>
             ${keluarList.map(o => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
-              <span style="color:var(--ink-soft); text-decoration:line-through;">${escHtml(o.jamaah.nama)}</span>
+              <span style="color:var(--ink-soft); text-decoration:line-through;">${escHtml(gelarNama(o.jamaah))}</span>
               <button class="btn btn-outline btn-sm" onclick="PGJ_batalOverride('${o.id}')">Masukkan Lagi</button>
             </div>`).join('')}` : ''}
         </div>
@@ -7158,7 +7164,7 @@ async function renderAbsensiPengajian() {
       }
       absensiMap[orang.id] = 'H';
       statusEl.style.background = 'var(--green-soft)'; statusEl.style.color = 'var(--green)';
-      statusEl.textContent = `✅ ${orang.nama} — Hadir`;
+      statusEl.textContent = `✅ ${gelarNama(orang)} — Hadir`;
       // Simpan langsung ke DB tiap scan biar gak ketinggalan kalau lupa klik Simpan
       SB.pengajianAbsensi.upsertBulk([{ pertemuan_id: currentPertemuanId, jamaah_id: orang.id, status: 'H' }]).catch(()=>{});
     }
