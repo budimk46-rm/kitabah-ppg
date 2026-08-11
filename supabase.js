@@ -605,6 +605,32 @@ const sbPenerobosanDesa = {
   }),
 };
 
+// ============ ABSENSI PENGAJIAN (Pengajian Kelompok & Sub Kelompok) ============
+const sbSubPengajian = {
+  getByKelompok: (klpId) => sbFetch(`sub_pengajian?kelompok_id=eq.${klpId}&select=*&order=nama`),
+  insert: (data) => sbFetch('sub_pengajian', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  update: (id, data) => sbFetch(`sub_pengajian?id=eq.${id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`sub_pengajian?id=eq.${id}`, { method:'DELETE' }),
+};
+const sbPengajianPertemuan = {
+  getByKelompok: (klpId, jenis, subId, bulan, tahun) => {
+    let url = `pengajian_pertemuan?kelompok_id=eq.${klpId}&jenis=eq.${jenis}`;
+    url += jenis === 'sub' ? `&sub_pengajian_id=eq.${subId}` : '';
+    url += bulan ? `&bulan=eq.${bulan}` : '';
+    url += tahun ? `&tahun=eq.${tahun}` : '';
+    return sbFetch(url + '&select=*&order=tanggal.desc');
+  },
+  insert: (data) => sbFetch('pengajian_pertemuan', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  update: (id, data) => sbFetch(`pengajian_pertemuan?id=eq.${id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
+  delete: (id) => sbFetch(`pengajian_pertemuan?id=eq.${id}`, { method:'DELETE' }),
+};
+const sbPengajianAbsensi = {
+  getByPertemuan: (pid) => sbFetch(`pengajian_absensi?pertemuan_id=eq.${pid}&select=*`),
+  upsertBulk: (rows) => sbFetch('pengajian_absensi?on_conflict=pertemuan_id,jamaah_id', {
+    method:'POST', headers:{'Prefer':'return=representation,resolution=merge-duplicates'}, body:JSON.stringify(rows),
+  }),
+};
+
 const sbJamaah = {
   getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=*&order=nama`),
   getByKelompokIds: (ids) => {
@@ -693,6 +719,9 @@ window.SB = {
   navLog: sbNavLog,
   jamaah: sbJamaah,
   jamaahKeluarga: sbJamaahKeluarga,
+  subPengajian: sbSubPengajian,
+  pengajianPertemuan: sbPengajianPertemuan,
+  pengajianAbsensi: sbPengajianAbsensi,
   penerobosan: sbPenerobosan,
   penerobosanDesa: sbPenerobosanDesa,
   formSubmissions: sbFormSubmissions,

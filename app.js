@@ -1311,6 +1311,8 @@ const NAV_ITEMS = {
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
+    { id: 'absensi_pengajian', icon: clipboardCheckIcon(), label: 'Absensi Pengajian' },
+    { id: 'sub_pengajian', icon: usersIcon(), label: 'Nama Sub Pengajian' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
@@ -1359,6 +1361,7 @@ const NAV_ITEMS = {
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
+    { id: 'absensi_pengajian', icon: clipboardCheckIcon(), label: 'Absensi Pengajian' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
@@ -1526,6 +1529,8 @@ async function renderPage(page) {
       case 'user_tidak_aktif': await renderUserTidakAktif(); break;
       case 'data_jamaah': await renderDataJamaah(); break;
       case 'penerobosan': await renderPenerobosan(); break;
+      case 'sub_pengajian': await renderSubPengajian(); break;
+      case 'absensi_pengajian': await renderAbsensiPengajian(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
       case 'rekap_raport': await renderRekapRaport(); break;
       case 'profil_saya': await renderProfilSaya(); break;
@@ -6615,6 +6620,288 @@ const PENEROBOSAN_KATEGORI_ORDER = ['BALITA','CBR/PAUD-SD','PRA REMAJA','REMAJA'
 const PENEROBOSAN_4S = ['Kyai','Wakil Kyai','Penerobos','Mubalegh','KU','Aghnia'];
 const BULAN_LIST = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+/* ===== PAGE: NAMA SUB PENGAJIAN ===== */
+/* ===== PAGE: ABSENSI PENGAJIAN (Pengajian Kelompok & Pengajian Sub Kelompok) ===== */
+const PENGAJIAN_ELIGIBLE_KAT = ['Pra Remaja','Remaja','Pra Nikah','Dewasa','Istimewa'];
+const PENGAJIAN_STATUS_LABEL = { H:'Hadir', S:'Sakit', I:'Izin', A:'Alpa' };
+const PENGAJIAN_STATUS_COLOR = { H:'#1a6b3a', S:'#a67c00', I:'#1a5ba6', A:'#a6483b' };
+
+async function renderAbsensiPengajian() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const canEdit = u.role === 'pjp_kelompok';
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  let jenis = 'kelompok';
+  let selectedSubId = '';
+  const subList = await SB.subPengajian.getByKelompok(u.kelompok_id) || [];
+  let bulan = BULAN_LIST[new Date().getMonth()];
+  let tahun = new Date().getFullYear();
+  let pertemuanList = [];
+  let currentPertemuanId = null;
+  let jamaahEligible = [];
+  let absensiMap = {};
+
+  async function loadPertemuanList() {
+    if (jenis === 'sub' && !selectedSubId) { pertemuanList = []; currentPertemuanId = null; return; }
+    pertemuanList = await SB.pengajianPertemuan.getByKelompok(u.kelompok_id, jenis, selectedSubId, bulan, tahun) || [];
+    currentPertemuanId = null;
+  }
+  async function loadEligibleJamaah() {
+    const allJamaah = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+    jamaahEligible = allJamaah.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+    if (jenis === 'sub') jamaahEligible = jamaahEligible.filter(x => x.sub_pengajian_id === selectedSubId);
+    jamaahEligible.sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+  }
+  async function loadDetail(pid) {
+    currentPertemuanId = pid;
+    await loadEligibleJamaah();
+    absensiMap = {};
+    if (pid) {
+      const rows = await SB.pengajianAbsensi.getByPertemuan(pid) || [];
+      rows.forEach(r => { absensiMap[r.jamaah_id] = r.status; });
+    }
+  }
+
+  function render() {
+    const subNama = subList.find(s => s.id === selectedSubId)?.nama || '';
+    const p = pertemuanList.find(x => x.id === currentPertemuanId);
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Absensi Pengajian</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Absensi Pengajian Kelompok & Pengajian Sub Kelompok — generus Pra Remaja s/d Istimewa</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <button class="btn ${jenis==='kelompok'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('kelompok')">Pengajian Kelompok</button>
+          <button class="btn ${jenis==='sub'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('sub')">Pengajian Sub Kelompok</button>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          ${jenis==='sub' ? `<div class="form-group" style="margin:0;"><label style="font-size:11px;">Sub Pengajian</label>
+            <select id="pgjSub" onchange="PGJ_gantiSub(this.value)">
+              <option value="">Pilih sub...</option>
+              ${subList.map(s => `<option value="${s.id}" ${s.id===selectedSubId?'selected':''}>${escHtml(s.nama)}</option>`).join('')}
+            </select>
+          </div>` : ''}
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
+            <select id="pgjBulan" onchange="PGJ_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
+          </div>
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
+            <select id="pgjTahun" onchange="PGJ_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
+          </div>
+          ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<button class="btn btn-green btn-sm" onclick="PGJ_buatBaru()">+ Pertemuan Baru</button>` : ''}
+        </div>
+        ${!subList.length && jenis==='sub' ? '<div style="margin-top:10px; font-size:12px; color:var(--rose);">Belum ada Sub Pengajian — buat dulu di menu "Nama Sub Pengajian".</div>' : ''}
+      </div>
+
+      ${jenis==='sub' && !selectedSubId ? '<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Pilih Sub Pengajian dulu di atas.</div>' : `
+      <div style="display:grid; grid-template-columns:220px 1fr; gap:14px;" class="pgj-layout">
+        <div class="card" style="padding:0; overflow:hidden;">
+          <div style="padding:10px 12px; font-size:11.5px; font-weight:700; color:var(--green); border-bottom:1px solid var(--line);">Riwayat Pertemuan</div>
+          <div style="max-height:420px; overflow-y:auto;">
+            ${pertemuanList.length ? pertemuanList.map(x => `
+              <div onclick="PGJ_pilihPertemuan('${x.id}')" style="padding:9px 12px; cursor:pointer; border-bottom:1px solid var(--line); background:${x.id===currentPertemuanId?'var(--green-soft)':'transparent'};">
+                <div style="font-size:12.5px; font-weight:700;">Ke-${x.pertemuan_ke||'?'}</div>
+                <div style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(x.tanggal)}</div>
+              </div>`).join('') : '<div style="padding:16px; font-size:12px; color:var(--ink-soft); text-align:center;">Belum ada pertemuan bulan ini.</div>'}
+          </div>
+        </div>
+
+        <div class="card">
+          ${!currentPertemuanId ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Pilih pertemuan di sebelah kiri, atau buat pertemuan baru.</div>' : `
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+              <div>
+                <div class="fw-bold" style="font-size:14px;">Pertemuan Ke-${p?.pertemuan_ke||'?'} ${jenis==='sub'?'· '+escHtml(subNama):''}</div>
+                <div style="font-size:12px; color:var(--ink-soft);">${jamaahEligible.length} orang · Terisi ${Object.keys(absensiMap).length}/${jamaahEligible.length}</div>
+              </div>
+              ${canEdit ? `<div style="display:flex; align-items:center; gap:6px;">
+                <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" style="padding:6px 8px; font-size:12px;">
+                <button class="btn btn-outline btn-sm" onclick="PGJ_ubahTanggal()">Ubah Tanggal</button>
+              </div>` : ''}
+            </div>
+            ${!jamaahEligible.length ? `<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini di Data Jamaah.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</div>` : `
+            <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+              <thead><tr style="background:var(--green);">
+                <th style="padding:6px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
+                <th style="padding:6px 10px; text-align:center; font-size:11px; color:#fff;">Status</th>
+              </tr></thead>
+              <tbody>${jamaahEligible.map(x => `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(x.nama)}</td>
+                <td style="padding:6px 10px; text-align:center;">
+                  <div style="display:flex; gap:4px; justify-content:center;">
+                    ${['H','S','I','A'].map(st => `<button ${canEdit?`onclick="PGJ_setStatus('${x.id}','${st}')"`:'disabled'} style="width:30px; height:26px; border-radius:6px; border:1.5px solid ${absensiMap[x.id]===st?PENGAJIAN_STATUS_COLOR[st]:'var(--line)'}; background:${absensiMap[x.id]===st?PENGAJIAN_STATUS_COLOR[st]:'#fff'}; color:${absensiMap[x.id]===st?'#fff':PENGAJIAN_STATUS_COLOR[st]}; font-size:11px; font-weight:800; cursor:${canEdit?'pointer':'default'};">${st}</button>`).join('')}
+                  </div>
+                </td>
+              </tr>`).join('')}</tbody>
+            </table></div>
+            ${canEdit ? `<button class="btn btn-green" style="width:100%; margin-top:14px; padding:10px;" id="pgjSaveBtn" onclick="PGJ_simpan()">💾 Simpan Absensi</button>` : ''}
+            `}
+          `}
+        </div>
+      </div>`}
+    `;
+  }
+
+  window.PGJ_gantiJenis = async (j) => {
+    jenis = j; selectedSubId = '';
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadPertemuanList();
+    render();
+  };
+  window.PGJ_gantiSub = async (id) => {
+    selectedSubId = id;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadPertemuanList();
+    render();
+  };
+  window.PGJ_gantiPeriode = async () => {
+    bulan = document.getElementById('pgjBulan').value;
+    tahun = parseInt(document.getElementById('pgjTahun').value);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadPertemuanList();
+    render();
+  };
+  window.PGJ_pilihPertemuan = async (id) => {
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadDetail(id);
+    render();
+  };
+  window.PGJ_buatBaru = async () => {
+    try {
+      const tglBaru = new Date().toISOString().slice(0,10);
+      const kePertemuan = pertemuanList.length + 1;
+      const payload = {
+        kelompok_id: u.kelompok_id, jenis, tanggal: tglBaru,
+        bulan: new Date(tglBaru+'T00:00:00').toLocaleDateString('id-ID',{month:'long'}),
+        tahun: new Date(tglBaru+'T00:00:00').getFullYear(),
+        pertemuan_ke: kePertemuan, created_by: u.id,
+      };
+      if (jenis === 'sub') payload.sub_pengajian_id = selectedSubId;
+      const res = await SB.pengajianPertemuan.insert(payload);
+      const newId = res?.[0]?.id;
+      logActivity('tambah', 'Absensi Pengajian', `Buat pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'} ke-${kePertemuan}`);
+      showToast('Pertemuan baru dibuat ✓');
+      await loadPertemuanList();
+      if (newId) await loadDetail(newId);
+      render();
+    } catch(e) { showToast('Gagal membuat pertemuan: ' + e.message, true); }
+  };
+  window.PGJ_ubahTanggal = async () => {
+    const tglBaru = document.getElementById('pgjTglInput')?.value;
+    const p = pertemuanList.find(x => x.id === currentPertemuanId);
+    if (!tglBaru || !p) return;
+    if (tglBaru === p.tanggal) { showToast('Tanggalnya sama, tidak ada perubahan'); return; }
+    if (!confirm(`Ubah tanggal pertemuan ini dari ${fmtDateShort(p.tanggal)} jadi ${fmtDateShort(tglBaru)}?`)) return;
+    try {
+      const tglObj = new Date(tglBaru+'T00:00:00');
+      await SB.pengajianPertemuan.update(currentPertemuanId, { tanggal: tglBaru, bulan: tglObj.toLocaleDateString('id-ID',{month:'long'}), tahun: tglObj.getFullYear() });
+      showToast('Tanggal pertemuan berhasil diubah ✓');
+      await loadPertemuanList();
+      await loadDetail(currentPertemuanId);
+      render();
+    } catch(e) { showToast('Gagal mengubah tanggal: ' + e.message, true); }
+  };
+  window.PGJ_setStatus = (jamaahId, status) => {
+    absensiMap[jamaahId] = status;
+    render();
+  };
+  window.PGJ_simpan = async () => {
+    const btn = document.getElementById('pgjSaveBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    try {
+      const rows = jamaahEligible.filter(x => absensiMap[x.id]).map(x => ({
+        pertemuan_id: currentPertemuanId, jamaah_id: x.id, status: absensiMap[x.id],
+      }));
+      if (rows.length) await SB.pengajianAbsensi.upsertBulk(rows);
+      logActivity('ubah', 'Absensi Pengajian', `Simpan absensi pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'}`);
+      showToast('Absensi tersimpan ✓');
+    } catch(e) {
+      showToast('Gagal menyimpan: ' + e.message, true);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Simpan Absensi'; }
+  };
+
+  await loadPertemuanList();
+  render();
+}
+
+async function renderSubPengajian() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  let subList = await SB.subPengajian.getByKelompok(u.kelompok_id) || [];
+
+  function render() {
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Nama Sub Pengajian</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Atur nama-nama Sub Pengajian di kelompokmu sendiri (istilah bebas, sesuai kebiasaan kelompok)</p>
+        </div>
+        <button class="btn btn-green" onclick="SBP_tambah()">+ Tambah Sub</button>
+      </div>
+      <div class="card" style="padding:0; overflow:hidden;">
+        ${subList.length ? `<div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:8px 12px; text-align:left; font-size:11px; color:#fff;">Nama Sub Pengajian</th>
+            <th style="padding:8px 12px; text-align:center; font-size:11px; color:#fff; width:100px;">Aksi</th>
+          </tr></thead>
+          <tbody>${subList.map(s => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:8px 12px; font-size:13px; font-weight:600;">${escHtml(s.nama)}</td>
+            <td style="padding:8px 12px; text-align:center;">
+              <div style="display:flex; gap:4px; justify-content:center;">
+                <button class="btn-icon" onclick="SBP_edit(this.dataset.id, this.dataset.nama)" data-id="${s.id}" data-nama="${escHtml(s.nama)}" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                <button class="btn-icon danger" onclick="SBP_hapus(this.dataset.id, this.dataset.nama)" data-id="${s.id}" data-nama="${escHtml(s.nama)}" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+              </div>
+            </td>
+          </tr>`).join('')}</tbody>
+        </table></div>` : '<div style="padding:30px; text-align:center; font-size:13px; color:var(--ink-soft);">Belum ada Sub Pengajian. Klik "+ Tambah Sub" untuk mulai.</div>'}
+      </div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:10px;">Sub Pengajian ini dipakai untuk mengelompokkan generus (Pra Remaja s/d Istimewa) di menu Data Jamaah, dan dipakai saat absen di menu Absensi Pengajian → Pengajian Sub Kelompok.</div>
+    `;
+  }
+
+  window.SBP_tambah = () => {
+    const nama = prompt('Nama Sub Pengajian baru:');
+    if (!nama || !nama.trim()) return;
+    (async () => {
+      try {
+        await SB.subPengajian.insert({ kelompok_id: u.kelompok_id, nama: nama.trim() });
+        showToast('Sub Pengajian ditambahkan ✓');
+        subList = await SB.subPengajian.getByKelompok(u.kelompok_id) || [];
+        render();
+      } catch(e) { showToast('Gagal menambah: ' + e.message, true); }
+    })();
+  };
+  window.SBP_edit = (id, namaLama) => {
+    const nama = prompt('Ubah nama Sub Pengajian:', namaLama);
+    if (!nama || !nama.trim() || nama.trim() === namaLama) return;
+    (async () => {
+      try {
+        await SB.subPengajian.update(id, { nama: nama.trim() });
+        showToast('Nama Sub Pengajian diubah ✓');
+        subList = await SB.subPengajian.getByKelompok(u.kelompok_id) || [];
+        render();
+      } catch(e) { showToast('Gagal mengubah: ' + e.message, true); }
+    })();
+  };
+  window.SBP_hapus = async (id, nama) => {
+    if (!confirm(`Hapus Sub Pengajian "${nama}"?\nGenerus yang sudah ditandai masuk sub ini akan otomatis jadi "belum ada sub" lagi.`)) return;
+    try {
+      await SB.subPengajian.delete(id);
+      showToast('Sub Pengajian dihapus');
+      subList = await SB.subPengajian.getByKelompok(u.kelompok_id) || [];
+      render();
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
+  };
+
+  render();
+}
+
 async function renderPenerobosan() {
   const u = App.user;
   if (u.role === 'pjp_kelompok' || u.role === 'kelompok') return renderPenerobosanEntry();
@@ -8224,6 +8511,7 @@ async function renderJamaahEntry() {
 
   async function openJamaahModal(existing) {
     const kategori = existing ? kategoriUsiaJamaah(existing.tgl_lahir, existing.status_menikah) : null;
+    const subPengajianList = await SB.subPengajian.getByKelompok(u.kelompok_id) || [];
     const showKeluarga = existing && (kategori === 'Dewasa' || kategori === 'Istimewa');
     let linkedSantriIds = new Set();
     let linkedJamaahIds = new Set();
@@ -8272,6 +8560,14 @@ async function renderJamaahEntry() {
         </div>
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="jmhHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ahmad (anak) / Ortu dari Ahmad"></div>
+        ${existing && ['Pra Remaja','Remaja','Pra Nikah','Dewasa','Istimewa'].includes(kategori) ? `
+        <div class="form-group"><label>Sub Pengajian (opsional)</label>
+          <select id="jmhSubPengajian">
+            <option value="">Belum ada sub</option>
+            ${subPengajianList.map(s => `<option value="${s.id}" ${existing?.sub_pengajian_id===s.id?'selected':''}>${escHtml(s.nama)}</option>`).join('')}
+          </select>
+          ${!subPengajianList.length ? '<div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Belum ada Sub Pengajian — buat dulu di menu "Nama Sub Pengajian".</div>' : ''}
+        </div>` : ''}
         ${showKeluarga ? `
         <div class="form-group">
           <label>Pasangan (Suami/Istri) — supaya keluarga tampil berurutan</label>
@@ -8313,13 +8609,17 @@ async function renderJamaahEntry() {
       const statusNikah = document.getElementById('jmhStatusNikah').value || null;
       const hp = document.getElementById('jmhHp').value.trim() || null;
       const ket = document.getElementById('jmhKet').value.trim() || null;
+      const subPengajianEl = document.getElementById('jmhSubPengajian');
+      const subPengajianId = subPengajianEl ? (subPengajianEl.value || null) : undefined;
       if (!nama || !jk) { showToast('Nama dan Jenis Kelamin wajib diisi', true); return; }
       const btn = document.getElementById('jmhSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
         let jamaahId = existing?.id;
         if (existing) {
-          await SB.jamaah.update(existing.id, { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket });
+          const updatePayload = { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket };
+          if (subPengajianId !== undefined) updatePayload.sub_pengajian_id = subPengajianId;
+          await SB.jamaah.update(existing.id, updatePayload);
           logActivity('ubah', 'Data Jamaah', `Mengubah data jamaah: ${nama}`);
         } else {
           const res = await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket, aktif: true });
