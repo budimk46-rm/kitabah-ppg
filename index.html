@@ -56,6 +56,14 @@ body {
 }
 button { font-family: var(--font-body); cursor: pointer; border: none; }
 input, select, textarea { font-family: var(--font-body); }
+input:not([type=checkbox]):not([type=radio]), select, textarea {
+  transition: border-color .3s cubic-bezier(.4,0,.2,1), box-shadow .3s cubic-bezier(.4,0,.2,1);
+}
+input:not([type=checkbox]):not([type=radio]):focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-soft);
+}
 a { text-decoration: none; color: inherit; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -144,7 +152,7 @@ a { text-decoration: none; color: inherit; }
   color: var(--ink-soft);
   font-size: 13px;
   font-weight: 700;
-  transition: all .15s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
 }
 .tab-btn.active { background: var(--green); color: #fff; }
 
@@ -166,7 +174,7 @@ a { text-decoration: none; color: inherit; }
   font-size: 14px;
   background: var(--white);
   color: var(--ink);
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .3s cubic-bezier(.4,0,.2,1), box-shadow .3s cubic-bezier(.4,0,.2,1);
 }
 .field input:focus, .field select:focus {
   outline: none;
@@ -203,11 +211,11 @@ a { text-decoration: none; color: inherit; }
   padding: 14px 8px;
   text-align: center;
   cursor: pointer;
-  transition: all .15s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
   color: var(--ink);
   background: #fff;
 }
-.wiz-card:hover { border-color: var(--green); background: #f0f7f2; }
+.wiz-card:hover { border-color: var(--green); background: #f0f7f2; transform: translateY(-2px); box-shadow: var(--shadow); }
 .wiz-card.selected { border-color: var(--green); background: var(--green); color: #fff; }
 .wiz-card-sm {
   border: 2px solid #e0d9c4;
@@ -217,10 +225,10 @@ a { text-decoration: none; color: inherit; }
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  transition: all .15s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
   background: #fff;
 }
-.wiz-card-sm:hover { border-color: var(--green); background: #f0f7f2; }
+.wiz-card-sm:hover { border-color: var(--green); background: #f0f7f2; transform: translateY(-2px); box-shadow: var(--shadow); }
 .wiz-card-sm.selected { border-color: var(--green); background: var(--green); color: #fff; }
 .jabatan-item {
   display: flex;
@@ -230,10 +238,10 @@ a { text-decoration: none; color: inherit; }
   border: 2px solid #e0d9c4;
   border-radius: 8px;
   cursor: pointer;
-  transition: all .15s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
   background: #fff;
 }
-.jabatan-item:hover { border-color: var(--green); background: #f0f7f2; }
+.jabatan-item:hover { border-color: var(--green); background: #f0f7f2; transform: translateY(-2px); box-shadow: var(--shadow); }
 .jabatan-item.selected { border-color: var(--green); background: var(--green); color: #fff; }
 .jabatan-item .jab-icon { font-size: 20px; flex-shrink: 0; }
 .jabatan-item .jab-label { font-size: 13px; font-weight: 700; }
@@ -349,10 +357,11 @@ a { text-decoration: none; color: inherit; }
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all .15s;
+  transition: background-color .3s cubic-bezier(.4,0,.2,1), color .3s cubic-bezier(.4,0,.2,1),
+              transform .3s cubic-bezier(.4,0,.2,1);
   margin-bottom: 2px;
 }
-.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; transform: translateX(2px); }
 .nav-item.active { background: var(--gold); color: var(--green); }
 .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
 .nav-badge {
@@ -375,7 +384,7 @@ a { text-decoration: none; color: inherit; }
   background: transparent;
   color: rgba(255,255,255,.6);
   font-size: 13px; font-weight: 700;
-  transition: all .15s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
 }
 .logout-btn:hover { background: rgba(166,72,59,.4); color: #fff; }
 
@@ -458,17 +467,20 @@ a { text-decoration: none; color: inherit; }
   padding: 10px 16px;
   border-radius: var(--radius-sm);
   font-size: 13.5px; font-weight: 700;
-  transition: all .15s;
+  transition: background-color .3s cubic-bezier(.4,0,.2,1), color .3s cubic-bezier(.4,0,.2,1),
+              transform .3s cubic-bezier(.4,0,.2,1), box-shadow .3s cubic-bezier(.4,0,.2,1),
+              border-color .3s cubic-bezier(.4,0,.2,1);
 }
 .btn svg { width: 15px; height: 15px; }
 .btn-green { background: var(--green); color: #fff; }
-.btn-green:hover { background: #142e22; }
+.btn-green:hover { background: #142e22; transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(27,58,44,.45); }
 .btn-gold { background: var(--gold); color: var(--green); }
-.btn-gold:hover { background: #a8853f; }
+.btn-gold:hover { background: #a8853f; transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(193,154,75,.45); }
 .btn-outline { background: var(--white); color: var(--ink); border: 1.5px solid var(--line); }
-.btn-outline:hover { border-color: var(--green); color: var(--green); }
+.btn-outline:hover { border-color: var(--green); color: var(--green); transform: translateY(-1px); box-shadow: var(--shadow); }
 .btn-danger { background: var(--rose); color: #fff; }
-.btn-danger:hover { background: #8b3930; }
+.btn-danger:hover { background: #8b3930; transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(166,72,59,.45); }
+.btn:active { transform: translateY(0); box-shadow: none; }
 .btn-sm { padding: 7px 12px; font-size: 12.5px; }
 .btn-icon {
   width: 34px; height: 34px; padding: 0;
@@ -477,9 +489,12 @@ a { text-decoration: none; color: inherit; }
   background: var(--cream-2);
   color: var(--ink-soft);
   border: 1px solid var(--line);
+  transition: background-color .3s cubic-bezier(.4,0,.2,1), color .3s cubic-bezier(.4,0,.2,1),
+              border-color .3s cubic-bezier(.4,0,.2,1), transform .3s cubic-bezier(.4,0,.2,1);
 }
-.btn-icon:hover { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+.btn-icon:hover { background: var(--green-soft); color: var(--green); border-color: var(--green); transform: translateY(-1px) scale(1.04); }
 .btn-icon.danger:hover { background: var(--rose-soft); color: var(--rose); border-color: var(--rose); }
+.btn-icon:active { transform: translateY(0) scale(.97); }
 
 /* Table */
 .table-wrap { overflow-x: auto; }
@@ -525,7 +540,8 @@ tr:hover td { background: var(--green-soft); }
   display: none; align-items: center; justify-content: center;
   z-index: 100; padding: 20px;
 }
-.modal-overlay.active { display: flex; }
+.modal-overlay.active { display: flex; animation: fadeIn .25s ease both; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .modal {
   background: var(--cream);
   border-radius: var(--radius-lg);
@@ -648,7 +664,7 @@ tr:hover td { background: var(--green-soft); }
   border-radius: var(--radius-sm);
   font-size: 12px; font-weight: 800;
   border: 2px solid transparent;
-  transition: all .15s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
 }
 .absen-btn.H { background: var(--green-soft); color: var(--green); border-color: var(--green-soft); }
 .absen-btn.H.active { background: var(--green); color: #fff; border-color: var(--green); }
@@ -964,8 +980,8 @@ input.flatpickr-alt-input:focus { outline: none; border-color: var(--green); }
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/id.js"></script>
 <!-- Supabase client (minified — source: supabase.js, build with: npx terser supabase.js -c -m -o supabase.min.js) -->
-<script defer src="supabase.min.js?v=20260919"></script>
+<script defer src="supabase.min.js?v=20260919b"></script>
 <!-- Main App (minified — source: app.js, build with: npx terser app.js -c -m -o app.min.js) -->
-<script defer src="app.min.js?v=20260919"></script>
+<script defer src="app.min.js?v=20260919b"></script>
 </body>
 </html>
