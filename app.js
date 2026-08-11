@@ -7090,11 +7090,14 @@ async function renderAbsensiPengajian() {
     if (!currentPertemuanId) { showToast('Pilih pertemuan dulu', true); return; }
     if (!window.jsQR) {
       showToast('Menyiapkan pemindai...');
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-        s.onload = res; s.onerror = rej; document.head.appendChild(s);
-      });
+      try {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';
+          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat pustaka pemindai dari internet — cek koneksi internet, lalu coba lagi'));
+          document.head.appendChild(s);
+        });
+      } catch(e) { showToast(e.message, true); return; }
     }
 
     let el = document.getElementById('pgjScanModal');
@@ -8908,16 +8911,53 @@ async function renderJamaahEntry() {
     openModal('jmhTransferModal');
   };
 
-  window.JMH_cetakKartuQR = async () => {
+  window.JMH_cetakKartuQR = () => {
     const kandidat = listUrut.filter(x => !x._virtual && PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
     if (!kandidat.length) { showToast('Belum ada generus usia Pra Remaja ke atas untuk dicetak kartunya', true); return; }
+
+    let el = document.getElementById('jmhQrPilihModal');
+    if (!el) { el = document.createElement('div'); el.id = 'jmhQrPilihModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal" style="max-width:480px;">
+      <div class="modal-head"><h3 class="modal-title">🔖 Pilih Nama untuk Dicetak Kartu QR</h3><button class="modal-close" onclick="closeModal('jmhQrPilihModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <button class="btn btn-outline btn-sm" onclick="JMH_qrPilihSemua(true)">Pilih Semua</button>
+          <button class="btn btn-outline btn-sm" onclick="JMH_qrPilihSemua(false)">Kosongkan Semua</button>
+        </div>
+        <div style="max-height:320px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:6px 10px;">
+          ${kandidat.map(x => `<div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);">
+            <input type="checkbox" id="jmhQrCk_${x.id}" class="jmhQrCk" value="${x.id}" checked style="flex:0 0 16px; width:16px; height:16px; margin:0;">
+            <label for="jmhQrCk_${x.id}" style="flex:1 1 auto; font-size:13px; font-weight:400; cursor:pointer; margin:0;">${escHtml(x.nama)}</label>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('jmhQrPilihModal')">Batal</button>
+        <button class="btn btn-green" onclick="JMH_cetakKartuQRLanjut()">🖨️ Cetak yang Dipilih</button>
+      </div>
+    </div>`;
+    openModal('jmhQrPilihModal');
+  };
+
+  window.JMH_qrPilihSemua = (checked) => {
+    document.querySelectorAll('.jmhQrCk').forEach(el => { el.checked = checked; });
+  };
+
+  window.JMH_cetakKartuQRLanjut = async () => {
+    const dipilihIds = new Set(Array.from(document.querySelectorAll('.jmhQrCk:checked')).map(el => el.value));
+    if (!dipilihIds.size) { showToast('Pilih minimal 1 nama dulu', true); return; }
+    const kandidat = listUrut.filter(x => dipilihIds.has(x.id));
+    closeModal('jmhQrPilihModal');
     showToast('Menyiapkan kartu QR...');
     if (!window.QRCode) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-        s.onload = res; s.onerror = rej; document.head.appendChild(s);
-      });
+      try {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
+          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat pustaka QR dari internet — cek koneksi internet, lalu coba lagi'));
+          document.head.appendChild(s);
+        });
+      } catch(e) { showToast(e.message, true); return; }
     }
     try {
       const cardsHtml = await Promise.all(kandidat.map(async x => {
@@ -8942,6 +8982,7 @@ async function renderJamaahEntry() {
         </style>
       </head><body>
         <button class="print-btn" onclick="window.print()">🖨️ Cetak Halaman Ini</button>
+
         <div class="qr-grid">${cardsHtml.join('')}</div>
       </body></html>`);
       win.document.close();
