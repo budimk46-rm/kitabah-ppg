@@ -6641,6 +6641,11 @@ async function renderAbsensiPengajian() {
   let currentPertemuanId = null;
   let jamaahEligible = [];
   let absensiMap = {};
+  let viewMode = 'absen'; // 'absen' atau 'rekap'
+  let rekapBulanAwalIdx = Math.max(0, new Date().getMonth() - 2); // default: 3 bulan terakhir
+  let rekapTahun = new Date().getFullYear();
+  let rekapHtml = '';
+  let rekapBawah50 = {}; // { 'Agustus 2026': [nama,...], ... }
 
   async function loadPertemuanList() {
     if (jenis === 'sub' && !selectedSubId) { pertemuanList = []; currentPertemuanId = null; return; }
@@ -6663,6 +6668,87 @@ async function renderAbsensiPengajian() {
     }
   }
 
+  async function loadRekapData() {
+    if (jenis === 'sub' && !selectedSubId) { rekapHtml = ''; return; }
+    await loadEligibleJamaah();
+    const bulanTiga = [0,1,2].map(i => {
+      const idx = (rekapBulanAwalIdx + i) % 12;
+      const tahunGeser = rekapTahun + Math.floor((rekapBulanAwalIdx + i) / 12);
+      return { bulan: BULAN_LIST[idx], tahun: tahunGeser };
+    });
+
+    const perBulanData = await Promise.all(bulanTiga.map(async ({bulan: b, tahun: t}) => {
+      const pList = await SB.pengajianPertemuan.getByKelompok(u.kelompok_id, jenis, selectedSubId, b, t) || [];
+      const totalPtm = pList.length;
+      const absensiPerOrang = {}; // jamaahId -> jumlah hadir
+      if (totalPtm) {
+        const allAbsensi = await Promise.all(pList.map(p => SB.pengajianAbsensi.getByPertemuan(p.id)));
+        allAbsensi.flat().forEach(a => {
+          if (a.status === 'H') absensiPerOrang[a.jamaah_id] = (absensiPerOrang[a.jamaah_id]||0) + 1;
+        });
+      }
+      return { bulan: b, tahun: t, totalPtm, absensiPerOrang };
+    }));
+
+    rekapBawah50 = {};
+    perBulanData.forEach(({bulan: b, tahun: t, totalPtm, absensiPerOrang}) => {
+      const key = `${b} ${t}`;
+      if (!totalPtm) { rekapBawah50[key] = null; return; } // belum ada pertemuan bulan itu
+      rekapBawah50[key] = jamaahEligible.filter(x => {
+        const pct = Math.round(((absensiPerOrang[x.id]||0) / totalPtm) * 100);
+        return pct < 50;
+      }).map(x => x.nama);
+    });
+
+    const totalKeseluruhan = perBulanData.reduce((s,d) => s + d.totalPtm, 0);
+    const hadirKeseluruhan = jamaahEligible.reduce((sum, x) => {
+      return sum + perBulanData.reduce((s,d) => s + (d.absensiPerOrang[x.id]||0), 0);
+    }, 0);
+    const pctKeseluruhan = totalKeseluruhan && jamaahEligible.length
+      ? Math.round((hadirKeseluruhan / (totalKeseluruhan * jamaahEligible.length)) * 100) : 0;
+
+    rekapHtml = `
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Rata-rata Kehadiran 3 Bulan</span><div style="font-size:22px; font-weight:800; color:${pctKeseluruhan<50?'var(--rose)':'var(--green)'};">${pctKeseluruhan}%</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Generus</span><div style="font-size:22px; font-weight:800; color:var(--green);">${jamaahEligible.length}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Total Pertemuan (3 bulan)</span><div style="font-size:22px; font-weight:800; color:var(--green);">${totalKeseluruhan}</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
+            ${perBulanData.map(d => `<th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">${d.bulan.slice(0,3)} ${d.tahun}${!d.totalPtm?' (blm ada ptm)':''}</th>`).join('')}
+          </tr></thead>
+          <tbody>${jamaahEligible.length ? jamaahEligible.map(x => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(x.nama)}</td>
+            ${perBulanData.map(d => {
+              if (!d.totalPtm) return `<td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--ink-soft);">-</td>`;
+              const pct = Math.round(((d.absensiPerOrang[x.id]||0) / d.totalPtm) * 100);
+              return `<td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700; color:${pct<50?'var(--rose)':'var(--ink)'};">${pct}%</td>`;
+            }).join('')}
+          </tr>`).join('') : `<tr><td colspan="4" style="padding:20px; text-align:center; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</td></tr>`}</tbody>
+        </table></div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="fw-bold" style="font-size:12.5px; margin-bottom:10px;">⚠️ Hadir di Bawah 50% per Bulan</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${perBulanData.map(d => {
+            const key = `${d.bulan} ${d.tahun}`;
+            const jml = rekapBawah50[key]?.length ?? 0;
+            return `<button class="btn btn-outline btn-sm" onclick="PGJ_lihatBawah50('${key}')" ${rekapBawah50[key]===null?'disabled':''}>
+              Hadir &lt; 50% — ${d.bulan.slice(0,3)} (${rekapBawah50[key]===null?'blm ada ptm':jml})
+            </button>`;
+          }).join('')}
+        </div>
+        <div id="pgjBawah50List" style="display:none; margin-top:12px; padding:12px; background:var(--cream-2); border-radius:8px; font-size:12.5px;"></div>
+      </div>
+    `;
+  }
+
   function render() {
     const subNama = subList.find(s => s.id === selectedSubId)?.nama || '';
     const p = pertemuanList.find(x => x.id === currentPertemuanId);
@@ -6676,9 +6762,12 @@ async function renderAbsensiPengajian() {
       </div>
 
       <div class="card" style="margin-bottom:14px;">
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
           <button class="btn ${jenis==='kelompok'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('kelompok')">Pengajian Kelompok</button>
           <button class="btn ${jenis==='sub'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('sub')">Pengajian Sub Kelompok</button>
+          <span style="width:1px; background:var(--line); margin:0 2px;"></span>
+          <button class="btn ${viewMode==='absen'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiMode('absen')">📋 Absensi</button>
+          <button class="btn ${viewMode==='rekap'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiMode('rekap')">📊 Rekap Kehadiran</button>
         </div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
           ${jenis==='sub' ? `<div class="form-group" style="margin:0;"><label style="font-size:11px;">Sub Pengajian</label>
@@ -6687,6 +6776,7 @@ async function renderAbsensiPengajian() {
               ${subList.map(s => `<option value="${s.id}" ${s.id===selectedSubId?'selected':''}>${escHtml(s.nama)}</option>`).join('')}
             </select>
           </div>` : ''}
+          ${viewMode==='absen' ? `
           <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
             <select id="pgjBulan" onchange="PGJ_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
           </div>
@@ -6694,11 +6784,20 @@ async function renderAbsensiPengajian() {
             <select id="pgjTahun" onchange="PGJ_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
           </div>
           ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<button class="btn btn-green btn-sm" onclick="PGJ_buatBaru()">+ Pertemuan Baru</button>` : ''}
+          ` : `
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Mulai dari Bulan</label>
+            <select id="pgjRekapBulan" onchange="PGJ_gantiRekapPeriode()">${BULAN_LIST.map((b,i)=>`<option value="${i}" ${i===rekapBulanAwalIdx?'selected':''}>${b}</option>`).join('')}</select>
+          </div>
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
+            <select id="pgjRekapTahun" onchange="PGJ_gantiRekapPeriode()">${[rekapTahun-1,rekapTahun,rekapTahun+1].map(t=>`<option value="${t}" ${t===rekapTahun?'selected':''}>${t}</option>`).join('')}</select>
+          </div>
+          <span style="font-size:11px; color:var(--ink-soft);">Menampilkan 3 bulan berturut-turut mulai dari bulan di atas</span>
+          `}
         </div>
         ${!subList.length && jenis==='sub' ? '<div style="margin-top:10px; font-size:12px; color:var(--rose);">Belum ada Sub Pengajian — buat dulu di menu "Nama Sub Pengajian".</div>' : ''}
       </div>
 
-      ${jenis==='sub' && !selectedSubId ? '<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Pilih Sub Pengajian dulu di atas.</div>' : `
+      ${jenis==='sub' && !selectedSubId ? '<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Pilih Sub Pengajian dulu di atas.</div>' : (viewMode==='rekap' ? rekapHtml : `
       <div style="display:grid; grid-template-columns:220px 1fr; gap:14px;" class="pgj-layout">
         <div class="card" style="padding:0; overflow:hidden;">
           <div style="padding:10px 12px; font-size:11.5px; font-weight:700; color:var(--green); border-bottom:1px solid var(--line);">Riwayat Pertemuan</div>
@@ -6723,6 +6822,11 @@ async function renderAbsensiPengajian() {
                 <button class="btn btn-outline btn-sm" onclick="PGJ_ubahTanggal()">Ubah Tanggal</button>
               </div>` : ''}
             </div>
+            <div class="form-group" style="margin-bottom:14px;">
+              <label style="font-size:11px;">📖 Materi Pengajian</label>
+              <textarea id="pgjMateriInput" rows="2" placeholder="Materi apa saja yang dibahas di pertemuan ini..." ${!canEdit?'disabled':''}>${escHtml(p?.materi||'')}</textarea>
+              ${canEdit ? `<button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="PGJ_simpanMateri()">Simpan Materi</button>` : ''}
+            </div>
             ${!jamaahEligible.length ? `<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini di Data Jamaah.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</div>` : `
             <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
               <thead><tr style="background:var(--green);">
@@ -6742,21 +6846,41 @@ async function renderAbsensiPengajian() {
             `}
           `}
         </div>
-      </div>`}
+      </div>`)}
     `;
   }
 
   window.PGJ_gantiJenis = async (j) => {
     jenis = j; selectedSubId = '';
     main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
-    await loadPertemuanList();
+    if (viewMode === 'rekap') await loadRekapData(); else await loadPertemuanList();
     render();
   };
   window.PGJ_gantiSub = async (id) => {
     selectedSubId = id;
     main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
-    await loadPertemuanList();
+    if (viewMode === 'rekap') await loadRekapData(); else await loadPertemuanList();
     render();
+  };
+  window.PGJ_gantiMode = async (mode) => {
+    viewMode = mode;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    if (mode === 'rekap') await loadRekapData(); else await loadPertemuanList();
+    render();
+  };
+  window.PGJ_gantiRekapPeriode = async () => {
+    rekapBulanAwalIdx = parseInt(document.getElementById('pgjRekapBulan').value);
+    rekapTahun = parseInt(document.getElementById('pgjRekapTahun').value);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadRekapData();
+    render();
+  };
+  window.PGJ_lihatBawah50 = (key) => {
+    const box = document.getElementById('pgjBawah50List');
+    if (!box) return;
+    const names = rekapBawah50[key] || [];
+    box.style.display = 'block';
+    box.innerHTML = `<b>Hadir &lt; 50% — ${escHtml(key)}:</b><br>${names.length ? escHtml(names.join(', ')) : 'Alhamdulillah, tidak ada yang di bawah 50% bulan ini.'}`;
   };
   window.PGJ_gantiPeriode = async () => {
     bulan = document.getElementById('pgjBulan').value;
@@ -6790,6 +6914,17 @@ async function renderAbsensiPengajian() {
       render();
     } catch(e) { showToast('Gagal membuat pertemuan: ' + e.message, true); }
   };
+  window.PGJ_simpanMateri = async () => {
+    const materi = document.getElementById('pgjMateriInput')?.value.trim() || null;
+    try {
+      await SB.pengajianPertemuan.update(currentPertemuanId, { materi });
+      const p = pertemuanList.find(x => x.id === currentPertemuanId);
+      if (p) p.materi = materi;
+      logActivity('ubah', 'Absensi Pengajian', `Simpan materi pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'}`);
+      showToast('Materi tersimpan ✓');
+    } catch(e) { showToast('Gagal menyimpan materi: ' + e.message, true); }
+  };
+
   window.PGJ_ubahTanggal = async () => {
     const tglBaru = document.getElementById('pgjTglInput')?.value;
     const p = pertemuanList.find(x => x.id === currentPertemuanId);
