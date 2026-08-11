@@ -1242,6 +1242,7 @@ const NAV_ITEMS = {
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
+    { id: 'rekap_pengajian', icon: clipboardCheckIcon(), label: 'Rekap Absensi Pengajian' },
     { id: 'users', icon: userIcon(), label: 'Kelola Pengguna' },
     { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
@@ -1267,6 +1268,7 @@ const NAV_ITEMS = {
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
+    { id: 'rekap_pengajian', icon: clipboardCheckIcon(), label: 'Rekap Absensi Pengajian' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
     { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
@@ -1288,6 +1290,7 @@ const NAV_ITEMS = {
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
     { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
     { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
+    { id: 'rekap_pengajian', icon: clipboardCheckIcon(), label: 'Rekap Absensi Pengajian' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
     { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
@@ -1529,6 +1532,7 @@ async function renderPage(page) {
       case 'user_tidak_aktif': await renderUserTidakAktif(); break;
       case 'data_jamaah': await renderDataJamaah(); break;
       case 'penerobosan': await renderPenerobosan(); break;
+      case 'rekap_pengajian': await renderRekapPengajian(); break;
       case 'sub_pengajian': await renderSubPengajian(); break;
       case 'absensi_pengajian': await renderAbsensiPengajian(); break;
       case 'raport_caberawit': await renderRaportCaberawit(); break;
@@ -6642,7 +6646,7 @@ async function renderAbsensiPengajian() {
   let jamaahEligible = [];
   let absensiMap = {};
   let viewMode = 'absen'; // 'absen' atau 'rekap'
-  let rekapBulanAwalIdx = Math.max(0, new Date().getMonth() - 2); // default: 3 bulan terakhir
+  let rekapBulanAwalIdx = Math.floor(new Date().getMonth() / 3) * 3; // default: kuartal berjalan (0,3,6,9)
   let rekapTahun = new Date().getFullYear();
   let rekapHtml = '';
   let rekapBawah50 = {}; // { 'Agustus 2026': [nama,...], ... }
@@ -6679,6 +6683,9 @@ async function renderAbsensiPengajian() {
   async function urutkanSesuaiKeluarga(jamList) {
     if (!jamList.length) return jamList;
     const byId = new Map(jamList.map(x => [x.id, x]));
+    // Santri lama yang ditautkan lewat santri_id (bukan anak_jamaah_id) tetap harus ketemu —
+    // jamaah row-nya sendiri (kalau ada, dari "Jadikan Santri") yang punya x.santri_id itu.
+    const santriIdToJamId = new Map(jamList.filter(x => x.santri_id).map(x => [x.santri_id, x.id]));
     const links = await SB.jamaahKeluarga.getByJamaahIds(jamList.map(x=>x.id)) || [];
     const linksByParent = new Map();
     links.forEach(l => { (linksByParent.get(l.jamaah_id) || linksByParent.set(l.jamaah_id, []).get(l.jamaah_id)).push(l); });
@@ -6699,6 +6706,7 @@ async function renderAbsensiPengajian() {
       const childIds = new Set();
       anggota.forEach(a => (linksByParent.get(a.id)||[]).forEach(l => {
         if (l.anak_jamaah_id && byId.has(l.anak_jamaah_id)) childIds.add(l.anak_jamaah_id);
+        else if (l.santri_id && santriIdToJamId.has(l.santri_id)) childIds.add(santriIdToJamId.get(l.santri_id));
       }));
       const anak = [...childIds].map(id => byId.get(id)).filter(Boolean)
         .sort((a,b) => (a.tgl_lahir||'9999-99-99').localeCompare(b.tgl_lahir||'9999-99-99'));
@@ -6840,13 +6848,15 @@ async function renderAbsensiPengajian() {
           </div>
           ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<button class="btn btn-green btn-sm" onclick="PGJ_buatBaru()">+ Pertemuan Baru</button>` : ''}
           ` : `
-          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Mulai dari Bulan</label>
-            <select id="pgjRekapBulan" onchange="PGJ_gantiRekapPeriode()">${BULAN_LIST.map((b,i)=>`<option value="${i}" ${i===rekapBulanAwalIdx?'selected':''}>${b}</option>`).join('')}</select>
+          <div class="form-group" style="margin:0;"><label style="font-size:11px;">Kuartal</label>
+            <select id="pgjRekapBulan" onchange="PGJ_gantiRekapPeriode()">
+              ${[[0,'Triwulan 1 (Jan–Mar)'],[3,'Triwulan 2 (Apr–Jun)'],[6,'Triwulan 3 (Jul–Sep)'],[9,'Triwulan 4 (Okt–Des)']].map(([idx,label])=>`<option value="${idx}" ${idx===rekapBulanAwalIdx?'selected':''}>${label}</option>`).join('')}
+            </select>
           </div>
           <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
             <select id="pgjRekapTahun" onchange="PGJ_gantiRekapPeriode()">${[rekapTahun-1,rekapTahun,rekapTahun+1].map(t=>`<option value="${t}" ${t===rekapTahun?'selected':''}>${t}</option>`).join('')}</select>
           </div>
-          <span style="font-size:11px; color:var(--ink-soft);">Menampilkan 3 bulan berturut-turut mulai dari bulan di atas</span>
+          <span style="font-size:11px; color:var(--ink-soft);">Rekap per triwulan (3 bulan kalender), selalu mulai dari Januari tiap tahun</span>
           `}
         </div>
         ${!subList.length && jenis==='sub' ? '<div style="margin-top:10px; font-size:12px; color:var(--rose);">Belum ada Sub Pengajian — buat dulu di menu "Nama Sub Pengajian".</div>' : ''}
@@ -7183,6 +7193,101 @@ async function renderSubPengajian() {
     } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
   };
 
+  render();
+}
+
+/* ===== PAGE: REKAP ABSENSI PENGAJIAN (Desa/Daerah/Admin) ===== */
+async function renderRekapPengajian() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const isDesa = u.role === 'desa';
+  const kelompokScope = isDesa
+    ? (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id)
+    : (App.cache.kelompok||[]);
+  const scopeLabel = isDesa ? 'kelompok-kelompok di desamu' : 'seluruh kelompok';
+
+  let bulan = BULAN_LIST[new Date().getMonth()];
+  let tahun = new Date().getFullYear();
+  let rows = [];
+
+  async function loadData() {
+    const perKlp = await Promise.all(kelompokScope.map(async klp => {
+      const pList = await SB.pengajianPertemuan.getByKelompok(klp.id, 'kelompok', null, bulan, tahun) || [];
+      const detail = await Promise.all(pList.map(async p => {
+        const abs = await SB.pengajianAbsensi.getByPertemuan(p.id) || [];
+        const totalTercatat = abs.length;
+        const hadir = abs.filter(a => a.status === 'H').length;
+        const pct = totalTercatat ? Math.round((hadir/totalTercatat)*100) : null;
+        return { kelompok: klp.nama, pertemuanKe: p.pertemuan_ke, tanggal: p.tanggal, pct, hadir, totalTercatat };
+      }));
+      return detail;
+    }));
+    rows = perKlp.flat().sort((a,b) => a.kelompok.localeCompare(b.kelompok) || (a.pertemuanKe||0)-(b.pertemuanKe||0));
+  }
+
+  function render() {
+    const rataRata = rows.length && rows.some(r=>r.pct!=null)
+      ? Math.round(rows.filter(r=>r.pct!=null).reduce((s,r)=>s+r.pct,0) / rows.filter(r=>r.pct!=null).length) : null;
+    const klpBelumLapor = kelompokScope.filter(k => !rows.some(r => r.kelompok === k.nama)).length;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Rekap Absensi Pengajian</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Persentase kehadiran Pengajian Kelompok tiap pertemuan — ${escHtml(scopeLabel)}</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
+          <select id="rpjBulan" onchange="RPJ_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
+        </div>
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
+          <select id="rpjTahun" onchange="RPJ_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Rata-rata Kehadiran Bulan Ini</span><div style="font-size:22px; font-weight:800; color:${rataRata!=null&&rataRata<50?'var(--rose)':'var(--green)'};">${rataRata!=null?rataRata+'%':'-'}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Total Pertemuan Tercatat</span><div style="font-size:22px; font-weight:800; color:var(--green);">${rows.length}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Kelompok Belum Lapor Bulan Ini</span><div style="font-size:22px; font-weight:800; color:${klpBelumLapor?'var(--rose)':'var(--green)'};">${klpBelumLapor}</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:var(--green);">
+            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Pertemuan Ke-</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Tanggal</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Hadir</th>
+            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">% Hadir</th>
+          </tr></thead>
+          <tbody>${rows.length ? rows.map(r => `<tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(r.kelompok)}</td>
+            <td style="padding:6px 10px; text-align:center; font-size:12px;">${r.pertemuanKe||'?'}</td>
+            <td style="padding:6px 10px; text-align:center; font-size:12px;">${fmtDateShort(r.tanggal)}</td>
+            <td style="padding:6px 10px; text-align:center; font-size:12px;">${r.hadir}/${r.totalTercatat}</td>
+            <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700; color:${r.pct!=null&&r.pct<50?'var(--rose)':'var(--ink)'};">${r.pct!=null?r.pct+'%':'-'}</td>
+          </tr>`).join('') : `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--ink-soft); font-size:12.5px;">Belum ada pertemuan Pengajian Kelompok yang tercatat bulan ini.</td></tr>`}</tbody>
+        </table></div>
+      </div>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:10px;">Rekap ini khusus Pengajian Kelompok (bukan Pengajian Sub Kelompok, karena nama sub berbeda-beda tiap kelompok jadi tidak bisa digabung jadi 1 rekap).</div>
+    `;
+  }
+
+  window.RPJ_gantiPeriode = async () => {
+    bulan = document.getElementById('rpjBulan').value;
+    tahun = parseInt(document.getElementById('rpjTahun').value);
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadData();
+    render();
+  };
+
+  await loadData();
   render();
 }
 
