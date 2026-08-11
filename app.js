@@ -6886,6 +6886,7 @@ async function renderAbsensiPengajian() {
                 <button class="btn btn-outline btn-sm" onclick="PGJ_kelolaPeserta()">👥 Kelola Peserta</button>
                 <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" style="padding:6px 8px; font-size:12px;">
                 <button class="btn btn-outline btn-sm" onclick="PGJ_ubahTanggal()">Ubah Tanggal</button>
+                <button class="btn btn-green btn-sm" onclick="PGJ_scanQR()">📷 Scan QR</button>
                 <button class="btn btn-outline btn-sm" style="color:var(--rose); border-color:var(--rose);" onclick="PGJ_hapusPertemuan(this.dataset.ptmke)" data-ptmke="${p?.pertemuan_ke||'?'}">🗑️ Hapus Pertemuan</button>
               </div>` : ''}
             </div>
@@ -7083,6 +7084,88 @@ async function renderAbsensiPengajian() {
       logActivity('ubah', 'Absensi Pengajian', `Simpan materi pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'}`);
       showToast('Materi tersimpan ✓');
     } catch(e) { showToast('Gagal menyimpan materi: ' + e.message, true); }
+  };
+
+  window.PGJ_scanQR = async () => {
+    if (!currentPertemuanId) { showToast('Pilih pertemuan dulu', true); return; }
+    if (!window.jsQR) {
+      showToast('Menyiapkan pemindai...');
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+
+    let el = document.getElementById('pgjScanModal');
+    if (!el) { el = document.createElement('div'); el.id = 'pgjScanModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal" style="max-width:420px;">
+      <div class="modal-head"><h3 class="modal-title">📷 Scan QR Kehadiran</h3><button class="modal-close" onclick="PGJ_tutupScan()">✕</button></div>
+      <div class="modal-body">
+        <video id="pgjScanVideo" style="width:100%; border-radius:8px; background:#000;" playsinline></video>
+        <canvas id="pgjScanCanvas" style="display:none;"></canvas>
+        <div id="pgjScanStatus" style="margin-top:10px; padding:10px 12px; border-radius:8px; background:var(--cream-2); font-size:13px; text-align:center; min-height:20px;">Arahkan kamera ke kartu QR...</div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-outline" onclick="PGJ_tutupScan()">Selesai</button></div>
+    </div>`;
+    openModal('pgjScanModal');
+
+    const video = document.getElementById('pgjScanVideo');
+    const canvas = document.getElementById('pgjScanCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('pgjScanStatus');
+    let stream = null;
+    let scanning = true;
+    let lastScannedId = null, lastScannedAt = 0;
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream;
+      await video.play();
+    } catch(e) {
+      statusEl.textContent = '❌ Gagal mengakses kamera: ' + e.message;
+      return;
+    }
+
+    function tick() {
+      if (!scanning) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR(imgData.data, imgData.width, imgData.height);
+        if (code && code.data) {
+          const now = Date.now();
+          if (code.data !== lastScannedId || now - lastScannedAt > 3000) {
+            lastScannedId = code.data; lastScannedAt = now;
+            handleScan(code.data);
+          }
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    function handleScan(jamaahId) {
+      const orang = jamaahEligible.find(x => x.id === jamaahId);
+      if (!orang) {
+        statusEl.style.background = '#fbe4e4'; statusEl.style.color = 'var(--rose)';
+        statusEl.textContent = '⚠️ Kartu ini bukan peserta di pertemuan ini';
+        return;
+      }
+      absensiMap[orang.id] = 'H';
+      statusEl.style.background = 'var(--green-soft)'; statusEl.style.color = 'var(--green)';
+      statusEl.textContent = `✅ ${orang.nama} — Hadir`;
+      // Simpan langsung ke DB tiap scan biar gak ketinggalan kalau lupa klik Simpan
+      SB.pengajianAbsensi.upsertBulk([{ pertemuan_id: currentPertemuanId, jamaah_id: orang.id, status: 'H' }]).catch(()=>{});
+    }
+
+    window.PGJ_tutupScan = () => {
+      scanning = false;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      closeModal('pgjScanModal');
+      render(); // refresh tampilan grid H/S/I/A biar sinkron sama hasil scan
+    };
   };
 
   window.PGJ_hapusPertemuan = async (pertemuanKe) => {
@@ -8471,6 +8554,7 @@ async function renderJamaahEntry() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download PDF
           </button>
+          <button class="btn btn-outline btn-sm" onclick="JMH_cetakKartuQR()">🔖 Cetak Kartu QR (utk Absensi Pengajian)</button>
           ${canEdit ? `
           ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
           <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>` : ''}
@@ -8822,6 +8906,47 @@ async function renderJamaahEntry() {
 
     render();
     openModal('jmhTransferModal');
+  };
+
+  window.JMH_cetakKartuQR = async () => {
+    const kandidat = listUrut.filter(x => !x._virtual && PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+    if (!kandidat.length) { showToast('Belum ada generus usia Pra Remaja ke atas untuk dicetak kartunya', true); return; }
+    showToast('Menyiapkan kartu QR...');
+    if (!window.QRCode) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+      });
+    }
+    try {
+      const cardsHtml = await Promise.all(kandidat.map(async x => {
+        const dataUrl = await window.QRCode.toDataURL(x.id, { width: 180, margin: 1 });
+        return `<div class="qr-card">
+          <img src="${dataUrl}" width="120" height="120">
+          <div class="qr-nama">${escHtml(x.nama)}</div>
+          <div class="qr-klp">${escHtml(kelompokNama||'')}</div>
+        </div>`;
+      }));
+      const win = window.open('', '_blank');
+      win.document.write(`<!DOCTYPE html><html><head><title>Kartu QR Absensi Pengajian — ${escHtml(kelompokNama||'')}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .qr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+          .qr-card { border: 1.5px dashed #999; border-radius: 8px; padding: 10px; text-align: center; page-break-inside: avoid; }
+          .qr-card img { display: block; margin: 0 auto 6px; }
+          .qr-nama { font-weight: 700; font-size: 13px; }
+          .qr-klp { font-size: 10px; color: #666; }
+          .print-btn { margin-bottom: 16px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+          @media print { .print-btn { display: none; } }
+        </style>
+      </head><body>
+        <button class="print-btn" onclick="window.print()">🖨️ Cetak Halaman Ini</button>
+        <div class="qr-grid">${cardsHtml.join('')}</div>
+      </body></html>`);
+      win.document.close();
+      showToast('Kartu QR siap — dibuka di tab baru ✓');
+    } catch(e) { showToast('Gagal membuat kartu QR: ' + e.message, true); }
   };
 
   window.JMH_downloadPdf = async () => {
