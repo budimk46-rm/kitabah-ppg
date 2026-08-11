@@ -8963,10 +8963,15 @@ async function renderJamaahEntry() {
     // lebih tahan terhadap jaringan yang memblokir pemuatan script dari luar.
     const cardsHtml = kandidat.map(x => {
       const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=5&data=${encodeURIComponent(x.id)}`;
+      const waLink = x.no_hp
+        ? 'https://wa.me/62' + x.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'')
+          + '?text=' + encodeURIComponent(`Halo ${x.nama}, ini kartu QR untuk Absensi Pengajian kelompok ${kelompokNama||''}. Simpan gambar QR di link ini ke HP ya:\n${qrImgUrl}`)
+        : '';
       return `<div class="qr-card">
           <img src="${qrImgUrl}" width="120" height="120" alt="QR ${escHtml(x.nama)}">
           <div class="qr-nama">${escHtml(x.nama)}</div>
           <div class="qr-klp">${escHtml(kelompokNama||'')}</div>
+          ${waLink ? `<a href="${waLink}" target="_blank" class="wa-btn">📤 Kirim ke WA</a>` : '<div class="wa-none">No. HP belum ada</div>'}
         </div>`;
     });
     const win = window.open('', '_blank');
@@ -8977,12 +8982,15 @@ async function renderJamaahEntry() {
           .qr-card { border: 1.5px dashed #999; border-radius: 8px; padding: 10px; text-align: center; page-break-inside: avoid; }
           .qr-card img { display: block; margin: 0 auto 6px; }
           .qr-nama { font-weight: 700; font-size: 13px; }
-          .qr-klp { font-size: 10px; color: #666; }
+          .qr-klp { font-size: 10px; color: #666; margin-bottom: 6px; }
+          .wa-btn { display: inline-block; margin-top: 4px; padding: 5px 10px; background: #25D366; color: #fff; border-radius: 6px; font-size: 11px; text-decoration: none; }
+          .wa-none { margin-top: 4px; font-size: 10px; color: #b33; }
           .print-btn { margin-bottom: 16px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
-          @media print { .print-btn { display: none; } }
+          @media print { .print-btn, .wa-btn, .wa-none { display: none; } }
         </style>
       </head><body>
         <button class="print-btn" onclick="window.print()">🖨️ Cetak Halaman Ini</button>
+        <p style="font-size:12px; color:#666; margin:-10px 0 16px;">Mau dicetak fisik? Klik tombol di atas. Mau langsung dikirim ke HP masing-masing? Klik "Kirim ke WA" di tiap kartu (kalau No. HP-nya sudah tercatat di Data Jamaah).</p>
 
         <div class="qr-grid">${cardsHtml.join('')}</div>
       </body></html>`);
