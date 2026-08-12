@@ -6728,6 +6728,7 @@ async function renderAbsensiPengajian() {
   let jamaahEligible = [];
   let absensiMap = {};
   let viewMode = 'absen'; // 'absen' atau 'rekap'
+  let riwayatOpen = true;
   let rekapBulanAwalIdx = Math.floor(new Date().getMonth() / 3) * 3; // default: kuartal berjalan (0,3,6,9)
   let rekapTahun = new Date().getFullYear();
   let rekapHtml = '';
@@ -6737,6 +6738,7 @@ async function renderAbsensiPengajian() {
     if (jenis === 'sub' && !selectedSubId) { pertemuanList = []; currentPertemuanId = null; return; }
     pertemuanList = await SB.pengajianPertemuan.getByKelompok(u.kelompok_id, jenis, selectedSubId, bulan, tahun) || [];
     currentPertemuanId = null;
+    riwayatOpen = true;
   }
   let allJamaahKelompok = []; // dipakai jg utk cari peserta yang mau ditambah manual
   async function loadEligibleJamaah() {
@@ -6969,20 +6971,27 @@ async function renderAbsensiPengajian() {
       </div>
 
       ${jenis==='sub' && !selectedSubId ? '<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Pilih Sub Pengajian dulu di atas.</div>' : (viewMode==='rekap' ? rekapHtml : `
-      <div style="display:grid; grid-template-columns:220px 1fr; gap:14px;" class="pgj-layout">
-        <div class="card" style="padding:0; overflow:hidden;">
-          <div style="padding:10px 12px; font-size:11.5px; font-weight:700; color:var(--green); border-bottom:1px solid var(--line);">Riwayat Pertemuan</div>
-          <div style="max-height:420px; overflow-y:auto;">
+      <div class="card sd-wrap ${riwayatOpen?'sd-open':''}" style="margin-bottom:14px; padding:0;">
+        <div class="sd-trigger" onclick="PGJ_toggleRiwayat()" style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px;">
+          <div>
+            <div style="font-size:10.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em;">Riwayat Pertemuan</div>
+            <div style="font-size:13.5px; font-weight:700; color:var(--green);">${p ? `Pertemuan Ke-${p.pertemuan_ke||'?'} · ${fmtDateShort(p.tanggal)}` : (pertemuanList.length ? 'Pilih pertemuan...' : 'Belum ada pertemuan bulan ini')}</div>
+          </div>
+          <svg class="sd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--green);"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="sd-panel">
+          <div style="max-height:320px; overflow-y:auto; border-top:1px solid var(--line);">
             ${pertemuanList.length ? pertemuanList.map(x => `
-              <div onclick="PGJ_pilihPertemuan('${x.id}')" style="padding:9px 12px; cursor:pointer; border-bottom:1px solid var(--line); background:${x.id===currentPertemuanId?'var(--green-soft)':'transparent'};">
-                <div style="font-size:12.5px; font-weight:700;">Ke-${x.pertemuan_ke||'?'}</div>
-                <div style="font-size:11px; color:var(--ink-soft);">${fmtDateShort(x.tanggal)}</div>
+              <div onclick="PGJ_pilihPertemuan('${x.id}')" style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--line); background:${x.id===currentPertemuanId?'var(--green-soft)':'transparent'}; transition:background-color .25s cubic-bezier(.16,1,.3,1);">
+                <span style="font-size:12.5px; font-weight:700;">Ke-${x.pertemuan_ke||'?'}</span>
+                <span style="font-size:11px; color:var(--ink-soft); margin-left:8px;">${fmtDateShort(x.tanggal)}</span>
               </div>`).join('') : '<div style="padding:16px; font-size:12px; color:var(--ink-soft); text-align:center;">Belum ada pertemuan bulan ini.</div>'}
           </div>
         </div>
+      </div>
 
         <div class="card">
-          ${!currentPertemuanId ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Pilih pertemuan di sebelah kiri, atau buat pertemuan baru.</div>' : `
+          ${!currentPertemuanId ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Pilih pertemuan di atas, atau buat pertemuan baru.</div>' : `
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
               <div>
                 <div class="fw-bold" style="font-size:14px;">Pertemuan Ke-${p?.pertemuan_ke||'?'} ${jenis==='sub'?'· '+escHtml(subNama):''}</div>
@@ -7019,8 +7028,7 @@ async function renderAbsensiPengajian() {
             ${canEdit ? `<button class="btn btn-green" style="width:100%; margin-top:14px; padding:10px;" id="pgjSaveBtn" onclick="PGJ_simpan()">💾 Simpan Absensi</button>` : ''}
             `}
           `}
-        </div>
-      </div>`)}
+        </div>`)}
     `;
   }
 
@@ -7063,9 +7071,12 @@ async function renderAbsensiPengajian() {
     await loadPertemuanList();
     render();
   };
+  window.PGJ_toggleRiwayat = () => { riwayatOpen = !riwayatOpen; render(); };
+
   window.PGJ_pilihPertemuan = async (id) => {
     main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
     await loadDetail(id);
+    riwayatOpen = false; // tutup dropdown otomatis biar tabel dapet ruang penuh
     render();
   };
   window.PGJ_buatBaru = async () => {
@@ -7084,7 +7095,7 @@ async function renderAbsensiPengajian() {
       logActivity('tambah', 'Absensi Pengajian', `Buat pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'} ke-${kePertemuan}`);
       showToast('Pertemuan baru dibuat ✓');
       await loadPertemuanList();
-      if (newId) await loadDetail(newId);
+      if (newId) { await loadDetail(newId); riwayatOpen = false; }
       render();
     } catch(e) { showToast('Gagal membuat pertemuan: ' + e.message, true); }
   };
