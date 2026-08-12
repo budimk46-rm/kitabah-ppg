@@ -11347,8 +11347,9 @@ async function renderMusyawarah() {
             ${cfg.icon} <b>${cfg.label}</b>
           </div>`;
       } else if (['pjp_kelompok','kelompok','wali_kbm','guru'].includes(role)) {
-        // Kelompok: pilih guru_generus atau unsur_5
-        const opts = createLevels.filter(lv => ['guru_generus','unsur_5'].includes(lv));
+        // Kelompok: pilih dari semua level kelompok-tier yg boleh dibuat role ini
+        // (createLevels sudah role-scoped lewat MUSYAWARAH_CREATE, gak perlu filter manual lagi)
+        const opts = createLevels;
         jenisSelector = `
           <div style="display:flex; gap:8px; margin-bottom:14px;" id="musLevelPicker">
             ${opts.map(lv => {
