@@ -11086,6 +11086,7 @@ async function renderPengurus() {
 const MUSYAWARAH_LEVEL = {
   guru_generus: { label: 'Musyawarah Guru Generus', icon: '👨‍🏫', warna: 'badge-green', roles: ['pjp_kelompok','wali_kbm','guru','kelompok','admin'] },
   unsur_5:      { label: 'Musyawarah 5 Unsur Kelompok', icon: '🤝', warna: 'badge-gold', roles: ['pjp_kelompok','kelompok','admin'] },
+  kelompok_umum:{ label: 'Musyawarah Kelompok', icon: '🕌', warna: 'badge-green', roles: ['pjp_kelompok','kelompok','admin'] },
   pjp_desa:     { label: 'Musyawarah PJP Desa', icon: '🏘️', warna: 'badge-rose', roles: ['desa','pjp_kelompok','admin'] },
   ppg_daerah:   { label: 'Musyawarah PPG Daerah', icon: '🏛️', warna: 'badge-gray', roles: ['daerah','desa','admin'] },
 };
@@ -11094,22 +11095,22 @@ const MUSYAWARAH_LEVEL = {
 const MUSYAWARAH_VISIBLE = {
   guru:         ['guru_generus'],
   wali_kbm:     ['guru_generus'],
-  kelompok:     ['guru_generus','unsur_5'],
-  pjp_kelompok: ['guru_generus','unsur_5','pjp_desa'],
+  kelompok:     ['guru_generus','unsur_5','kelompok_umum'],
+  pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum','pjp_desa'],
   desa:         ['guru_generus','unsur_5','pjp_desa'],
   daerah:       ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
-  admin:        ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
+  admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','ppg_daerah'],
 };
 
 // Level yang bisa DIBUAT per role
 const MUSYAWARAH_CREATE = {
   guru:         ['guru_generus'],
   wali_kbm:     ['guru_generus'],
-  kelompok:     ['guru_generus','unsur_5'],
-  pjp_kelompok: ['guru_generus','unsur_5'],
+  kelompok:     ['guru_generus','unsur_5','kelompok_umum'],
+  pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum'],
   desa:         ['pjp_desa'],
   daerah:       ['ppg_daerah'],
-  admin:        ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
+  admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','ppg_daerah'],
 };
 
 async function renderMusyawarah() {
@@ -11888,7 +11889,7 @@ async function renderMusyawarah() {
         }
         // Jika belum pilih desa, allPeserta tetap kosong → pesan minta pilih
 
-      } else if (level === 'guru_generus' || level === 'unsur_5') {
+      } else if (level === 'guru_generus' || level === 'unsur_5' || level === 'kelompok_umum') {
         if (effectiveKlpId) {
           allPeserta = await SB.musPeserta.getByKelompok(effectiveKlpId) || [];
         }
@@ -12462,6 +12463,15 @@ async function openMusAbsensiModal(musId, level, u) {
         if (seen.has(p.id)) return false;
         seen.add(p.id); return true;
       });
+    } else if (level === 'kelompok_umum' && u.kelompok_id) {
+      const [semuaPengurus, konfigRes] = await Promise.all([
+        SB.musPeserta.getByKelompok(u.kelompok_id),
+        SB.musKonfig.get('kelompok_umum', u.kelompok_id, null),
+      ]);
+      const dapukanWajib = konfigRes?.[0]?.dapukan_wajib || [];
+      pesertaTetap = dapukanWajib.length
+        ? (semuaPengurus||[]).filter(p => dapukanWajib.includes(p.jabatan))
+        : (semuaPengurus||[]); // belum dikonfigurasi sama sekali — tampilkan semua dulu
     } else if (u.kelompok_id) {
       // Level kelompok: guru_generus atau unsur_5
       pesertaTetap = await SB.musPeserta.getByKelompok(u.kelompok_id);
@@ -12858,6 +12868,9 @@ async function renderSettings() {
         </button>
         <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('unsur_5')">
           🤝 Konfig Mus. 5 Unsur
+        </button>
+        <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('kelompok_umum')">
+          🕌 Konfig Mus. Kelompok
         </button>` : ''}
         ${['desa','admin'].includes(u.role) ? `
         <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('pjp_desa')">
