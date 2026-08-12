@@ -161,6 +161,20 @@ function escHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Peta nama Desa (id -> nama lengkap, mis. "Desa Barat 1") — diambil dari tabel `desa`
+// di database (di-cache sekali di App.cache.desa), BUKAN ditulis manual di kode.
+// Jadi kalau suatu saat nambah/ubah nama Desa, tinggal ubah lewat Supabase (tabel desa),
+// otomatis kepakai di SELURUH aplikasi tanpa perlu ubah kode sama sekali.
+async function loadDesaMap() {
+  if (!App.cache.desa) App.cache.desa = await SB.desa.getAll();
+  return Object.fromEntries((App.cache.desa||[]).map(d => [d.id, d.nama]));
+}
+// Versi nama singkat (tanpa awalan "Desa ") — buat tempat yang nambahin kata "Desa" sendiri di teksnya
+async function loadDesaMapSingkat() {
+  const full = await loadDesaMap();
+  return Object.fromEntries(Object.entries(full).map(([id,nama]) => [id, nama.replace(/^Desa\s+/i,'')]));
+}
+
 // Capitalize setiap awal kata — dipakai untuk nama generus dan nama ortu
 function toTitleCase(str) {
   if (!str) return '';
@@ -233,6 +247,7 @@ async function showShell() {
   document.getElementById('pendingScreen').style.display = 'none';
   document.getElementById('appShell').style.display = 'flex';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  if (!App.cache.desa) App.cache.desa = await SB.desa.getAll();
   renderNav();
   navigate('dashboard');
   startChatUnreadWatcher();
@@ -466,7 +481,7 @@ async function renderPublicForm(jenis, scope) {
       if (!klp) { screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Kelompok tidak ditemukan. Pastikan link yang dipakai benar.</p></div>`; return; }
       scopeNama = klp.nama + (klp.desa?.nama ? ' · ' + klp.desa.nama : '');
     } else if (scope.type === 'desa') {
-      const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+      const DESA_NAMA_MAP = await loadDesaMap();
       scopeNama = DESA_NAMA_MAP[scope.id] || scope.id;
       if (!scopeNama) { screen.innerHTML = `<div class="login-card"><p style="text-align:center; color:var(--rose);">Desa tidak ditemukan.</p></div>`; return; }
     } else {
@@ -1409,7 +1424,7 @@ function renderNav() {
   const allowed = getAllowedMenuIds(u);
   const items = roleItems.filter(item => allowed.has(item.id));
 
-  const DESA_NAMA_MAP_NAV = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
+  const DESA_NAMA_MAP_NAV = Object.fromEntries((App.cache.desa||[]).map(d => [d.id, (d.nama||'').replace(/^Desa\s+/i,'')]));
   const lintasItems = (u.akses_lintas || '').split(',').map(s => s.trim()).filter(Boolean).map(entry => {
     const [menuId, level, scopeId] = entry.split(':');
     const navKey = level === 'kelompok' ? 'pjp_kelompok' : level;
@@ -1648,7 +1663,7 @@ async function loadOnlineUsersWidget() {
     const since = new Date(Date.now() - 5*60*1000).toISOString();
     const online = await SB.anggota.getOnline(since) || [];
     if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-    const DESA_NAMA_MAP = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
+    const DESA_NAMA_MAP = await loadDesaMapSingkat();
 
     function lokasiOf(u) {
       if (u.kelompok_id) {
@@ -3571,7 +3586,7 @@ async function renderKelolaKelas() {
     };
     openModal('editKelasModal');
   };
-  window.STR_addKelasGabungan = () => {
+  window.STR_addKelasGabungan = async () => {
     // Tentukan desa_id
     let desaId = u.desa_id;
     if (isAdmin && selectedKelompokId) {
@@ -3579,7 +3594,7 @@ async function renderKelolaKelas() {
       desaId = klp?.desa_id;
     }
     if (!desaId) { showToast('Pilih kelompok terlebih dahulu', true); return; }
-    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    const DESA_NAMA_MAP = await loadDesaMap();
     const desaNama = DESA_NAMA_MAP[desaId] || desaId;
     openAddKelasGabunganModal(desaId, desaNama, async () => {
       await loadKelas(selectedKelompokId);
@@ -4483,7 +4498,7 @@ async function renderPenilaian() {
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   if (!App.cache.materi) App.cache.materi = await SB.materi.getAll();
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
   const NILAI_CYCLE = [null,'A','B','C','D'];
   const NILAI_COLOR = { A:'#1a6b3a', B:'#2563eb', C:'#ca8a04', D:'#c0392b' };
   const NILAI_BG = { A:'#e8f5ed', B:'#eff6ff', C:'#fef9c3', D:'#fde8e8' };
@@ -5025,7 +5040,7 @@ async function renderDataBK() {
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const kelompokMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
 
   // Tentukan kelompok yang diproses
   let kelompokList = App.cache.kelompok || [];
@@ -5281,7 +5296,7 @@ async function renderMonitorMus() {
   const isDesa = u.role === 'desa';
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
 
   // Filter kelompok sesuai role
   let kelompokList = App.cache.kelompok || [];
@@ -5439,9 +5454,9 @@ async function renderMonitorMus() {
     // Status PJP Desa (admin/daerah only)
     let desaMusHtml = '';
     let pjpDesaDone = 0;
-    const totalDesa = 6;
+    const totalDesa = Object.keys(DESA_NAMA_MAP).length;
     if (isAdmin || isDaerah) {
-      const DESA_IDS = ['D1','D2','D3','D4','D5','D6'];
+      const DESA_IDS = Object.keys(DESA_NAMA_MAP);
       const musPjpDesa = musBulan.filter(m => m.level === 'pjp_desa');
       const desaStatus = DESA_IDS.map(did => {
         const desaNama = DESA_NAMA_MAP[did] || did;
@@ -5536,7 +5551,7 @@ async function renderSarpras() {
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const kelompokMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
 
   const DEFAULT_ITEMS = ['Peraga Tilawati','Papan Peraga','White Board','Spidol','Penghapus','Dampar','Laptop SB','LCD Proyektor / TV Monitor','Layar Proyektor','Wifi'];
 
@@ -6125,7 +6140,7 @@ async function renderMtMs() {
       console.error(e);
     }
   };
-  const DESA_NAMA_MAP_PDF = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP_PDF = await loadDesaMap();
 
   // === HANDLERS ===
   window.MTMS_tambah = () => openMtMsModal(null);
@@ -6515,6 +6530,7 @@ async function renderUserTidakAktif() {
 
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const DESA_NAMA_MAP = await loadDesaMapSingkat();
 
   async function loadData() {
     const weekStart = new Date(thisMonday); weekStart.setDate(weekStart.getDate() + weekOffset*7);
@@ -6545,7 +6561,6 @@ async function renderUserTidakAktif() {
       const klp = (App.cache.kelompok||[]).find(k => k.id === x.kelompok_id);
       return klp ? `${klp.nama} · ${klp.desa?.nama||''}` : x.kelompok_id;
     }
-    const DESA_NAMA_MAP = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
     if (x.desa_id) return 'Desa ' + (DESA_NAMA_MAP[x.desa_id] || x.desa_id);
     return '-';
   }
@@ -7869,7 +7884,7 @@ async function renderPenerobosanDesa() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const kelompokList = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
   const desaNama = DESA_NAMA_MAP[u.desa_id] || u.desa_id;
 
   let bulan = BULAN_LIST[new Date().getMonth()];
@@ -8767,7 +8782,7 @@ async function renderJamaahEntry() {
     if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
     const myKlp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
     const myDesaId = myKlp?.desa_id || '';
-    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    const DESA_NAMA_MAP = await loadDesaMap();
 
     let el = document.getElementById('jmhTransferModal');
     if (!el) { el = document.createElement('div'); el.id = 'jmhTransferModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
@@ -9338,7 +9353,7 @@ async function renderJamaahRekap() {
       </div>`;
   } else {
     // Admin / Daerah — total keseluruhan + breakdown per desa
-    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    const DESA_NAMA_MAP = await loadDesaMap();
     const byDesa = {};
     kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
     bodyHtml += `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>` + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
@@ -10075,6 +10090,7 @@ async function renderRekapRaport() {
   let semester = SEM1_MONTHS.includes(nowMonth) ? 1 : 2;
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+  const DESA_NAMA_MAP = await loadDesaMapSingkat();
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   // Tentukan cakupan kelompok
@@ -10211,7 +10227,6 @@ async function renderRekapRaport() {
 
     } else {
       // ── Level Daerah/Admin: grouped per desa, isi rata-rata per kelompok ──
-      const DESA_NAMA_MAP = {'D1':'Barat 1','D2':'Barat 2','D3':'Tengah 1','D4':'Tengah 2','D5':'Timur 1','D6':'Timur 2'};
       const byDesa = {};
       kelompokScope.forEach(klp => {
         const dn = klp.desa?.nama || DESA_NAMA_MAP[klp.desa_id] || klp.desa_id || '-';
@@ -10704,7 +10719,7 @@ async function renderPengurus() {
     if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
 
     if (isAdmin || u.role === 'daerah' || u.role === 'desa') {
-      const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+      const DESA_NAMA_MAP = await loadDesaMap();
       const desaList = isAdmin || u.role === 'daerah'
         ? Object.entries(DESA_NAMA_MAP)
         : [[u.desa_id, DESA_NAMA_MAP[u.desa_id] || u.desa_id]];
@@ -11105,6 +11120,7 @@ async function renderMusyawarah() {
   const createLevels = MUSYAWARAH_CREATE[role] || [];
 
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+  const DESA_NAMA_MUS = await loadDesaMap();
 
   // Load data musyawarah
   let allMusyawarah = [];
@@ -11298,7 +11314,6 @@ async function renderMusyawarah() {
     }).join('');
 
     const klpMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k]));
-    const DESA_NAMA_MUS = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
 
     const daftarHtml = filtered.length ? filtered.map(m => {
       const cfg = MUSYAWARAH_LEVEL[m.level] || {};
@@ -11829,8 +11844,7 @@ async function renderMusyawarah() {
       return;
     }
 
-    const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1',
-      'D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+    const DESA_NAMA_MAP = await loadDesaMap();
     musInlinePeserta = [];
     musInlineAbsensi = {};
     musInlineTamu = [];
@@ -11854,7 +11868,7 @@ async function renderMusyawarah() {
       if (level === 'ppg_daerah') {
         allPeserta = await SB.musPeserta.getByDaerah() || [];
         // Data lama pakai NAMA desa, data baru (lewat Data Pengurus) pakai KODE (D1-D6) — cari dua-duanya
-        const DESA_NAMA_MAP2 = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+        const DESA_NAMA_MAP2 = await loadDesaMap();
         for (const [kode, nama] of Object.entries(DESA_NAMA_MAP2)) {
           const [dp1, dp2] = await Promise.all([SB.musPeserta.getByDesa(kode), SB.musPeserta.getByDesa(nama)]);
           allPeserta = [...allPeserta, ...(dp1||[]), ...(dp2||[])];
@@ -12407,7 +12421,7 @@ function urutkanPesertaDaerah(list) {
 
 // Ambil Kyai/PJP KBM/PJP SarPras dari SEMUA desa (6), buat gabung ke Absensi Musyawarah Daerah
 async function loadUnsurDesaUntukMusDaerah() {
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
   const results = await Promise.all(Object.keys(DESA_NAMA_MAP).map(async did => {
     const [p1, p2] = await Promise.all([SB.musPeserta.getByDesa(did), SB.musPeserta.getByDesa(DESA_NAMA_MAP[did])]);
     const seen = new Set();
@@ -12427,8 +12441,7 @@ async function openMusAbsensiModal(musId, level, u) {
 
   // Load peserta tetap sesuai level
   let pesertaTetap = [];
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1',
-    'D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
   try {
     if (level === 'ppg_daerah') {
       const [unsurDaerah, unsurDesa] = await Promise.all([
@@ -13062,7 +13075,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
       allPesertaForKonfig = await SB.musPeserta.getByDaerah() || [];
       // Juga ambil dapukan dari semua desa — data lama tersimpan pakai NAMA desa,
       // data baru (lewat Data Pengurus) pakai KODE desa (D1-D6). Cari dua-duanya.
-      const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+      const DESA_NAMA_MAP = await loadDesaMap();
       const desaResults = await Promise.all(Object.entries(DESA_NAMA_MAP).flatMap(([kode, nama]) => [
         SB.musPeserta.getByDesa(kode), SB.musPeserta.getByDesa(nama),
       ]));
@@ -13076,7 +13089,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
       // Hanya desa sendiri + kelompok di desa sendiri
       const myDesaId = desaId || u.desa_id;
       if (myDesaId) {
-        const DESA_NAMA_MAP_K = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+        const DESA_NAMA_MAP_K = await loadDesaMap();
         const desaNama = DESA_NAMA_MAP_K[myDesaId] || myDesaId;
         const dp1 = await SB.musPeserta.getByDesa(myDesaId) || [];
         const dp2 = desaNama !== myDesaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
@@ -14372,7 +14385,7 @@ async function renderRekapDesa() {
   }
 
   const myDesaNama = App.cache.rekapDesaId || null;
-  const DESA_NAMA_MAP = {'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'};
+  const DESA_NAMA_MAP = await loadDesaMap();
   const myDesaId = u.desa_id || null;
   const desaFilterNama = myDesaNama || DESA_NAMA_MAP[myDesaId] || myDesaId;
   const kelompokDesa = (App.cache.kelompok||[]).filter(k =>
@@ -14440,7 +14453,7 @@ async function renderRekapDesa() {
   });
 
   // Load kelas gabungan desa
-  const desaIdForGabungan = myDesaId || Object.keys({'D1':'Desa Barat 1','D2':'Desa Barat 2','D3':'Desa Tengah 1','D4':'Desa Tengah 2','D5':'Desa Timur 1','D6':'Desa Timur 2'}).find(k => DESA_NAMA_MAP[k] === desaFilterNama);
+  const desaIdForGabungan = myDesaId || Object.keys(DESA_NAMA_MAP).find(k => DESA_NAMA_MAP[k] === desaFilterNama);
   let kelasGabunganDesa = [];
   const gabunganData = {};
   if (desaIdForGabungan) {
