@@ -8517,6 +8517,7 @@ async function renderJamaahEntry() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set();
+  let searchQuery = '';
 
   // Susun urutan tampil per keluarga: Suami -> Istri -> Anak 1, 2, dst -> keluarga berikutnya.
   // Anak bisa berupa jamaah (belum jadi santri) ATAU jamaah yang sudah "Jadikan Santri" (masih ada barisnya di sini).
@@ -8633,6 +8634,9 @@ async function renderJamaahEntry() {
   }) : '';
 
   function render() {
+    const filteredListUrut = searchQuery.trim()
+      ? listUrut.filter(x => (x.nama||'').toLowerCase().includes(searchQuery.trim().toLowerCase()))
+      : listUrut;
     main.innerHTML = `
       <div class="page-header">
         <div>
@@ -8676,8 +8680,16 @@ async function renderJamaahEntry() {
         ${jamaahKategoriTableHtml(list)}
       </div>
 
+      <div class="card" style="margin-bottom:12px;">
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">🔍 Cari Nama</label>
+          <input type="text" id="jmhSearchInput" value="${escHtml(searchQuery)}" oninput="JMH_search(this.value)" placeholder="Ketik nama yang mau dicari..." style="width:100%;">
+        </div>
+        ${searchQuery.trim() ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:6px;">Menampilkan ${filteredListUrut.length} dari ${listUrut.length} data yang cocok dengan "${escHtml(searchQuery)}"</div>` : ''}
+      </div>
+
       <div class="card" style="padding:0; overflow:hidden;">
-        ${!list.length ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah. Klik "+ Tambah Jamaah" untuk mulai.</div>' : `
+        ${!list.length ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah. Klik "+ Tambah Jamaah" untuk mulai.</div>' : (!filteredListUrut.length ? `<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Tidak ada nama yang cocok dengan pencarian "${escHtml(searchQuery)}".</div>` : `
         <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:650px;">
           <thead><tr style="background:var(--green);">
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
@@ -8690,7 +8702,7 @@ async function renderJamaahEntry() {
             ${canEdit ? '<th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>' : ''}
           </tr></thead>
           <tbody>
-            ${listUrut.map(x => {
+            ${filteredListUrut.map(x => {
               const usia = x.tgl_lahir ? hitungUsia(x.tgl_lahir) : null;
               const kat = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
               return `<tr style="border-bottom:1px solid var(--line);">
@@ -8731,7 +8743,7 @@ async function renderJamaahEntry() {
               </tr>`;
             }).join('')}
           </tbody>
-        </table></div>`}
+        </table></div>`)}
       </div>
     `;
   }
@@ -9161,6 +9173,14 @@ async function renderJamaahEntry() {
   window.JMH_toggleBelumTertaut = () => {
     const el = document.getElementById('jmhBelumTertautList');
     if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+
+  window.JMH_search = (val) => {
+    searchQuery = val;
+    const cursorPos = document.getElementById('jmhSearchInput')?.selectionStart;
+    render();
+    const newEl = document.getElementById('jmhSearchInput');
+    if (newEl) { newEl.focus(); if (cursorPos != null) newEl.setSelectionRange(cursorPos, cursorPos); }
   };
 
   async function openJamaahModal(existing) {
