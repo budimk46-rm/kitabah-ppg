@@ -4185,7 +4185,8 @@ async function renderAbsensi() {
           style="width:100%; padding:14px; font-size:15px; font-weight:800; border-radius:var(--radius); box-shadow:var(--shadow-lg);">
           💾 Simpan Absensi + Jurnal
         </button>
-      </div>` : '';
+      </div>
+      <div class="card" id="absNotifOrtuBox" style="margin-top:12px;"></div>` : '';
 
     // Hitung pertemuan ke berapa bulan ini (khusus pertemuan BARU)
     const pertemuanBulanIni = pertemuanList.filter(p => p.bulan === nowMonth);
@@ -4392,6 +4393,65 @@ async function renderAbsensi() {
   };
 
   // Simpan untuk pertemuan yang SUDAH ADA
+  // Susun pesan WA ke orang tua sesuai status kehadiran generus di pertemuan kelas
+  function buildPesanWaOrtu(status, namaGenerus, namaKelas, pertemuanKe, tanggal) {
+    const tglFmt = fmtDateShort(tanggal);
+    const pembuka = `Assalamu'alaikum Warahmatullahi Wabarakatuh\n\nYth. Bapak/Ibu Wali dari Ananda ${namaGenerus},\n\nKami sampaikan bahwa pada ${tglFmt}, telah dilaksanakan pengajian ${namaKelas} pertemuan ke-${pertemuanKe||'?'}.\n\n`;
+    const penutup = `\n\nWassalamu'alaikum Warahmatullahi Wabarakatuh`;
+    const isi = {
+      H: `Alhamdulillah, Ananda ${namaGenerus} telah HADIR pada pertemuan tersebut.\n\nAlhamdulillahi Jaza Kumullohu Khoiro.`,
+      S: `Kami mendapat kabar Ananda ${namaGenerus} berhalangan hadir dikarenakan sakit.\n\nSemoga Ananda ${namaGenerus} segera diberikan kesembuhan dan kesehatan, sehingga bisa kembali mengikuti pengajian berikutnya. Aamiin.`,
+      I: `Ananda ${namaGenerus} pada pertemuan tersebut berhalangan hadir dengan keterangan izin.\n\nSemoga di pertemuan berikutnya Ananda ${namaGenerus} bisa hadir kembali.`,
+      A: `Ananda ${namaGenerus} pada pertemuan tersebut belum berkesempatan hadir.\n\nAmal sholih orang tua bisa menyemangati anaknya untuk hadir di pengajian berikutnya, atas amal sholihnya disyukuri Alhamdulillahi Jaza Kumullohu Khoiro.`,
+    };
+    return pembuka + (isi[status] || isi.A) + penutup;
+  }
+
+  window.ABS_toggleNotifOrtu = () => {
+    const el = document.getElementById('absNotifOrtuList');
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
+
+  async function loadNotifOrtuSection(pId) {
+    const box = document.getElementById('absNotifOrtuBox');
+    if (!box || !santriList.length) return;
+    const p = pertemuanList.find(x => x.id === pId);
+    const klsNama = kelasOptions?.find(k => k.id === selectedKelasId)?.nama_kelas || '';
+    const kelompokId = activeKelompokId || myKelompokId || null;
+
+    try {
+      const [links, jamaahKlp] = await Promise.all([
+        SB.jamaahKeluarga.getBySantriIds(santriList.map(s => s.id)),
+        kelompokId ? SB.jamaah.getByKelompok(kelompokId) : Promise.resolve([]),
+      ]);
+      const jamaahById = new Map((jamaahKlp||[]).map(j => [j.id, j]));
+      const parentBySantriId = new Map();
+      (links||[]).forEach(l => {
+        if (l.santri_id) {
+          const ortu = jamaahById.get(l.jamaah_id);
+          if (ortu) parentBySantriId.set(l.santri_id, ortu);
+        }
+      });
+
+      box.innerHTML = `
+        <div class="fw-bold" style="font-size:12.5px; margin-bottom:8px; color:var(--green); cursor:pointer;" onclick="ABS_toggleNotifOrtu()">📤 Kirim Notifikasi ke Orang Tua ▾</div>
+        <div id="absNotifOrtuList" style="display:none;">
+          ${santriList.map(s => {
+            const status = absensiData[s.id] || 'A';
+            const ortu = parentBySantriId.get(s.id);
+            const waLink = ortu?.no_hp
+              ? 'https://wa.me/62' + ortu.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'')
+                + '?text=' + encodeURIComponent(buildPesanWaOrtu(status, s.nama, klsNama, p?.pertemuan_ke, p?.tanggal))
+              : '';
+            return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
+              <span>${escHtml(s.nama)} <span style="color:var(--ink-soft);">(${status})</span></span>
+              ${waLink ? `<a href="${waLink}" target="_blank" class="btn btn-outline btn-sm" style="padding:4px 10px;">📤 Kirim WA</a>` : '<span style="font-size:11px; color:var(--rose);">No. HP Ortu belum ada</span>'}
+            </div>`;
+          }).join('')}
+        </div>`;
+    } catch(e) { console.error('Gagal load notif ortu:', e); }
+  }
+
   window.ABS_simpanSemua = async () => {
     const btn = document.querySelector('[onclick="ABS_simpanSemua()"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
@@ -4401,6 +4461,7 @@ async function renderAbsensi() {
       const p = pertemuanList.find(x => x.id === currentPertemuanId);
       logActivity('ubah', 'Absensi', `Simpan absensi & jurnal — pertemuan ke-${p?.pertemuan_ke||'?'} (${p?fmtDateShort(p.tanggal):'-'})`);
       showToast('Absensi & jurnal disimpan ✓');
+      await loadNotifOrtuSection(currentPertemuanId);
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
       console.error(e);
