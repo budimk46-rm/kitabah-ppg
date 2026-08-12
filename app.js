@@ -6705,6 +6705,7 @@ const BULAN_LIST = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Ag
 const PENGAJIAN_ELIGIBLE_KAT = ['Pra Remaja','Remaja','Pra Nikah','Dewasa','Istimewa'];
 const PENGAJIAN_STATUS_LABEL = { H:'Hadir', S:'Sakit', I:'Izin', A:'Alpa' };
 const PENGAJIAN_STATUS_COLOR = { H:'#1a6b3a', S:'#a67c00', I:'#1a5ba6', A:'#a6483b' };
+function pengajianJenisLabel(j) { return j==='sub' ? 'Sub Pengajian' : j==='ibu_ibu' ? 'Ibu-Ibu Kelompok' : 'Kelompok'; }
 // Bp./Ibu untuk yang sudah menikah, Sdra./Sdri. untuk yang belum — dipakai di tampilan Absensi Pengajian
 function gelarNama(x) {
   const menikah = x.status_menikah === 'menikah';
@@ -6743,29 +6744,38 @@ async function renderAbsensiPengajian() {
   let allJamaahKelompok = []; // dipakai jg utk cari peserta yang mau ditambah manual
   async function loadEligibleJamaah() {
     allJamaahKelompok = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
-    let base = allJamaahKelompok.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+    let base;
 
-    // Santri yang cuma ada di Data Generus (belum pernah "Jadikan Santri" dari Data Jamaah,
-    // jadi belum punya baris jamaah asli) tetap harus ikut ditawarkan di sini kalau usianya
-    // masuk kriteria — dibikinkan "baris virtual" (persis pola yg sama dgn Data Jamaah),
-    // supaya gak invisible cuma karena jalur masuknya beda (lewat Kelola Kelas Generus).
-    const [santriKelompok, santriBelumMasukKelas] = await Promise.all([
-      SB.santri.getByKelompok(u.kelompok_id) || [],
-      SB.santri.getUnassigned(u.kelompok_id) || [],
-    ]);
-    const semuaSantriKelompok = [...(santriKelompok||[]), ...(santriBelumMasukKelas||[])];
-    const santriIdSudahAdaJamaah = new Set(allJamaahKelompok.filter(x => x.santri_id).map(x => x.santri_id));
-    semuaSantriKelompok.forEach(s => {
-      if (santriIdSudahAdaJamaah.has(s.id)) return; // udah ada baris jamaah asli, gak usah didobel
-      const kat = kategoriUsiaJamaah(s.tgl_lahir, null);
-      if (!PENGAJIAN_ELIGIBLE_KAT.includes(kat)) return;
-      base.push({
-        id: 'virtual_santri_' + s.id, nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir,
-        santri_id: s.id, status_menikah: null, keterangan: null, no_hp: null, _virtual: true,
+    if (jenis === 'ibu_ibu') {
+      // Semua jamaah perempuan yang SUDAH MENIKAH — dicek langsung dari field status_menikah
+      // (bukan dari kategori usia, krn Istimewa/60+ bisa nutupin status Dewasa meski udah nikah).
+      base = allJamaahKelompok.filter(x => x.jenis_kelamin === 'P' && x.status_menikah === 'menikah');
+    } else {
+      base = allJamaahKelompok.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+
+      // Santri yang cuma ada di Data Generus (belum pernah "Jadikan Santri" dari Data Jamaah,
+      // jadi belum punya baris jamaah asli) tetap harus ikut ditawarkan di sini kalau usianya
+      // masuk kriteria — dibikinkan "baris virtual" (persis pola yg sama dgn Data Jamaah),
+      // supaya gak invisible cuma karena jalur masuknya beda (lewat Kelola Kelas Generus).
+      // (Gak relevan buat Ibu-Ibu Kelompok — santri/kelas gak berlaku buat jamaah yg udah menikah.)
+      const [santriKelompok, santriBelumMasukKelas] = await Promise.all([
+        SB.santri.getByKelompok(u.kelompok_id) || [],
+        SB.santri.getUnassigned(u.kelompok_id) || [],
+      ]);
+      const semuaSantriKelompok = [...(santriKelompok||[]), ...(santriBelumMasukKelas||[])];
+      const santriIdSudahAdaJamaah = new Set(allJamaahKelompok.filter(x => x.santri_id).map(x => x.santri_id));
+      semuaSantriKelompok.forEach(s => {
+        if (santriIdSudahAdaJamaah.has(s.id)) return; // udah ada baris jamaah asli, gak usah didobel
+        const kat = kategoriUsiaJamaah(s.tgl_lahir, null);
+        if (!PENGAJIAN_ELIGIBLE_KAT.includes(kat)) return;
+        base.push({
+          id: 'virtual_santri_' + s.id, nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir,
+          santri_id: s.id, status_menikah: null, keterangan: null, no_hp: null, _virtual: true,
+        });
       });
-    });
 
-    if (jenis === 'sub') base = base.filter(x => x.sub_pengajian_id === selectedSubId);
+      if (jenis === 'sub') base = base.filter(x => x.sub_pengajian_id === selectedSubId);
+    }
 
     // Terapkan tambah/keluarkan manual (di luar kriteria otomatis)
     const overrides = (jenis === 'sub' && !selectedSubId) ? [] : await SB.pengajianOverride.getByScope(u.kelompok_id, jenis, selectedSubId) || [];
@@ -6914,7 +6924,7 @@ async function renderAbsensiPengajian() {
               const pct = Math.round(((d.absensiPerOrang[x.id]||0) / d.totalPtm) * 100);
               return `<td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700; color:${pct<50?'var(--rose)':'var(--ink)'};">${pct}%</td>`;
             }).join('')}
-          </tr>`).join('') : `<tr><td colspan="4" style="padding:20px; text-align:center; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="4" style="padding:20px; text-align:center; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini.' : jenis==='ibu_ibu' ? 'Belum ada jamaah perempuan yang sudah menikah di Data Jamaah.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</td></tr>`}</tbody>
         </table></div>
       </div>
     `;
@@ -6936,6 +6946,7 @@ async function renderAbsensiPengajian() {
         <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
           <button class="btn ${jenis==='kelompok'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('kelompok')">Pengajian Kelompok</button>
           <button class="btn ${jenis==='sub'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('sub')">Pengajian Sub Kelompok</button>
+          <button class="btn ${jenis==='ibu_ibu'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiJenis('ibu_ibu')">👩 Pengajian Ibu-Ibu Klp</button>
           <span style="width:1px; background:var(--line); margin:0 2px;"></span>
           <button class="btn ${viewMode==='absen'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiMode('absen')">📋 Absensi</button>
           <button class="btn ${viewMode==='rekap'?'btn-green':'btn-outline'} btn-sm" onclick="PGJ_gantiMode('rekap')">📊 Rekap Kehadiran</button>
@@ -6999,18 +7010,19 @@ async function renderAbsensiPengajian() {
               </div>
               ${canEdit ? `<div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                 <button class="btn btn-outline btn-sm" onclick="PGJ_kelolaPeserta()">👥 Kelola Peserta</button>
-                <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" style="padding:6px 8px; font-size:12px;">
-                <button class="btn btn-outline btn-sm" onclick="PGJ_ubahTanggal()">Ubah Tanggal</button>
                 <button class="btn btn-green btn-sm" onclick="PGJ_scanQR()">📷 Scan QR</button>
                 <button class="btn btn-outline btn-sm" style="color:var(--rose); border-color:var(--rose);" onclick="PGJ_hapusPertemuan(this.dataset.ptmke)" data-ptmke="${p?.pertemuan_ke||'?'}">🗑️ Hapus Pertemuan</button>
               </div>` : ''}
             </div>
+            <div class="form-group" style="margin-bottom:12px; max-width:220px;">
+              <label style="font-size:11px;">📅 Tanggal Pertemuan</label>
+              <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" ${!canEdit?'disabled':''} style="border:1.5px solid var(--line); border-radius:var(--radius-sm); padding:9px 12px; font-size:13px; background:var(--white);">
+            </div>
             <div class="form-group" style="margin-bottom:14px;">
               <label style="font-size:11px;">📖 Materi Pengajian</label>
               <textarea id="pgjMateriInput" rows="2" placeholder="Materi apa saja yang dibahas di pertemuan ini..." ${!canEdit?'disabled':''}>${escHtml(p?.materi||'')}</textarea>
-              ${canEdit ? `<button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="PGJ_simpanMateri()">Simpan Materi</button>` : ''}
             </div>
-            ${!jamaahEligible.length ? `<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini di Data Jamaah.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</div>` : `
+            ${!jamaahEligible.length ? `<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini di Data Jamaah.' : jenis==='ibu_ibu' ? 'Belum ada jamaah perempuan yang sudah menikah di Data Jamaah.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</div>` : `
             <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
               <thead><tr style="background:var(--green);">
                 <th style="padding:6px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
@@ -7025,7 +7037,7 @@ async function renderAbsensiPengajian() {
                 </td>
               </tr>`).join('')}</tbody>
             </table></div>
-            ${canEdit ? `<button class="btn btn-green" style="width:100%; margin-top:14px; padding:10px;" id="pgjSaveBtn" onclick="PGJ_simpan()">💾 Simpan Absensi</button>` : ''}
+            ${canEdit ? `<button class="btn btn-green" style="width:100%; margin-top:14px; padding:10px;" id="pgjSaveBtn" onclick="PGJ_simpan()">💾 Simpan Semua Perubahan</button>` : ''}
             `}
           `}
         </div>`)}
@@ -7092,7 +7104,7 @@ async function renderAbsensiPengajian() {
       if (jenis === 'sub') payload.sub_pengajian_id = selectedSubId;
       const res = await SB.pengajianPertemuan.insert(payload);
       const newId = res?.[0]?.id;
-      logActivity('tambah', 'Absensi Pengajian', `Buat pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'} ke-${kePertemuan}`);
+      logActivity('tambah', 'Absensi Pengajian', `Buat pertemuan ${pengajianJenisLabel(jenis)} ke-${kePertemuan}`);
       showToast('Pertemuan baru dibuat ✓');
       await loadPertemuanList();
       if (newId) { await loadDetail(newId); riwayatOpen = false; }
@@ -7116,7 +7128,7 @@ async function renderAbsensiPengajian() {
         <div class="modal-head"><h3 class="modal-title">👥 Kelola Peserta — ${jenis==='sub' ? escHtml(subList.find(s=>s.id===selectedSubId)?.nama||'') : 'Pengajian Kelompok'}</h3><button class="modal-close" onclick="closeModal('pgjPesertaModal')">✕</button></div>
         <div class="modal-body">
           <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:var(--green);">
-            Daftar peserta otomatis mengikuti kriteria usia (Pra Remaja s/d Istimewa)${jenis==='sub'?' + Sub Pengajian yang ditandai di Data Jamaah':''}. Kalau ada yang perlu dikecualikan atau ditambahkan di luar itu, atur di sini.
+            Daftar peserta otomatis mengikuti kriteria ${jenis==='ibu_ibu' ? 'jamaah perempuan yang sudah menikah' : 'usia (Pra Remaja s/d Istimewa)'}${jenis==='sub'?' + Sub Pengajian yang ditandai di Data Jamaah':''}. Kalau ada yang perlu dikecualikan atau ditambahkan di luar itu, atur di sini.
           </div>
 
           <div class="fw-bold" style="font-size:12.5px; margin-bottom:8px;">+ Tambahkan Peserta di Luar Kriteria</div>
@@ -7166,7 +7178,7 @@ async function renderAbsensiPengajian() {
       } catch(e) { showToast('Gagal menambah: ' + e.message, true); }
     };
     window.PGJ_keluarkanPeserta = async (jamaahId, nama) => {
-      if (!confirm(`Keluarkan "${nama}" dari daftar peserta ${jenis==='sub'?'Sub Pengajian ini':'Pengajian Kelompok'}?`)) return;
+      if (!confirm(`Keluarkan "${nama}" dari daftar peserta ${jenis==='sub'?'Sub Pengajian ini':'Pengajian '+pengajianJenisLabel(jenis)}?`)) return;
       try {
         await SB.pengajianOverride.insert({
           kelompok_id: u.kelompok_id, jenis, sub_pengajian_id: jenis==='sub'?selectedSubId:null,
@@ -7190,17 +7202,6 @@ async function renderAbsensiPengajian() {
 
     await renderModal();
     openModal('pgjPesertaModal');
-  };
-
-  window.PGJ_simpanMateri = async () => {
-    const materi = document.getElementById('pgjMateriInput')?.value.trim() || null;
-    try {
-      await SB.pengajianPertemuan.update(currentPertemuanId, { materi });
-      const p = pertemuanList.find(x => x.id === currentPertemuanId);
-      if (p) p.materi = materi;
-      logActivity('ubah', 'Absensi Pengajian', `Simpan materi pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'}`);
-      showToast('Materi tersimpan ✓');
-    } catch(e) { showToast('Gagal menyimpan materi: ' + e.message, true); }
   };
 
   window.PGJ_scanQR = async () => {
@@ -7299,7 +7300,7 @@ async function renderAbsensiPengajian() {
     if (!confirm(`Hapus pertemuan ke-${pertemuanKe} (${fmtDateShort(p.tanggal)}) beserta SEMUA data absensinya?\n\nIni tidak bisa dibatalkan — cocok dipakai kalau ini cuma data uji coba.`)) return;
     try {
       await SB.pengajianPertemuan.delete(currentPertemuanId);
-      logActivity('hapus', 'Absensi Pengajian', `Hapus pertemuan ke-${pertemuanKe} (${jenis==='sub'?'Sub Pengajian':'Kelompok'})`);
+      logActivity('hapus', 'Absensi Pengajian', `Hapus pertemuan ke-${pertemuanKe} (${pengajianJenisLabel(jenis)})`);
       showToast('Pertemuan dihapus');
       currentPertemuanId = null;
       await loadPertemuanList();
@@ -7307,21 +7308,6 @@ async function renderAbsensiPengajian() {
     } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
   };
 
-  window.PGJ_ubahTanggal = async () => {
-    const tglBaru = document.getElementById('pgjTglInput')?.value;
-    const p = pertemuanList.find(x => x.id === currentPertemuanId);
-    if (!tglBaru || !p) return;
-    if (tglBaru === p.tanggal) { showToast('Tanggalnya sama, tidak ada perubahan'); return; }
-    if (!confirm(`Ubah tanggal pertemuan ini dari ${fmtDateShort(p.tanggal)} jadi ${fmtDateShort(tglBaru)}?`)) return;
-    try {
-      const tglObj = new Date(tglBaru+'T00:00:00');
-      await SB.pengajianPertemuan.update(currentPertemuanId, { tanggal: tglBaru, bulan: tglObj.toLocaleDateString('id-ID',{month:'long'}), tahun: tglObj.getFullYear() });
-      showToast('Tanggal pertemuan berhasil diubah ✓');
-      await loadPertemuanList();
-      await loadDetail(currentPertemuanId);
-      render();
-    } catch(e) { showToast('Gagal mengubah tanggal: ' + e.message, true); }
-  };
   window.PGJ_setStatus = (jamaahId, status) => {
     absensiMap[jamaahId] = status;
     render();
@@ -7330,6 +7316,22 @@ async function renderAbsensiPengajian() {
     const btn = document.getElementById('pgjSaveBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
     try {
+      // Simpan perubahan tanggal & materi kalau ada yang diubah, sekalian dalam 1 aksi
+      const p = pertemuanList.find(x => x.id === currentPertemuanId);
+      const tglBaru = document.getElementById('pgjTglInput')?.value;
+      const materiBaru = document.getElementById('pgjMateriInput')?.value.trim() || null;
+      const updatePayload = {};
+      if (tglBaru && p && tglBaru !== p.tanggal) {
+        const tglObj = new Date(tglBaru+'T00:00:00');
+        updatePayload.tanggal = tglBaru;
+        updatePayload.bulan = tglObj.toLocaleDateString('id-ID',{month:'long'});
+        updatePayload.tahun = tglObj.getFullYear();
+      }
+      if (materiBaru !== (p?.materi ?? null)) updatePayload.materi = materiBaru;
+      if (Object.keys(updatePayload).length) {
+        await SB.pengajianPertemuan.update(currentPertemuanId, updatePayload);
+        if (p) Object.assign(p, updatePayload);
+      }
       // Peserta "virtual" (cuma data Santri, belum ada baris Jamaah asli) yang mau ditandai
       // kehadirannya WAJIB dibikinkan baris Jamaah asli dulu — pengajian_absensi.jamaah_id
       // itu FK ke tabel jamaah asli, gak bisa nunjuk ke id semu.
@@ -7352,12 +7354,14 @@ async function renderAbsensiPengajian() {
         pertemuan_id: currentPertemuanId, jamaah_id: x.id, status: absensiMap[x.id],
       }));
       if (rows.length) await SB.pengajianAbsensi.upsertBulk(rows);
-      logActivity('ubah', 'Absensi Pengajian', `Simpan absensi pertemuan ${jenis==='sub'?'Sub Pengajian':'Kelompok'}`);
-      showToast('Absensi tersimpan ✓');
+      logActivity('ubah', 'Absensi Pengajian', `Simpan perubahan pertemuan ${pengajianJenisLabel(jenis)}`);
+      showToast('Semua perubahan tersimpan ✓');
+      if (updatePayload.tanggal) { await loadPertemuanList(); await loadDetail(currentPertemuanId); }
     } catch(e) {
       showToast('Gagal menyimpan: ' + e.message, true);
     }
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Simpan Absensi'; }
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Simpan Semua Perubahan'; }
+    render();
   };
 
   await loadPertemuanList();
