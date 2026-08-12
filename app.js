@@ -6856,9 +6856,23 @@ async function renderAbsensiPengajian() {
       <div class="card" style="margin-bottom:14px;">
         <div style="display:flex; gap:20px; flex-wrap:wrap;">
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Rata-rata Kehadiran 3 Bulan</span><div style="font-size:22px; font-weight:800; color:${pctKeseluruhan<50?'var(--rose)':'var(--green)'};">${pctKeseluruhan}%</div></div>
-          <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Generus</span><div style="font-size:22px; font-weight:800; color:var(--green);">${jamaahEligible.length}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Jamaah</span><div style="font-size:22px; font-weight:800; color:var(--green);">${jamaahEligible.length}</div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Total Pertemuan (3 bulan)</span><div style="font-size:22px; font-weight:800; color:var(--green);">${totalKeseluruhan}</div></div>
         </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="fw-bold" style="font-size:12.5px; margin-bottom:10px;">⚠️ Hadir di Bawah 50% per Bulan</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${perBulanData.map(d => {
+            const key = `${d.bulan} ${d.tahun}`;
+            const jml = rekapBawah50[key]?.length ?? 0;
+            return `<button class="btn btn-outline btn-sm" onclick="PGJ_lihatBawah50('${key}')" ${rekapBawah50[key]===null?'disabled':''}>
+              Hadir &lt; 50% — ${d.bulan.slice(0,3)} (${rekapBawah50[key]===null?'blm ada ptm':jml})
+            </button>`;
+          }).join('')}
+        </div>
+        <div id="pgjBawah50List" style="display:none; margin-top:12px; padding:12px; background:var(--cream-2); border-radius:8px; font-size:12.5px;"></div>
       </div>
 
       <div class="card" style="padding:0; overflow:hidden;">
@@ -6876,20 +6890,6 @@ async function renderAbsensiPengajian() {
             }).join('')}
           </tr>`).join('') : `<tr><td colspan="4" style="padding:20px; text-align:center; color:var(--ink-soft); font-size:12.5px;">${jenis==='sub' ? 'Belum ada generus yang ditandai masuk sub ini.' : 'Belum ada generus usia Pra Remaja ke atas di Data Jamaah.'}</td></tr>`}</tbody>
         </table></div>
-      </div>
-
-      <div class="card" style="margin-top:14px;">
-        <div class="fw-bold" style="font-size:12.5px; margin-bottom:10px;">⚠️ Hadir di Bawah 50% per Bulan</div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          ${perBulanData.map(d => {
-            const key = `${d.bulan} ${d.tahun}`;
-            const jml = rekapBawah50[key]?.length ?? 0;
-            return `<button class="btn btn-outline btn-sm" onclick="PGJ_lihatBawah50('${key}')" ${rekapBawah50[key]===null?'disabled':''}>
-              Hadir &lt; 50% — ${d.bulan.slice(0,3)} (${rekapBawah50[key]===null?'blm ada ptm':jml})
-            </button>`;
-          }).join('')}
-        </div>
-        <div id="pgjBawah50List" style="display:none; margin-top:12px; padding:12px; background:var(--cream-2); border-radius:8px; font-size:12.5px;"></div>
       </div>
     `;
   }
@@ -6928,7 +6928,7 @@ async function renderAbsensiPengajian() {
           <div class="form-group" style="margin:0;"><label style="font-size:11px;">Tahun</label>
             <select id="pgjTahun" onchange="PGJ_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
           </div>
-          ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<button class="btn btn-green btn-sm" onclick="PGJ_buatBaru()">+ Pertemuan Baru</button>` : ''}
+          ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<div class="form-group" style="margin:0;"><label style="font-size:11px; visibility:hidden;">.</label><button class="btn btn-green" style="padding:10px 16px; font-size:13.5px; height:auto;" onclick="PGJ_buatBaru()">+ Pertemuan Baru</button></div>` : ''}
           ` : `
           <div class="form-group" style="margin:0;"><label style="font-size:11px;">Kuartal</label>
             <select id="pgjRekapBulan" onchange="PGJ_gantiRekapPeriode()">
