@@ -11418,21 +11418,27 @@ async function renderMusyawarah() {
           <!-- NOTULENSI -->
           <div id="musNotulensiArea" style="display:none;">
             <div style="font-size:13px; font-weight:700; color:var(--green); margin-bottom:10px; border-top:2px solid var(--green); padding-top:12px;">📝 Notulensi Pembahasan</div>
-            <div style="margin-bottom:10px;">
-              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
-              <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+            <div id="musNotulensiStandar">
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
+                <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Kendala</label>
+                <textarea id="musKendalaInline" rows="2" placeholder="Kendala yang dihadapi..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+              </div>
+              <div style="margin-bottom:10px;">
+                <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Solusi</label>
+                <textarea id="musSolusiInline" rows="2" placeholder="Solusi yang disepakati..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+              </div>
+              <div style="margin-bottom:14px;">
+                <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tindak Lanjut</label>
+                <textarea id="musTindakLanjutInline" rows="2" placeholder="Tindak lanjut, PIC, target waktu..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+              </div>
             </div>
-            <div style="margin-bottom:10px;">
-              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Kendala</label>
-              <textarea id="musKendalaInline" rows="2" placeholder="Kendala yang dihadapi..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
-            </div>
-            <div style="margin-bottom:10px;">
-              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Solusi</label>
-              <textarea id="musSolusiInline" rows="2" placeholder="Solusi yang disepakati..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
-            </div>
-            <div style="margin-bottom:14px;">
-              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tindak Lanjut</label>
-              <textarea id="musTindakLanjutInline" rows="2" placeholder="Tindak lanjut, PIC, target waktu..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+            <div id="musNotulensiKelompokUmum" style="display:none; margin-bottom:14px;">
+              <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Hasil Musyawarah</label>
+              <textarea id="musHasilInline" rows="10" placeholder="Tuliskan hasil pembahasan musyawarah kelompok di sini — bebas panjang, sesuai kebutuhan..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
             </div>
           </div>
 
@@ -11491,7 +11497,7 @@ async function renderMusyawarah() {
           </div>` : ''}
         </div>
         <div style="display:grid; gap:8px;">
-          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">Pencapaian Materi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.pencapaian)}</div></div>` : ''}
+          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">${m.level==='kelompok_umum'?'Hasil Musyawarah':'Pencapaian Materi'}</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.pencapaian)}</div></div>` : ''}
           ${m.kendala ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--rose); margin-bottom:3px;">Kendala</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.kendala)}</div></div>` : ''}
           ${m.solusi ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--gold); margin-bottom:3px;">Solusi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.solusi)}</div></div>` : ''}
           ${m.tindak_lanjut ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:3px;">Tindak Lanjut</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.tindak_lanjut)}</div></div>` : ''}
@@ -12060,6 +12066,15 @@ async function renderMusyawarah() {
     MUS_renderAbsensiInline();
     absensiArea.style.display = 'block';
     notulensiArea.style.display = 'block';
+    const notulensiStandar = document.getElementById('musNotulensiStandar');
+    const notulensiKelompokUmum = document.getElementById('musNotulensiKelompokUmum');
+    if (level === 'kelompok_umum') {
+      notulensiStandar.style.display = 'none';
+      notulensiKelompokUmum.style.display = 'block';
+    } else {
+      notulensiStandar.style.display = 'block';
+      notulensiKelompokUmum.style.display = 'none';
+    }
     saveBtn.style.display = 'block';
   };
 
@@ -12221,7 +12236,9 @@ async function renderMusyawarah() {
     const data = {
       level, tanggal, bulan,
       tahun: new Date(tanggal).getFullYear(),
-      pencapaian: document.getElementById('musPencapaianInline')?.value.trim() || null,
+      pencapaian: level === 'kelompok_umum'
+        ? (document.getElementById('musHasilInline')?.value.trim() || null)
+        : (document.getElementById('musPencapaianInline')?.value.trim() || null),
       kendala: document.getElementById('musKendalaInline')?.value.trim() || null,
       solusi: document.getElementById('musSolusiInline')?.value.trim() || null,
       tindak_lanjut: document.getElementById('musTindakLanjutInline')?.value.trim() || null,
@@ -12264,6 +12281,8 @@ async function renderMusyawarah() {
       document.getElementById('musKendalaInline').value = '';
       document.getElementById('musSolusiInline').value = '';
       document.getElementById('musTindakLanjutInline').value = '';
+      const musHasilEl = document.getElementById('musHasilInline');
+      if (musHasilEl) musHasilEl.value = '';
       musInlineTamu = [];
       musInlinePeserta.forEach(p => { delete musInlineAbsensi[p.id]; });
       MUS_renderAbsensiInline();
@@ -12449,6 +12468,15 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
         <label>Peserta Hadir</label>
         <textarea id="musPeserta" rows="3" placeholder="Nama-nama peserta yang hadir, jabatan, dll...">${escHtml(m?.peserta||'')}</textarea>
       </div>
+      ${m?.level === 'kelompok_umum' ? `
+      <div class="form-group">
+        <label>Hasil Musyawarah</label>
+        <textarea id="musPencapaian" rows="10" placeholder="Tuliskan hasil pembahasan musyawarah kelompok di sini — bebas panjang, sesuai kebutuhan...">${escHtml(m?.pencapaian||'')}</textarea>
+      </div>
+      <input type="hidden" id="musKendala" value="">
+      <input type="hidden" id="musSolusi" value="">
+      <input type="hidden" id="musTindakLanjut" value="">
+      ` : `
       <div class="form-group">
         <label>Pencapaian Materi</label>
         <textarea id="musPencapaian" rows="4" placeholder="Pencapaian target materi bulan ini per kelas usia, capaian KBM, dll...">${escHtml(m?.pencapaian||'')}</textarea>
@@ -12465,6 +12493,7 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
         <label>Tindak Lanjut</label>
         <textarea id="musTindakLanjut" rows="3" placeholder="Tindak lanjut yang akan dilaksanakan, PIC, dan target waktu...">${escHtml(m?.tindak_lanjut||'')}</textarea>
       </div>
+      `}
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="closeModal('musyawarahModal')">Batal</button>
