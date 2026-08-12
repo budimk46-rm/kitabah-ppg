@@ -6789,7 +6789,10 @@ async function renderAbsensiPengajian() {
     // Santri lama yang ditautkan lewat santri_id (bukan anak_jamaah_id) tetap harus ketemu —
     // jamaah row-nya sendiri (kalau ada, dari "Jadikan Santri") yang punya x.santri_id itu.
     const santriIdToJamId = new Map(jamList.filter(x => x.santri_id).map(x => [x.santri_id, x.id]));
-    const links = await SB.jamaahKeluarga.getByJamaahIds(jamList.map(x=>x.id)) || [];
+    // Baris "virtual" (santri yg belum punya jamaah asli) ID-nya bukan UUID asli — jangan
+    // ikut dikirim ke query ini (cuma jamaah ASLI yg bisa jadi ortu/jamaah_id di tabel ini).
+    const realIds = jamList.filter(x => !x._virtual).map(x => x.id);
+    const links = await SB.jamaahKeluarga.getByJamaahIds(realIds) || [];
     const linksByParent = new Map();
     links.forEach(l => { (linksByParent.get(l.jamaah_id) || linksByParent.set(l.jamaah_id, []).get(l.jamaah_id)).push(l); });
 
