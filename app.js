@@ -6742,6 +6742,27 @@ async function renderAbsensiPengajian() {
   async function loadEligibleJamaah() {
     allJamaahKelompok = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
     let base = allJamaahKelompok.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+
+    // Santri yang cuma ada di Data Generus (belum pernah "Jadikan Santri" dari Data Jamaah,
+    // jadi belum punya baris jamaah asli) tetap harus ikut ditawarkan di sini kalau usianya
+    // masuk kriteria — dibikinkan "baris virtual" (persis pola yg sama dgn Data Jamaah),
+    // supaya gak invisible cuma karena jalur masuknya beda (lewat Kelola Kelas Generus).
+    const [santriKelompok, santriBelumMasukKelas] = await Promise.all([
+      SB.santri.getByKelompok(u.kelompok_id) || [],
+      SB.santri.getUnassigned(u.kelompok_id) || [],
+    ]);
+    const semuaSantriKelompok = [...(santriKelompok||[]), ...(santriBelumMasukKelas||[])];
+    const santriIdSudahAdaJamaah = new Set(allJamaahKelompok.filter(x => x.santri_id).map(x => x.santri_id));
+    semuaSantriKelompok.forEach(s => {
+      if (santriIdSudahAdaJamaah.has(s.id)) return; // udah ada baris jamaah asli, gak usah didobel
+      const kat = kategoriUsiaJamaah(s.tgl_lahir, null);
+      if (!PENGAJIAN_ELIGIBLE_KAT.includes(kat)) return;
+      base.push({
+        id: 'virtual_santri_' + s.id, nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir,
+        santri_id: s.id, status_menikah: null, keterangan: null, no_hp: null, _virtual: true,
+      });
+    });
+
     if (jenis === 'sub') base = base.filter(x => x.sub_pengajian_id === selectedSubId);
 
     // Terapkan tambah/keluarkan manual (di luar kriteria otomatis)
@@ -7102,7 +7123,7 @@ async function renderAbsensiPengajian() {
           <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:6px 10px; margin-bottom:10px;">
             ${jamaahEligible.length ? jamaahEligible.map(x => `<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px;">
               <span>${escHtml(gelarNama(x))}</span>
-              <button class="btn-icon danger" onclick="PGJ_keluarkanPeserta('${x.id}','${escHtml(x.nama)}')" title="Keluarkan dari daftar peserta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              ${x._virtual ? '<span style="font-size:10px; color:var(--ink-soft); font-style:italic;">Data Santri</span>' : `<button class="btn-icon danger" onclick="PGJ_keluarkanPeserta('${x.id}','${escHtml(x.nama)}')" title="Keluarkan dari daftar peserta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`}
             </div>`).join('') : '<div style="font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada peserta.</div>'}
           </div>
 
@@ -7295,6 +7316,24 @@ async function renderAbsensiPengajian() {
     const btn = document.getElementById('pgjSaveBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
     try {
+      // Peserta "virtual" (cuma data Santri, belum ada baris Jamaah asli) yang mau ditandai
+      // kehadirannya WAJIB dibikinkan baris Jamaah asli dulu — pengajian_absensi.jamaah_id
+      // itu FK ke tabel jamaah asli, gak bisa nunjuk ke id semu.
+      for (const x of jamaahEligible) {
+        if (x._virtual && absensiMap[x.id]) {
+          const res = await SB.jamaah.insert({
+            kelompok_id: u.kelompok_id, nama: x.nama, jenis_kelamin: x.jenis_kelamin,
+            tgl_lahir: x.tgl_lahir, santri_id: x.santri_id, aktif: true,
+          });
+          const jamaahIdBaru = res?.[0]?.id;
+          if (jamaahIdBaru) {
+            absensiMap[jamaahIdBaru] = absensiMap[x.id];
+            delete absensiMap[x.id];
+            x.id = jamaahIdBaru;
+            x._virtual = false;
+          }
+        }
+      }
       const rows = jamaahEligible.filter(x => absensiMap[x.id]).map(x => ({
         pertemuan_id: currentPertemuanId, jamaah_id: x.id, status: absensiMap[x.id],
       }));
