@@ -7630,14 +7630,11 @@ async function renderPenerobosanEntry() {
       if (x.jenis_kelamin === 'L') jamaahCount[kat].L++;
       else if (x.jenis_kelamin === 'P') jamaahCount[kat].P++;
     });
-    // Santri yang TERTAUT KELUARGA tapi belum punya baris jamaah asli — di Data Jamaah
-    // ini muncul sebagai "baris bayangan" dan IKUT kehitung di totalnya. Supaya Penerobosan
-    // sinkron sama Data Jamaah, orang2 ini juga harus ikut dihitung di sini.
-    const santriIdTertaut = new Set(
-      (await SB.jamaahKeluarga.getBySantriIds((santriKlpAuto||[]).map(s => s.id)) || []).map(l => l.santri_id)
-    );
+    // Semua santri yang belum punya baris jamaah asli — di Data Jamaah ini muncul sebagai
+    // "baris bayangan" dan IKUT kehitung di totalnya (tertaut keluarga atau belum, sama-sama
+    // dihitung — tautan keluarga cuma pengaruh urutan tampil, bukan penentu ikut kehitung).
     (santriKlpAuto||[]).forEach(s => {
-      if (santriIdSudahTerhitung.has(s.id) || !santriIdTertaut.has(s.id)) return;
+      if (santriIdSudahTerhitung.has(s.id)) return;
       const kat = PENEROBOSAN_KATEGORI_MAP[kategoriDariSantriAuto.get(s.id)];
       if (!kat) return;
       if (s.jenis_kel === 'L') jamaahCount[kat].L++;
@@ -8114,13 +8111,10 @@ async function renderPenerobosanDesa() {
         if (!kat) { jamaahBelumDiketahui++; return; }
         if (x.jenis_kelamin === 'L') cnt[kat].L++; else if (x.jenis_kelamin === 'P') cnt[kat].P++;
       });
-      // Santri tertaut keluarga tapi belum punya baris jamaah asli — sinkron sama "baris
-      // bayangan" yg ikut kehitung di total Data Jamaah.
-      const santriIdTertautDesa = new Set(
-        (await SB.jamaahKeluarga.getBySantriIds((santriKlpDesa||[]).map(s => s.id)) || []).map(l => l.santri_id)
-      );
+      // Semua santri yang belum punya baris jamaah asli — sinkron sama "baris bayangan"
+      // yg ikut kehitung di total Data Jamaah (tertaut keluarga atau belum, sama-sama dihitung).
       (santriKlpDesa||[]).forEach(s => {
-        if (santriIdSudahTerhitungDesa.has(s.id) || !santriIdTertautDesa.has(s.id)) return;
+        if (santriIdSudahTerhitungDesa.has(s.id)) return;
         const kat = PENEROBOSAN_KATEGORI_MAP_DESA[kategoriDariSantriDesa.get(s.id)];
         if (!kat) return;
         if (s.jenis_kel === 'L') cnt[kat].L++; else if (s.jenis_kel === 'P') cnt[kat].P++;
@@ -8712,15 +8706,13 @@ async function renderJamaahEntry() {
     linksByJamaahId = new Map();
     allLinks.forEach(l => { (linksByJamaahId.get(l.jamaah_id) || linksByJamaahId.set(l.jamaah_id, []).get(l.jamaah_id)).push(l); });
 
-    // Santri yang ditautkan lewat santri_id TAPI gak punya baris Data Jamaah sendiri (santri lama,
-    // gak pernah lewat "Jadikan Santri") — dibikinkan baris "virtual" (cuma buat tampilan, gak
-    // tersimpan) supaya tetap bisa ikut ke-grup di bawah nama ortunya di tabel keluarga.
-    const orphanLinkedSantriIds = new Set(
-      allLinks.filter(l => l.santri_id && !santriIdToJamaahRow.has(l.santri_id)).map(l => l.santri_id)
-    );
-    orphanLinkedSantriIds.forEach(sid => {
-      const s = santriKlp.find(x => x.id === sid);
-      if (!s) return;
+    // Santri yang belum punya baris Data Jamaah sendiri (belum pernah lewat "Jadikan Santri")
+    // dibikinkan baris "virtual" (cuma buat tampilan, gak tersimpan) — SEMUA santri begini,
+    // TERTAUT KELUARGA ATAU BELUM SAMA SEKALI, supaya tetap ikut kehitung di jumlah/kategori.
+    // Tautan keluarga cuma pengaruh ke URUTAN tampil (nempel di bawah ortu atau di daftar sisa),
+    // BUKAN penentu ikut kehitung atau tidak.
+    const santriIdSudahAdaJamaah = new Set(santriIdToJamaahRow.keys());
+    santriKlp.filter(s => !santriIdSudahAdaJamaah.has(s.id)).forEach(s => {
       const virtualRow = {
         id: 'virtual_santri_' + s.id, nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir,
         santri_id: s.id, status_menikah: null, keterangan: null, no_hp: null, _virtual: true,
