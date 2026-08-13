@@ -65,6 +65,18 @@ const TINGKATAN_COLORS = {
   pra_nikah: 'badge-gray',
 };
 
+// Tingkatan dari NAMA KELAS ASLI yang diikuti santri (kelas_id) — ini yang dipakai
+// sebagai ACUAN UTAMA di mana pun perlu ngitung jumlah per tingkatan, BUKAN hasil hitung
+// usia (hitungTingkatan di bawah pakai patokan 1 Juli, bisa beda dari kelas sebenarnya).
+function tingkatanDariKelas(namaKelas) {
+  const nm = (namaKelas||'').toUpperCase().trim();
+  if (nm.startsWith('CABERAWIT')) return 'caberawit';
+  if (nm.startsWith('PRA REMAJA')) return 'pra_remaja';
+  if (nm.startsWith('REMAJA')) return 'remaja';
+  if (nm.startsWith('PRA NIKAH')) return 'pra_nikah';
+  return null;
+}
+
 // Hitung tingkatan otomatis dari tanggal lahir
 // Tahun ajaran mulai Juli — usia dihitung per 1 Juli tahun berjalan
 function hitungTingkatan(tglLahir) {
@@ -2661,7 +2673,7 @@ async function renderSantri() {
     TINGKATAN_LIST.forEach(t => { s[t] = {L:0, P:0}; });
     s.total = {L:0, P:0};
     santriArr.forEach(x => {
-      const t = x.tingkatan_override ? x.tingkatan : hitungTingkatan(x.tgl_lahir);
+      const t = tingkatanDariKelas(x.kelas?.nama_kelas) || (x.tingkatan_override ? x.tingkatan : hitungTingkatan(x.tgl_lahir));
       const jk = x.jenis_kel;
       if (t && s[t] && (jk === 'L' || jk === 'P')) {
         s[t][jk]++;
@@ -7593,13 +7605,25 @@ async function renderPenerobosanEntry() {
   let lastData = null;
 
   async function loadAuto() {
-    const jamaahList = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
+    const [jamaahList, santriKlpAuto] = await Promise.all([
+      SB.jamaah.getByKelompok(u.kelompok_id) || [],
+      SB.santri.getByKelompok(u.kelompok_id) || [],
+    ]);
+    // Data Santri (kelas asli) jadi ACUAN UTAMA kalau jamaah-nya tertaut ke santri —
+    // biar sejalan sama Data Jamaah & Data Santri, bukan ngitung usia sendiri terpisah.
+    const kategoriDariSantriAuto = new Map();
+    (santriKlpAuto||[]).forEach(s => {
+      const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
+      if (kat) kategoriDariSantriAuto.set(s.id, kat);
+    });
+
     const jamaahCount = {};
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { jamaahCount[k] = { L:0, P:0 }; });
     let jamaahBelumDiketahui = 0;
     jamaahList.forEach(x => {
       const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
-      const kat = PENEROBOSAN_KATEGORI_MAP[katUsia];
+      const katSantri = x.santri_id ? kategoriDariSantriAuto.get(x.santri_id) : null;
+      const kat = PENEROBOSAN_KATEGORI_MAP[katSantri || katUsia];
       if (!kat) { jamaahBelumDiketahui++; return; }
       if (x.jenis_kelamin === 'L') jamaahCount[kat].L++;
       else if (x.jenis_kelamin === 'P') jamaahCount[kat].P++;
@@ -8055,11 +8079,21 @@ async function renderPenerobosanDesa() {
 
   async function loadData() {
     const perKelompok = await Promise.all(kelompokList.map(async klp => {
-      const jamaahList = await SB.jamaah.getByKelompok(klp.id) || [];
+      const [jamaahList, santriKlpDesa] = await Promise.all([
+        SB.jamaah.getByKelompok(klp.id) || [],
+        SB.santri.getByKelompok(klp.id) || [],
+      ]);
+      const kategoriDariSantriDesa = new Map();
+      (santriKlpDesa||[]).forEach(s => {
+        const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
+        if (kat) kategoriDariSantriDesa.set(s.id, kat);
+      });
       const cnt = {}; PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { cnt[k] = { L:0, P:0 }; });
       let jamaahBelumDiketahui = 0;
       jamaahList.forEach(x => {
-        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)];
+        const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+        const katSantri = x.santri_id ? kategoriDariSantriDesa.get(x.santri_id) : null;
+        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[katSantri || katUsia];
         if (!kat) { jamaahBelumDiketahui++; return; }
         if (x.jenis_kelamin === 'L') cnt[kat].L++; else if (x.jenis_kelamin === 'P') cnt[kat].P++;
       });
