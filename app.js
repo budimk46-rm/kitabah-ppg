@@ -7620,13 +7620,28 @@ async function renderPenerobosanEntry() {
     const jamaahCount = {};
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { jamaahCount[k] = { L:0, P:0 }; });
     let jamaahBelumDiketahui = 0;
+    const santriIdSudahTerhitung = new Set();
     jamaahList.forEach(x => {
       const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
       const katSantri = x.santri_id ? kategoriDariSantriAuto.get(x.santri_id) : null;
       const kat = PENEROBOSAN_KATEGORI_MAP[katSantri || katUsia];
+      if (x.santri_id) santriIdSudahTerhitung.add(x.santri_id);
       if (!kat) { jamaahBelumDiketahui++; return; }
       if (x.jenis_kelamin === 'L') jamaahCount[kat].L++;
       else if (x.jenis_kelamin === 'P') jamaahCount[kat].P++;
+    });
+    // Santri yang TERTAUT KELUARGA tapi belum punya baris jamaah asli — di Data Jamaah
+    // ini muncul sebagai "baris bayangan" dan IKUT kehitung di totalnya. Supaya Penerobosan
+    // sinkron sama Data Jamaah, orang2 ini juga harus ikut dihitung di sini.
+    const santriIdTertaut = new Set(
+      (await SB.jamaahKeluarga.getBySantriIds((santriKlpAuto||[]).map(s => s.id)) || []).map(l => l.santri_id)
+    );
+    (santriKlpAuto||[]).forEach(s => {
+      if (santriIdSudahTerhitung.has(s.id) || !santriIdTertaut.has(s.id)) return;
+      const kat = PENEROBOSAN_KATEGORI_MAP[kategoriDariSantriAuto.get(s.id)];
+      if (!kat) return;
+      if (s.jenis_kel === 'L') jamaahCount[kat].L++;
+      else if (s.jenis_kel === 'P') jamaahCount[kat].P++;
     });
 
     const pengurus = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
@@ -8090,12 +8105,25 @@ async function renderPenerobosanDesa() {
       });
       const cnt = {}; PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { cnt[k] = { L:0, P:0 }; });
       let jamaahBelumDiketahui = 0;
+      const santriIdSudahTerhitungDesa = new Set();
       jamaahList.forEach(x => {
         const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
         const katSantri = x.santri_id ? kategoriDariSantriDesa.get(x.santri_id) : null;
         const kat = PENEROBOSAN_KATEGORI_MAP_DESA[katSantri || katUsia];
+        if (x.santri_id) santriIdSudahTerhitungDesa.add(x.santri_id);
         if (!kat) { jamaahBelumDiketahui++; return; }
         if (x.jenis_kelamin === 'L') cnt[kat].L++; else if (x.jenis_kelamin === 'P') cnt[kat].P++;
+      });
+      // Santri tertaut keluarga tapi belum punya baris jamaah asli — sinkron sama "baris
+      // bayangan" yg ikut kehitung di total Data Jamaah.
+      const santriIdTertautDesa = new Set(
+        (await SB.jamaahKeluarga.getBySantriIds((santriKlpDesa||[]).map(s => s.id)) || []).map(l => l.santri_id)
+      );
+      (santriKlpDesa||[]).forEach(s => {
+        if (santriIdSudahTerhitungDesa.has(s.id) || !santriIdTertautDesa.has(s.id)) return;
+        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[kategoriDariSantriDesa.get(s.id)];
+        if (!kat) return;
+        if (s.jenis_kel === 'L') cnt[kat].L++; else if (s.jenis_kel === 'P') cnt[kat].P++;
       });
       const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
       const jml4s = pengurus.filter(p => PENEROBOSAN_4S.includes(p.jabatan)).length;
