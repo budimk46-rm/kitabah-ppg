@@ -451,7 +451,31 @@ function formFieldHtml(f) {
   if (f.type === 'tel') {
     return `<input type="tel" inputmode="numeric" id="pf_${f.key}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')">`;
   }
+  if (f.type === 'date') return tanggalLahirDropdownHtml(f.key);
   return `<input type="${f.type}" id="pf_${f.key}">`;
+}
+
+// Kotak Tanggal/Bulan/Tahun terpisah — GANTI <input type="date"> yang di HP defaultnya
+// selalu nunjuk tahun SEKARANG, gampang kelupaan kegeser pas orang isi tanggal lahir sendiri
+// (banyak kejadian: taggal-bulan bener, tapi tahunnya lupa diganti dari tahun sekarang).
+function tanggalLahirDropdownHtml(fieldKey) {
+  const tahunSekarang = new Date().getFullYear();
+  const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const opsiTgl = Array.from({length:31}, (_,i) => i+1);
+  const opsiTahun = Array.from({length:100}, (_,i) => tahunSekarang - i); // sampai 100 tahun ke belakang
+  return `<div style="display:flex; gap:6px;">
+    <select id="pf_${fieldKey}_tgl" style="flex:0.8;"><option value="">Tgl</option>${opsiTgl.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+    <select id="pf_${fieldKey}_bln" style="flex:1.6;"><option value="">Bulan</option>${namaBulan.map((b,i)=>`<option value="${i+1}">${b}</option>`).join('')}</select>
+    <select id="pf_${fieldKey}_thn" style="flex:1;"><option value="">Tahun</option>${opsiTahun.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+  </div>`;
+}
+// Gabungkan hasil ke-3 dropdown itu jadi 1 string ISO (YYYY-MM-DD), atau '' kalau ada yg kosong
+function bacaTanggalDropdown(fieldKey) {
+  const tgl = document.getElementById(`pf_${fieldKey}_tgl`)?.value;
+  const bln = document.getElementById(`pf_${fieldKey}_bln`)?.value;
+  const thn = document.getElementById(`pf_${fieldKey}_thn`)?.value;
+  if (!tgl || !bln || !thn) return '';
+  return `${thn}-${String(bln).padStart(2,'0')}-${String(tgl).padStart(2,'0')}`;
 }
 
 async function renderPublicForm(jenis, scope) {
@@ -510,7 +534,7 @@ async function renderPublicForm(jenis, scope) {
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label>Tanggal Lahir</label>
-        <input type="date" id="pf_tgl_lahir">
+        ${tanggalLahirDropdownHtml('tgl_lahir')}
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label>No. HP / WhatsApp</label>
@@ -556,7 +580,7 @@ async function renderPublicForm(jenis, scope) {
       data.nama = document.getElementById('pf_nama')?.value.trim() || '';
       data.kategori = document.getElementById('pfKategori')?.value || '';
       data.dapukan = document.getElementById('pfDapukan')?.value || '';
-      data.tgl_lahir = document.getElementById('pf_tgl_lahir')?.value || '';
+      data.tgl_lahir = bacaTanggalDropdown('tgl_lahir');
       data.no_hp = document.getElementById('pf_no_hp')?.value.trim() || '';
       if (!data.nama || !data.dapukan) {
         document.getElementById('pfAlert').innerHTML = `<div class="alert alert-danger">Mohon lengkapi Nama dan Dapukan</div>`;
@@ -566,6 +590,8 @@ async function renderPublicForm(jenis, scope) {
       for (const f of config.fields) {
         if (f.type === 'checkbox-group') {
           data[f.key] = Array.from(document.querySelectorAll(`.pf_cb_${f.key}:checked`)).map(c=>c.value).join(',');
+        } else if (f.type === 'date') {
+          data[f.key] = bacaTanggalDropdown(f.key);
         } else {
           const el = document.getElementById('pf_' + f.key);
           data[f.key] = el ? el.value.trim() : '';
@@ -7559,9 +7585,11 @@ async function renderPenerobosanEntry() {
     const jamaahList = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
     const jamaahCount = {};
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { jamaahCount[k] = { L:0, P:0 }; });
+    let jamaahBelumDiketahui = 0;
     jamaahList.forEach(x => {
-      const kat = PENEROBOSAN_KATEGORI_MAP[kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)];
-      if (!kat) return;
+      const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+      const kat = PENEROBOSAN_KATEGORI_MAP[katUsia];
+      if (!kat) { jamaahBelumDiketahui++; return; }
       if (x.jenis_kelamin === 'L') jamaahCount[kat].L++;
       else if (x.jenis_kelamin === 'P') jamaahCount[kat].P++;
     });
@@ -7576,12 +7604,12 @@ async function renderPenerobosanEntry() {
 
     const existing = (await SB.penerobosan.getByKelompokBulan(u.kelompok_id, bulan, tahun) || [])[0] || null;
 
-    return { jamaahCount, p4s, pLain, jumlahMT, jumlahMS, existing };
+    return { jamaahCount, jamaahBelumDiketahui, p4s, pLain, jumlahMT, jumlahMS, existing };
   }
 
   function render(data) {
     lastData = data;
-    const { jamaahCount, p4s, pLain, jumlahMT, jumlahMS, existing } = data;
+    const { jamaahCount, jamaahBelumDiketahui, p4s, pLain, jumlahMT, jumlahMS, existing } = data;
     const totalJamaah = { L:0, P:0 };
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { totalJamaah.L += jamaahCount[k].L; totalJamaah.P += jamaahCount[k].P; });
 
@@ -7604,6 +7632,11 @@ async function renderPenerobosanEntry() {
         </div>
         ${existing ? '<span style="font-size:11px; font-weight:700; color:var(--green); background:var(--green-soft); padding:4px 10px; border-radius:10px;">✓ Sudah pernah disimpan</span>' : '<span style="font-size:11px; color:var(--ink-soft);">Belum ada laporan periode ini</span>'}
       </div>
+
+      ${jamaahBelumDiketahui ? `<div class="card" style="margin-bottom:14px; border:1.5px solid var(--rose); background:var(--rose-soft);">
+        <div style="font-size:12.5px; color:var(--rose); font-weight:700;">⚠️ ${jamaahBelumDiketahui} jamaah belum ada tanggal lahirnya di Data Jamaah</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:3px;">Orang-orang ini tidak ikut terhitung di jumlah otomatis bawah ini (usianya tidak bisa ditentukan) — makanya totalnya bisa lebih kecil dari yang tampil di Data Jamaah. Lengkapi tanggal lahirnya di Data Jamaah supaya ikut terhitung.</div>
+      </div>` : ''}
 
       <div class="card" style="margin-bottom:14px;">
         <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">👥 Jumlah Jamaah — otomatis dari Data Jamaah</div>
@@ -8013,9 +8046,10 @@ async function renderPenerobosanDesa() {
     const perKelompok = await Promise.all(kelompokList.map(async klp => {
       const jamaahList = await SB.jamaah.getByKelompok(klp.id) || [];
       const cnt = {}; PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { cnt[k] = { L:0, P:0 }; });
+      let jamaahBelumDiketahui = 0;
       jamaahList.forEach(x => {
         const kat = PENEROBOSAN_KATEGORI_MAP_DESA[kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)];
-        if (!kat) return;
+        if (!kat) { jamaahBelumDiketahui++; return; }
         if (x.jenis_kelamin === 'L') cnt[kat].L++; else if (x.jenis_kelamin === 'P') cnt[kat].P++;
       });
       const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
@@ -8025,7 +8059,7 @@ async function renderPenerobosanDesa() {
       const jumlahMT = mtMsList.filter(x => x.dapukan === 'MT').length;
       const jumlahMS = mtMsList.filter(x => x.dapukan === 'MS').length;
       const lapKlp = (await SB.penerobosan.getByKelompokBulan(klp.id, bulan, tahun) || [])[0] || null;
-      return { klp, cnt, jml4s, jmlLain, jumlahMT, jumlahMS, lapKlp };
+      return { klp, cnt, jml4s, jmlLain, jumlahMT, jumlahMS, jamaahBelumDiketahui, lapKlp };
     }));
 
     const pengurusDesa = await SB.musPeserta.getByDesa(u.desa_id) || [];
@@ -8053,6 +8087,7 @@ async function renderPenerobosanDesa() {
     });
     let totalJiwa = 0;
     PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { totalJiwa += totals.cnt[k].L + totals.cnt[k].P; });
+    const totalBelumDiketahui = perKelompok.reduce((s, p) => s + (p.jamaahBelumDiketahui||0), 0);
 
     main.innerHTML = `
       <div class="page-header">
@@ -8065,6 +8100,11 @@ async function renderPenerobosanDesa() {
           <button class="btn btn-outline btn-sm" onclick="PEND_downloadPdf()">📥 Download PDF</button>
         </div>` : ''}
       </div>
+
+      ${totalBelumDiketahui ? `<div class="card" style="margin-bottom:14px; border:1.5px solid var(--rose); background:var(--rose-soft);">
+        <div style="font-size:12.5px; color:var(--rose); font-weight:700;">⚠️ ${totalBelumDiketahui} jamaah (gabungan semua kelompok di desa ini) belum ada tanggal lahirnya di Data Jamaah</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:3px;">Orang-orang ini tidak ikut terhitung di jumlah otomatis di bawah — usianya tidak bisa ditentukan. Minta PJP Kelompok terkait melengkapi tanggal lahirnya di Data Jamaah supaya ikut terhitung.</div>
+      </div>` : ''}
 
       <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
