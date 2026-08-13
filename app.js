@@ -17,6 +17,17 @@ function getKelasOrder(namaKelas) {
   if (nm.startsWith('PRA NIKAH')) return 4000 + nm.charCodeAt(nm.length-1);
   return 9000 + nm.charCodeAt(0);
 }
+// Kategori usia (gaya Data Jamaah) dari NAMA KELAS santri — dipakai buat nyocokin data
+// Data Santri vs Data Jamaah (Data Santri jadi acuan, krn itu penempatan kelas yg SEBENARNYA
+// dipakai, bukan cuma hasil hitung usia otomatis)
+function kategoriDariNamaKelas(namaKelas) {
+  const nm = (namaKelas||'').toUpperCase().trim();
+  if (nm.startsWith('CABERAWIT')) return 'Caberawit';
+  if (nm.startsWith('PRA REMAJA')) return 'Pra Remaja';
+  if (nm.startsWith('REMAJA')) return 'Remaja';
+  if (nm.startsWith('PRA NIKAH')) return 'Pra Nikah';
+  return null; // PAUD/TK atau kelas lain di luar 4 kategori yg dibandingkan
+}
 function sortKelas(list) {
   return [...list].sort((a,b) => getKelasOrder(a.nama_kelas) - getKelasOrder(b.nama_kelas));
 }
@@ -8574,11 +8585,13 @@ function kategoriUsiaJamaah(tglLahir, statusMenikah) {
 }
 
 // Tabel rekap detail per kategori usia (dipakai di entri kelompok & rekap desa/daerah)
-function jamaahKategoriTableHtml(list) {
+function jamaahKategoriTableHtml(list, santriKategoriMap) {
   const counts = {};
   KATEGORI_JAMAAH_ORDER.forEach(k => { counts[k] = { L:0, P:0 }; });
   list.forEach(x => {
-    const kat = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+    const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+    const katSantri = santriKategoriMap && x.santri_id ? santriKategoriMap.get(x.santri_id) : null;
+    const kat = (katSantri && katSantri !== katUsia) ? katSantri : katUsia;
     if (!counts[kat]) counts[kat] = { L:0, P:0 };
     if (x.jenis_kelamin === 'L') counts[kat].L++;
     else if (x.jenis_kelamin === 'P') counts[kat].P++;
@@ -8613,7 +8626,7 @@ async function renderJamaahEntry() {
   const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.nama || '';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
-  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set();
+  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set(), kategoriDariSantriMap = new Map();
   let searchQuery = '';
 
   // Susun urutan tampil per keluarga: Suami -> Istri -> Anak 1, 2, dst -> keluarga berikutnya.
@@ -8621,6 +8634,13 @@ async function renderJamaahEntry() {
   async function refreshJamaahData() {
     list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
     santriKlp = await SB.santri.getByKelompok(u.kelompok_id) || [];
+    // Kategori usia versi Data Santri (dari nama kelas asli, BUKAN hitung usia otomatis) —
+    // dipakai buat nyocokin/deteksi beda sama kategori Data Jamaah.
+    kategoriDariSantriMap = new Map();
+    santriKlp.forEach(s => {
+      const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
+      if (kat) kategoriDariSantriMap.set(s.id, kat);
+    });
     const linkedSet = new Set((await SB.jamaahKeluarga.getBySantriIds(santriKlp.map(s => s.id)) || []).map(r => r.santri_id));
     santriBelumTertaut = santriKlp.filter(s => !linkedSet.has(s.id));
 
@@ -8774,7 +8794,7 @@ async function renderJamaahEntry() {
       </div>
 
       <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
-        ${jamaahKategoriTableHtml(list)}
+        ${jamaahKategoriTableHtml(list, kategoriDariSantriMap)}
       </div>
 
       <div class="card" style="margin-bottom:12px;">
@@ -8801,12 +8821,20 @@ async function renderJamaahEntry() {
           <tbody>
             ${filteredListUrut.map(x => {
               const usia = x.tgl_lahir ? hitungUsia(x.tgl_lahir) : null;
-              const kat = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+              const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+              const katSantri = x.santri_id ? kategoriDariSantriMap.get(x.santri_id) : null;
+              const adaBedaKategori = katSantri && katSantri !== katUsia;
+              // Data Santri jadi ACUAN kalau beda dengan hasil hitung usia otomatis —
+              // kelas yg sebenarnya diikuti lebih valid drpd hitungan usia semata.
+              const kat = adaBedaKategori ? katSantri : katUsia;
               return `<tr style="border-bottom:1px solid var(--line);">
                 <td style="padding:7px 10px; font-size:13px; font-weight:600;">${escHtml(x.nama)}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${escHtml(x.jenis_kelamin||'-')}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'}</td>
-                <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Istimewa'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Istimewa'?'700':'500'};">${escHtml(kat)}</td>
+                <td style="padding:7px 10px; font-size:11.5px; color:${kat==='Istimewa'?'var(--gold)':'var(--ink-soft)'}; font-weight:${kat==='Istimewa'?'700':'500'};">
+                  ${escHtml(kat)}
+                  ${adaBedaKategori ? `<div style="margin-top:2px; font-size:10px; color:var(--rose); font-weight:700;" title="Hitungan usia: ${escHtml(katUsia)}, tapi kelas di Data Santri: ${escHtml(katSantri)}. Kategori di sini mengikuti Data Santri.">⚠️ Beda dgn usia (${escHtml(katUsia)})</div>` : ''}
+                </td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">${escHtml(x.no_hp||'-')}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--ink-soft);">
                   ${escHtml(x.keterangan||'-')}
