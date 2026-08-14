@@ -7633,10 +7633,13 @@ async function renderPenerobosanEntry() {
     // Semua santri yang belum punya baris jamaah asli — di Data Jamaah ini muncul sebagai
     // "baris bayangan" dan IKUT kehitung di totalnya (tertaut keluarga atau belum, sama-sama
     // dihitung — tautan keluarga cuma pengaruh urutan tampil, bukan penentu ikut kehitung).
+    // Kalau kelasnya gak dikenali kategoriDariNamaKelas (misal PAUD/TK, bukan salah satu dari
+    // 4 kategori kelas), JANGAN di-skip — fallback ke kategori usia (sama kayak Data Jamaah).
     (santriKlpAuto||[]).forEach(s => {
       if (santriIdSudahTerhitung.has(s.id)) return;
-      const kat = PENEROBOSAN_KATEGORI_MAP[kategoriDariSantriAuto.get(s.id)];
-      if (!kat) return;
+      const katFinal = kategoriDariSantriAuto.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
+      const kat = PENEROBOSAN_KATEGORI_MAP[katFinal];
+      if (!kat) { jamaahBelumDiketahui++; return; }
       if (s.jenis_kel === 'L') jamaahCount[kat].L++;
       else if (s.jenis_kel === 'P') jamaahCount[kat].P++;
     });
@@ -7687,28 +7690,28 @@ async function renderPenerobosanEntry() {
 
       <div class="card" style="margin-bottom:14px;">
         <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">👥 Jumlah Jamaah — otomatis dari Data Jamaah</div>
-        <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:400px;">
+        <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
           <thead><tr style="background:var(--green-soft);">
-            <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:var(--green);">Kategori</th>
-            <th style="padding:6px 8px; text-align:center; font-size:10.5px; color:var(--green);">L</th>
-            <th style="padding:6px 8px; text-align:center; font-size:10.5px; color:var(--green);">P</th>
-            <th style="padding:6px 8px; text-align:center; font-size:10.5px; color:var(--green);">Jumlah</th>
+            <th style="padding:6px 6px; text-align:left; font-size:10px; color:var(--green); width:38%;">Kategori</th>
+            <th style="padding:6px 4px; text-align:center; font-size:10px; color:var(--green);">L</th>
+            <th style="padding:6px 4px; text-align:center; font-size:10px; color:var(--green);">P</th>
+            <th style="padding:6px 4px; text-align:center; font-size:10px; color:var(--green);">Jumlah</th>
           </tr></thead>
           <tbody>
             ${PENEROBOSAN_KATEGORI_ORDER.map(k => `<tr style="border-bottom:1px solid var(--line);">
-              <td style="padding:5px 10px; font-size:12px; font-weight:600;">${k}</td>
-              <td style="padding:5px 8px; text-align:center; font-size:12px;">${jamaahCount[k].L}</td>
-              <td style="padding:5px 8px; text-align:center; font-size:12px;">${jamaahCount[k].P}</td>
-              <td style="padding:5px 8px; text-align:center; font-size:12px; font-weight:700;">${jamaahCount[k].L+jamaahCount[k].P}</td>
+              <td style="padding:5px 6px; font-size:11px; font-weight:600; word-break:break-word;">${k}</td>
+              <td style="padding:5px 4px; text-align:center; font-size:11px;">${jamaahCount[k].L}</td>
+              <td style="padding:5px 4px; text-align:center; font-size:11px;">${jamaahCount[k].P}</td>
+              <td style="padding:5px 4px; text-align:center; font-size:11px; font-weight:700;">${jamaahCount[k].L+jamaahCount[k].P}</td>
             </tr>`).join('')}
             <tr style="background:var(--cream-2);">
-              <td style="padding:6px 10px; font-size:12px; font-weight:800;">TOTAL JIWA JAMAAH</td>
-              <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:800;">${totalJamaah.L}</td>
-              <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:800;">${totalJamaah.P}</td>
-              <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:800; color:var(--green);">${totalJamaah.L+totalJamaah.P}</td>
+              <td style="padding:6px 6px; font-size:11px; font-weight:800;">TOTAL</td>
+              <td style="padding:6px 4px; text-align:center; font-size:11px; font-weight:800;">${totalJamaah.L}</td>
+              <td style="padding:6px 4px; text-align:center; font-size:11px; font-weight:800;">${totalJamaah.P}</td>
+              <td style="padding:6px 4px; text-align:center; font-size:11px; font-weight:800; color:var(--green);">${totalJamaah.L+totalJamaah.P}</td>
             </tr>
           </tbody>
-        </table></div>
+        </table>
         <div style="font-size:11px; color:var(--ink-soft); margin-top:8px;">Data ini bersumber dari menu Data Jamaah. Kalau ada yang kurang/salah, perbaiki di sana, otomatis ikut berubah di sini.</div>
       </div>
 
@@ -8113,10 +8116,12 @@ async function renderPenerobosanDesa() {
       });
       // Semua santri yang belum punya baris jamaah asli — sinkron sama "baris bayangan"
       // yg ikut kehitung di total Data Jamaah (tertaut keluarga atau belum, sama-sama dihitung).
+      // Kelas gak dikenali (misal PAUD/TK) → fallback kategori usia, JANGAN di-skip.
       (santriKlpDesa||[]).forEach(s => {
         if (santriIdSudahTerhitungDesa.has(s.id)) return;
-        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[kategoriDariSantriDesa.get(s.id)];
-        if (!kat) return;
+        const katFinal = kategoriDariSantriDesa.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
+        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[katFinal];
+        if (!kat) { jamaahBelumDiketahui++; return; }
         if (s.jenis_kel === 'L') cnt[kat].L++; else if (s.jenis_kel === 'P') cnt[kat].P++;
       });
       const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
