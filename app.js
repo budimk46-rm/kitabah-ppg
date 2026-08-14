@@ -6765,7 +6765,7 @@ function gelarNama(x) {
 async function renderAbsensiPengajian() {
   const main = document.getElementById('mainContent');
   const u = App.user;
-  const canEdit = u.role === 'pjp_kelompok';
+  const canEdit = u.role === 'pjp_kelompok' || u.role === 'admin';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let jenis = 'kelompok';
@@ -7595,7 +7595,7 @@ async function renderPenerobosan() {
 async function renderPenerobosanEntry() {
   const main = document.getElementById('mainContent');
   const u = App.user;
-  const canEdit = u.role === 'pjp_kelompok';
+  const canEdit = u.role === 'pjp_kelompok' || u.role === 'admin';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const klp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
@@ -8685,13 +8685,14 @@ function jamaahKategoriTableHtml(list, santriKategoriMap) {
 async function renderJamaahEntry() {
   const main = document.getElementById('mainContent');
   const u = App.user;
-  const canEdit = u.role === 'pjp_kelompok';
+  const canEdit = u.role === 'pjp_kelompok' || u.role === 'admin';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.nama || '';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set(), kategoriDariSantriMap = new Map();
   let searchQuery = '';
+  let filterKategori = '';
 
   // Susun urutan tampil per keluarga: Suami -> Istri -> Anak 1, 2, dst -> keluarga berikutnya.
   // Anak bisa berupa jamaah (belum jadi santri) ATAU jamaah yang sudah "Jadikan Santri" (masih ada barisnya di sini).
@@ -8813,9 +8814,18 @@ async function renderJamaahEntry() {
   }) : '';
 
   function render() {
-    const filteredListUrut = searchQuery.trim()
-      ? listUrut.filter(x => (x.nama||'').toLowerCase().includes(searchQuery.trim().toLowerCase()))
-      : listUrut;
+    // Kategori "efektif" — sama persis logic yg dipakai di badge "Beda dgn usia" per baris,
+    // di-share ke sini juga biar filter kategori 100% konsisten sama yg ditampilkan.
+    function kategoriEfektif(x) {
+      const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+      const katSantri = x.santri_id ? kategoriDariSantriMap.get(x.santri_id) : null;
+      return (katSantri && katSantri !== katUsia) ? katSantri : katUsia;
+    }
+    const filteredListUrut = listUrut.filter(x => {
+      if (searchQuery.trim() && !(x.nama||'').toLowerCase().includes(searchQuery.trim().toLowerCase())) return false;
+      if (filterKategori && kategoriEfektif(x) !== filterKategori) return false;
+      return true;
+    });
     main.innerHTML = `
       <div class="page-header">
         <div>
@@ -8860,17 +8870,27 @@ async function renderJamaahEntry() {
       </div>
 
       <div class="card" style="margin-bottom:12px;">
-        <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">🔍 Cari Nama</label>
-          <input type="text" id="jmhSearchInput" value="${escHtml(searchQuery)}" oninput="JMH_search(this.value)" placeholder="Ketik nama yang mau dicari..." style="width:100%;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="form-group" style="margin:0; flex:1; min-width:180px;">
+            <label style="font-size:11px;">🔍 Cari Nama</label>
+            <input type="text" id="jmhSearchInput" value="${escHtml(searchQuery)}" oninput="JMH_search(this.value)" placeholder="Ketik nama yang mau dicari..." style="width:100%;">
+          </div>
+          <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+            <label style="font-size:11px;">Filter Kategori</label>
+            <select id="jmhFilterKategori" onchange="JMH_filterKategori(this.value)" style="width:100%;">
+              <option value="">Semua Kategori</option>
+              ${KATEGORI_JAMAAH_ORDER.map(k => `<option value="${k}" ${filterKategori===k?'selected':''}>${k}</option>`).join('')}
+            </select>
+          </div>
         </div>
-        ${searchQuery.trim() ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:6px;">Menampilkan ${filteredListUrut.length} dari ${listUrut.length} data yang cocok dengan "${escHtml(searchQuery)}"</div>` : ''}
+        ${(searchQuery.trim() || filterKategori) ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:8px;">Menampilkan ${filteredListUrut.length} dari ${listUrut.length} data${searchQuery.trim() ? ` yang cocok dengan "${escHtml(searchQuery)}"` : ''}${filterKategori ? ` (kategori: ${escHtml(filterKategori)})` : ''}</div>` : ''}
       </div>
 
       <div class="card" style="padding:0; overflow:hidden;">
-        ${!list.length ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah. Klik "+ Tambah Jamaah" untuk mulai.</div>' : (!filteredListUrut.length ? `<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Tidak ada nama yang cocok dengan pencarian "${escHtml(searchQuery)}".</div>` : `
+        ${!list.length ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah. Klik "+ Tambah Jamaah" untuk mulai.</div>' : (!filteredListUrut.length ? `<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Tidak ada data yang cocok dengan filter saat ini.</div>` : `
         <div class="table-wrap"><table style="width:100%; border-collapse:collapse; min-width:650px;">
           <thead><tr style="background:var(--green);">
+            <th style="padding:8px 6px; text-align:center; font-size:11px; color:#fff; width:36px;">No</th>
             <th style="padding:8px 10px; text-align:left; font-size:11px; color:#fff;">Nama</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:50px;">L/P</th>
             <th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:60px;">Usia</th>
@@ -8881,7 +8901,7 @@ async function renderJamaahEntry() {
             ${canEdit ? '<th style="padding:8px 10px; text-align:center; font-size:11px; color:#fff; width:70px;">Aksi</th>' : ''}
           </tr></thead>
           <tbody>
-            ${filteredListUrut.map(x => {
+            ${filteredListUrut.map((x, idx) => {
               const usia = x.tgl_lahir ? hitungUsia(x.tgl_lahir) : null;
               const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
               const katSantri = x.santri_id ? kategoriDariSantriMap.get(x.santri_id) : null;
@@ -8890,6 +8910,7 @@ async function renderJamaahEntry() {
               // kelas yg sebenarnya diikuti lebih valid drpd hitungan usia semata.
               const kat = adaBedaKategori ? katSantri : katUsia;
               return `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:7px 6px; text-align:center; font-size:12px; color:var(--ink-soft);">${idx+1}</td>
                 <td style="padding:7px 10px; font-size:13px; font-weight:600;">${escHtml(x.nama)}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${escHtml(x.jenis_kelamin||'-')}</td>
                 <td style="padding:7px 10px; text-align:center; font-size:12px;">${usia!=null ? usia+' th' : '-'}</td>
@@ -9368,6 +9389,10 @@ async function renderJamaahEntry() {
     render();
     const newEl = document.getElementById('jmhSearchInput');
     if (newEl) { newEl.focus(); if (cursorPos != null) newEl.setSelectionRange(cursorPos, cursorPos); }
+  };
+  window.JMH_filterKategori = (val) => {
+    filterKategori = val;
+    render();
   };
 
   async function openJamaahModal(existing) {
