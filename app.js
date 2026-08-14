@@ -8692,7 +8692,8 @@ async function renderJamaahEntry() {
 
   let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set(), kategoriDariSantriMap = new Map();
   let searchQuery = '';
-  let filterKategori = '';
+  let filterKategori = new Set();
+  let filterKategoriOpen = false;
 
   // Susun urutan tampil per keluarga: Suami -> Istri -> Anak 1, 2, dst -> keluarga berikutnya.
   // Anak bisa berupa jamaah (belum jadi santri) ATAU jamaah yang sudah "Jadikan Santri" (masih ada barisnya di sini).
@@ -8823,7 +8824,7 @@ async function renderJamaahEntry() {
     }
     const filteredListUrut = listUrut.filter(x => {
       if (searchQuery.trim() && !(x.nama||'').toLowerCase().includes(searchQuery.trim().toLowerCase())) return false;
-      if (filterKategori && kategoriEfektif(x) !== filterKategori) return false;
+      if (filterKategori.size && !filterKategori.has(kategoriEfektif(x))) return false;
       return true;
     });
     main.innerHTML = `
@@ -8870,20 +8871,29 @@ async function renderJamaahEntry() {
       </div>
 
       <div class="card" style="margin-bottom:12px;">
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;">
           <div class="form-group" style="margin:0; flex:1; min-width:180px;">
             <label style="font-size:11px;">🔍 Cari Nama</label>
             <input type="text" id="jmhSearchInput" value="${escHtml(searchQuery)}" oninput="JMH_search(this.value)" placeholder="Ketik nama yang mau dicari..." style="width:100%;">
           </div>
-          <div class="form-group" style="margin:0; flex:1; min-width:160px;">
-            <label style="font-size:11px;">Filter Kategori</label>
-            <select id="jmhFilterKategori" onchange="JMH_filterKategori(this.value)" style="width:100%;">
-              <option value="">Semua Kategori</option>
-              ${KATEGORI_JAMAAH_ORDER.map(k => `<option value="${k}" ${filterKategori===k?'selected':''}>${k}</option>`).join('')}
-            </select>
+          <div class="sd-wrap ${filterKategoriOpen?'sd-open':''}" style="flex:1; min-width:160px;">
+            <label style="font-size:11px; display:block; margin-bottom:4px;">Filter Kategori</label>
+            <div class="sd-trigger" onclick="JMH_toggleFilterKategori()" style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); background:var(--white); cursor:pointer;">
+              <span style="font-size:13px;">${filterKategori.size ? `${filterKategori.size} kategori dipilih` : 'Semua Kategori'}</span>
+              <svg class="sd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color:var(--ink-soft);"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="sd-panel">
+              <div style="border:1.5px solid var(--line); border-top:none; border-radius:0 0 var(--radius-sm) var(--radius-sm); padding:8px 12px; background:var(--white);">
+                ${KATEGORI_JAMAAH_ORDER.map(k => `<label style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; font-weight:400; cursor:pointer;">
+                  <input type="checkbox" onchange="JMH_toggleKategoriCheck('${k}')" ${filterKategori.has(k)?'checked':''} style="width:16px; height:16px; margin:0;">
+                  ${k}
+                </label>`).join('')}
+                ${filterKategori.size ? `<button class="btn btn-outline btn-sm" style="width:100%; margin-top:6px;" onclick="JMH_clearFilterKategori()">Kosongkan Pilihan</button>` : ''}
+              </div>
+            </div>
           </div>
         </div>
-        ${(searchQuery.trim() || filterKategori) ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:8px;">Menampilkan ${filteredListUrut.length} dari ${listUrut.length} data${searchQuery.trim() ? ` yang cocok dengan "${escHtml(searchQuery)}"` : ''}${filterKategori ? ` (kategori: ${escHtml(filterKategori)})` : ''}</div>` : ''}
+        ${(searchQuery.trim() || filterKategori.size) ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:8px;">Menampilkan ${filteredListUrut.length} dari ${listUrut.length} data${searchQuery.trim() ? ` yang cocok dengan "${escHtml(searchQuery)}"` : ''}${filterKategori.size ? ` (kategori: ${[...filterKategori].map(escHtml).join(', ')})` : ''}</div>` : ''}
       </div>
 
       <div class="card" style="padding:0; overflow:hidden;">
@@ -9390,8 +9400,15 @@ async function renderJamaahEntry() {
     const newEl = document.getElementById('jmhSearchInput');
     if (newEl) { newEl.focus(); if (cursorPos != null) newEl.setSelectionRange(cursorPos, cursorPos); }
   };
-  window.JMH_filterKategori = (val) => {
-    filterKategori = val;
+  window.JMH_toggleFilterKategori = () => { filterKategoriOpen = !filterKategoriOpen; render(); };
+  window.JMH_toggleKategoriCheck = (k) => {
+    if (filterKategori.has(k)) filterKategori.delete(k); else filterKategori.add(k);
+    filterKategoriOpen = true; // tetap kebuka biar bisa centang lebih dari 1 tanpa harus buka ulang
+    render();
+  };
+  window.JMH_clearFilterKategori = () => {
+    filterKategori.clear();
+    filterKategoriOpen = true;
     render();
   };
 
