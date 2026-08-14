@@ -8660,16 +8660,23 @@ function jamaahKategoriTableHtml(list, santriKategoriMap) {
     if (x.jenis_kelamin === 'L') counts[kat].L++;
     else if (x.jenis_kelamin === 'P') counts[kat].P++;
   });
+  const grandTotal = Object.values(counts).reduce((s,c) => ({ L: s.L+c.L, P: s.P+c.P }), { L:0, P:0 });
   const rows = KATEGORI_JAMAAH_ORDER.map(kat => {
     const c = counts[kat] || { L:0, P:0 };
     if (kat === 'Belum Diketahui' && !c.L && !c.P) return '';
     return `<tr style="border-bottom:1px solid var(--line); ${kat==='Istimewa'?'background:var(--gold-soft);':''}">
       <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(kat)}</td>
-      <td style="padding:6px 10px; text-align:center; font-size:12px; color:#2563eb; font-weight:700;">${c.L}</td>
-      <td style="padding:6px 10px; text-align:center; font-size:12px; color:#db2777; font-weight:700;">${c.P}</td>
-      <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:800;">${c.L+c.P}</td>
+      <td style="padding:6px 10px; text-align:center; font-size:14px; color:#2563eb; font-weight:700;">${c.L}</td>
+      <td style="padding:6px 10px; text-align:center; font-size:14px; color:#db2777; font-weight:700;">${c.P}</td>
+      <td style="padding:6px 10px; text-align:center; font-size:14px; font-weight:800;">${c.L+c.P}</td>
     </tr>`;
   }).join('');
+  const totalRow = `<tr style="background:var(--green);">
+      <td style="padding:8px 10px; font-size:13px; font-weight:800; color:#fff;">JUMLAH</td>
+      <td style="padding:8px 10px; text-align:center; font-size:15px; font-weight:800; color:#fff;">${grandTotal.L}</td>
+      <td style="padding:8px 10px; text-align:center; font-size:15px; font-weight:800; color:#fff;">${grandTotal.P}</td>
+      <td style="padding:8px 10px; text-align:center; font-size:18px; font-weight:900; color:var(--gold);">${grandTotal.L+grandTotal.P}</td>
+    </tr>`;
   return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
     <thead><tr style="background:var(--green);">
       <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kategori Usia</th>
@@ -8677,7 +8684,7 @@ function jamaahKategoriTableHtml(list, santriKategoriMap) {
       <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:50px;">P</th>
       <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff; width:60px;">Total</th>
     </tr></thead>
-    <tbody>${rows}</tbody>
+    <tbody>${rows}${totalRow}</tbody>
   </table></div>`;
 }
 
@@ -8860,11 +8867,6 @@ async function renderJamaahEntry() {
         <div style="font-size:12.5px; font-weight:700; color:var(--rose);">⚠️ ${dupSantriMap.size} Data Jamaah Mirip dengan Data Santri yang Sudah Ada</div>
         <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Kemungkinan orang yang sama sudah tercatat 2 kali (di Data Jamaah dan Data Santri terpisah). Cek tanda ⚠️ merah di kolom Keterangan pada tabel di bawah, lalu pilih "Tautkan ke situ" kalau memang orang yang sama — supaya tidak double saat "Jadikan Santri".</div>
       </div>` : ''}
-
-      <div class="card" style="margin-bottom:16px; text-align:center; padding:14px; max-width:180px;">
-        <div style="font-size:26px; font-weight:800; color:var(--green);">${list.length}</div>
-        <div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div>
-      </div>
 
       <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
         ${jamaahKategoriTableHtml(list, kategoriDariSantriMap)}
