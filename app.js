@@ -7605,43 +7605,19 @@ async function renderPenerobosanEntry() {
   let lastData = null;
 
   async function loadAuto() {
-    const [jamaahList, santriKlpAuto] = await Promise.all([
-      SB.jamaah.getByKelompok(u.kelompok_id) || [],
-      SB.santri.getByKelompok(u.kelompok_id) || [],
-    ]);
-    // Data Santri (kelas asli) jadi ACUAN UTAMA kalau jamaah-nya tertaut ke santri —
-    // biar sejalan sama Data Jamaah & Data Santri, bukan ngitung usia sendiri terpisah.
-    const kategoriDariSantriAuto = new Map();
-    (santriKlpAuto||[]).forEach(s => {
-      const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
-      if (kat) kategoriDariSantriAuto.set(s.id, kat);
-    });
+    // Ambil LANGSUNG dari fungsi hitung terpusat yang sama dipakai Data Jamaah —
+    // bukan hitung ulang sendiri di sini. Jadi dijamin selalu sama angkanya, gak perlu
+    // disinkronin manual tiap ada perubahan logic kategori.
+    const { counts: kategoriJamaah } = await hitungJamaahPerKategoriKelompok(u.kelompok_id);
 
     const jamaahCount = {};
     PENEROBOSAN_KATEGORI_ORDER.forEach(k => { jamaahCount[k] = { L:0, P:0 }; });
     let jamaahBelumDiketahui = 0;
-    const santriIdSudahTerhitung = new Set();
-    jamaahList.forEach(x => {
-      const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
-      const katSantri = x.santri_id ? kategoriDariSantriAuto.get(x.santri_id) : null;
-      const kat = PENEROBOSAN_KATEGORI_MAP[katSantri || katUsia];
-      if (x.santri_id) santriIdSudahTerhitung.add(x.santri_id);
-      if (!kat) { jamaahBelumDiketahui++; return; }
-      if (x.jenis_kelamin === 'L') jamaahCount[kat].L++;
-      else if (x.jenis_kelamin === 'P') jamaahCount[kat].P++;
-    });
-    // Semua santri yang belum punya baris jamaah asli — di Data Jamaah ini muncul sebagai
-    // "baris bayangan" dan IKUT kehitung di totalnya (tertaut keluarga atau belum, sama-sama
-    // dihitung — tautan keluarga cuma pengaruh urutan tampil, bukan penentu ikut kehitung).
-    // Kalau kelasnya gak dikenali kategoriDariNamaKelas (misal PAUD/TK, bukan salah satu dari
-    // 4 kategori kelas), JANGAN di-skip — fallback ke kategori usia (sama kayak Data Jamaah).
-    (santriKlpAuto||[]).forEach(s => {
-      if (santriIdSudahTerhitung.has(s.id)) return;
-      const katFinal = kategoriDariSantriAuto.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
-      const kat = PENEROBOSAN_KATEGORI_MAP[katFinal];
-      if (!kat) { jamaahBelumDiketahui++; return; }
-      if (s.jenis_kel === 'L') jamaahCount[kat].L++;
-      else if (s.jenis_kel === 'P') jamaahCount[kat].P++;
+    Object.entries(kategoriJamaah).forEach(([katJamaah, jumlah]) => {
+      const kat = PENEROBOSAN_KATEGORI_MAP[katJamaah];
+      if (!kat) { jamaahBelumDiketahui += jumlah.L + jumlah.P; return; }
+      jamaahCount[kat].L += jumlah.L;
+      jamaahCount[kat].P += jumlah.P;
     });
 
     const pengurus = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
@@ -8094,35 +8070,16 @@ async function renderPenerobosanDesa() {
 
   async function loadData() {
     const perKelompok = await Promise.all(kelompokList.map(async klp => {
-      const [jamaahList, santriKlpDesa] = await Promise.all([
-        SB.jamaah.getByKelompok(klp.id) || [],
-        SB.santri.getByKelompok(klp.id) || [],
-      ]);
-      const kategoriDariSantriDesa = new Map();
-      (santriKlpDesa||[]).forEach(s => {
-        const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
-        if (kat) kategoriDariSantriDesa.set(s.id, kat);
-      });
+      // Ambil LANGSUNG dari fungsi hitung terpusat yang sama dipakai Data Jamaah — jangan
+      // hitung ulang sendiri, biar selalu sama angkanya.
+      const { counts: kategoriJamaah } = await hitungJamaahPerKategoriKelompok(klp.id);
       const cnt = {}; PENEROBOSAN_KATEGORI_ORDER_DESA.forEach(k => { cnt[k] = { L:0, P:0 }; });
       let jamaahBelumDiketahui = 0;
-      const santriIdSudahTerhitungDesa = new Set();
-      jamaahList.forEach(x => {
-        const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
-        const katSantri = x.santri_id ? kategoriDariSantriDesa.get(x.santri_id) : null;
-        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[katSantri || katUsia];
-        if (x.santri_id) santriIdSudahTerhitungDesa.add(x.santri_id);
-        if (!kat) { jamaahBelumDiketahui++; return; }
-        if (x.jenis_kelamin === 'L') cnt[kat].L++; else if (x.jenis_kelamin === 'P') cnt[kat].P++;
-      });
-      // Semua santri yang belum punya baris jamaah asli — sinkron sama "baris bayangan"
-      // yg ikut kehitung di total Data Jamaah (tertaut keluarga atau belum, sama-sama dihitung).
-      // Kelas gak dikenali (misal PAUD/TK) → fallback kategori usia, JANGAN di-skip.
-      (santriKlpDesa||[]).forEach(s => {
-        if (santriIdSudahTerhitungDesa.has(s.id)) return;
-        const katFinal = kategoriDariSantriDesa.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
-        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[katFinal];
-        if (!kat) { jamaahBelumDiketahui++; return; }
-        if (s.jenis_kel === 'L') cnt[kat].L++; else if (s.jenis_kel === 'P') cnt[kat].P++;
+      Object.entries(kategoriJamaah).forEach(([katJamaah, jumlah]) => {
+        const kat = PENEROBOSAN_KATEGORI_MAP_DESA[katJamaah];
+        if (!kat) { jamaahBelumDiketahui += jumlah.L + jumlah.P; return; }
+        cnt[kat].L += jumlah.L;
+        cnt[kat].P += jumlah.P;
       });
       const pengurus = await SB.musPeserta.getByKelompok(klp.id) || [];
       const jml4s = pengurus.filter(p => PENEROBOSAN_4S.includes(p.jabatan)).length;
@@ -8645,7 +8602,53 @@ function kategoriUsiaJamaah(tglLahir, statusMenikah) {
   return 'Pra Nikah';
 }
 
-// Tabel rekap detail per kategori usia (dipakai di entri kelompok & rekap desa/daerah)
+// ===== SATU-SATUNYA sumber hitungan jamaah per kategori usia per kelompok =====
+// Dipakai oleh Data Jamaah (kartu ringkasan) MAUPUN Penerobosan Pusat (Kelompok & Desa) —
+// supaya keduanya PASTI sama angkanya (gak hitung ulang terpisah-pisah lagi kayak dulu,
+// yang berkali-kali ketauan gampang beda krn logic-nya kepisah & gampang lupa disinkronin).
+// Balikannya: { counts: {kategori: {L,P}}, total }
+async function hitungJamaahPerKategoriKelompok(kelompokId) {
+  const [jamaahList, santriAsli, santriBelumMasukKelas] = await Promise.all([
+    SB.jamaah.getByKelompok(kelompokId) || [],
+    SB.santri.getByKelompok(kelompokId) || [],
+    SB.santri.getUnassigned(kelompokId) || [],
+  ]);
+  const semuaSantri = [...(santriAsli||[]), ...(santriBelumMasukKelas||[])];
+  const kategoriDariSantri = new Map();
+  semuaSantri.forEach(s => {
+    const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
+    if (kat) kategoriDariSantri.set(s.id, kat);
+  });
+
+  const counts = {};
+  KATEGORI_JAMAAH_ORDER.forEach(k => { counts[k] = { L:0, P:0 }; });
+  const santriIdSudahAdaJamaah = new Set();
+
+  (jamaahList||[]).forEach(x => {
+    const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+    const katSantri = x.santri_id ? kategoriDariSantri.get(x.santri_id) : null;
+    const kat = katSantri || katUsia;
+    if (x.santri_id) santriIdSudahAdaJamaah.add(x.santri_id);
+    if (!counts[kat]) counts[kat] = { L:0, P:0 };
+    if (x.jenis_kelamin === 'L') counts[kat].L++;
+    else if (x.jenis_kelamin === 'P') counts[kat].P++;
+  });
+
+  // Santri (kelas atau belum) yang belum punya baris jamaah asli — "baris bayangan" di Data
+  // Jamaah, ikut kehitung juga di sini. Tautan keluarga TIDAK relevan buat hitungan ini.
+  semuaSantri.forEach(s => {
+    if (santriIdSudahAdaJamaah.has(s.id)) return;
+    const kat = kategoriDariSantri.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
+    if (!counts[kat]) counts[kat] = { L:0, P:0 };
+    if (s.jenis_kel === 'L') counts[kat].L++;
+    else if (s.jenis_kel === 'P') counts[kat].P++;
+  });
+
+  const total = Object.values(counts).reduce((s,c) => s + c.L + c.P, 0);
+  return { counts, total };
+}
+
+
 function jamaahKategoriTableHtml(list, santriKategoriMap) {
   const counts = {};
   KATEGORI_JAMAAH_ORDER.forEach(k => { counts[k] = { L:0, P:0 }; });
