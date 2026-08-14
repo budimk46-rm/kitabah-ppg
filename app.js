@@ -7667,11 +7667,11 @@ async function renderPenerobosanEntry() {
       <div class="card" style="margin-bottom:14px;">
         <div class="fw-bold" style="font-size:13.5px; color:var(--green); margin-bottom:10px;">👥 Jumlah Jamaah — otomatis dari Data Jamaah</div>
         <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
-          <thead><tr style="background:var(--green-soft);">
-            <th style="padding:6px 6px; text-align:left; font-size:10px; color:var(--green); width:38%;">Kategori</th>
-            <th style="padding:6px 4px; text-align:center; font-size:10px; color:var(--green);">L</th>
-            <th style="padding:6px 4px; text-align:center; font-size:10px; color:var(--green);">P</th>
-            <th style="padding:6px 4px; text-align:center; font-size:10px; color:var(--green);">Jumlah</th>
+          <thead><tr style="background:var(--green);">
+            <th style="padding:6px 6px; text-align:left; font-size:10px; color:#fff; width:38%;">Kategori</th>
+            <th style="padding:6px 4px; text-align:center; font-size:10px; color:#fff;">L</th>
+            <th style="padding:6px 4px; text-align:center; font-size:10px; color:#fff;">P</th>
+            <th style="padding:6px 4px; text-align:center; font-size:10px; color:#fff;">Jumlah</th>
           </tr></thead>
           <tbody>
             ${PENEROBOSAN_KATEGORI_ORDER.map(k => `<tr style="border-bottom:1px solid var(--line);">
@@ -8672,10 +8672,10 @@ function jamaahKategoriTableHtml(list, santriKategoriMap) {
     </tr>`;
   }).join('');
   const totalRow = `<tr style="background:var(--green);">
-      <td style="padding:8px 10px; font-size:13px; font-weight:800; color:#fff;">JUMLAH</td>
-      <td style="padding:8px 10px; text-align:center; font-size:15px; font-weight:800; color:#fff;">${grandTotal.L}</td>
-      <td style="padding:8px 10px; text-align:center; font-size:15px; font-weight:800; color:#fff;">${grandTotal.P}</td>
-      <td style="padding:8px 10px; text-align:center; font-size:18px; font-weight:900; color:var(--gold);">${grandTotal.L+grandTotal.P}</td>
+      <td style="padding:8px 10px; font-size:13px; font-weight:800; color:#fff; background:var(--green);">JUMLAH</td>
+      <td style="padding:8px 10px; text-align:center; font-size:15px; font-weight:800; color:#fff; background:var(--green);">${grandTotal.L}</td>
+      <td style="padding:8px 10px; text-align:center; font-size:15px; font-weight:800; color:#fff; background:var(--green);">${grandTotal.P}</td>
+      <td style="padding:8px 10px; text-align:center; font-size:18px; font-weight:900; color:var(--gold); background:var(--green);">${grandTotal.L+grandTotal.P}</td>
     </tr>`;
   return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
     <thead><tr style="background:var(--green);">
