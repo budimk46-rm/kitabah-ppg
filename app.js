@@ -9077,6 +9077,20 @@ async function renderJamaahEntry() {
     const myDesaId = myKlp?.desa_id || '';
     const DESA_NAMA_MAP = await loadDesaMap();
 
+    // Kalau ini masih "baris bayangan" (santri yg belum py baris jamaah asli), bikinkan
+    // dulu baris jamaah asli SEBELUM transfer apapun — SB.jamaah.update(jm.id,...) bakal
+    // gagal 400 kalau id-nya masih 'virtual_santri_...' (bukan UUID asli).
+    async function pastikanJamaahAsli() {
+      if (!jm._virtual) return;
+      const res = await SB.jamaah.insert({
+        kelompok_id: u.kelompok_id, nama: jm.nama, jenis_kelamin: jm.jenis_kelamin,
+        tgl_lahir: jm.tgl_lahir, status_menikah: jm.status_menikah, santri_id: jm.santri_id,
+        no_hp: jm.no_hp, keterangan: jm.keterangan, aktif: true,
+      });
+      const idBaru = res?.[0]?.id;
+      if (idBaru) { jm.id = idBaru; jm._virtual = false; }
+    }
+
     let el = document.getElementById('jmhTransferModal');
     if (!el) { el = document.createElement('div'); el.id = 'jmhTransferModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
 
@@ -9148,6 +9162,7 @@ async function renderJamaahEntry() {
           const btn = document.getElementById('jtMtmsBtn');
           btn.disabled = true; btn.textContent = 'Menyimpan...';
           try {
+            await pastikanJamaahAsli();
             const res = await SB.mtMs.insert({
               kelompok_id: u.kelompok_id, nama_lengkap: (jm.nama||'').toUpperCase(),
               gender: jm.jenis_kelamin || null, tgl_lahir: jm.tgl_lahir || null,
@@ -9191,6 +9206,7 @@ async function renderJamaahEntry() {
           const btn = document.getElementById('jtGuruBtn');
           btn.disabled = true; btn.textContent = 'Menyimpan...';
           try {
+            await pastikanJamaahAsli();
             const res = await SB.guruSekolah.insert({
               kelompok_id: u.kelompok_id, nama_lengkap: (jm.nama||'').toUpperCase(),
               gender: jm.jenis_kelamin || null, tgl_lahir: jm.tgl_lahir || null,
