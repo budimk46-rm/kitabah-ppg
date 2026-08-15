@@ -5795,6 +5795,62 @@ async function renderSarpras() {
         </table></div>
       </div>`).join('') : '<div class="card"><p style="color:var(--green); font-weight:600;">✅ Semua item dalam kondisi baik!</p></div>';
 
+    // Data lengkap per kelompok — semua item (bukan cuma yg bermasalah), tampilan sama
+    // kayak yg dilihat PJP Kelompok sendiri, tapi read-only (tanpa tombol edit/hapus)
+    const kelompokScopeSarpras = isDesa
+      ? (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id)
+      : (App.cache.kelompok||[]);
+    window.SP_lihatDetailKelompok = (kelompokId) => {
+      const klp = kelompokMap[kelompokId];
+      const items = allData.filter(d => d.kelompok_id === kelompokId).sort((a,b) => (a.nama_item||'').localeCompare(b.nama_item||''));
+      let el = document.getElementById('spDetailModal');
+      if (!el) { el = document.createElement('div'); el.id = 'spDetailModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+      el.innerHTML = `<div class="modal" style="max-width:600px;">
+        <div class="modal-head"><h3 class="modal-title">📋 Sarpras — ${escHtml(klp?.nama||kelompokId)}</h3><button class="modal-close" onclick="closeModal('spDetailModal')">✕</button></div>
+        <div class="modal-body">
+          ${!items.length ? '<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:13px;">Belum ada data sarpras dari kelompok ini.</div>' : `
+          <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:var(--green);">
+              <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Item</th>
+              <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:center;">Status</th>
+              <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:center;">Kondisi</th>
+              <th style="color:#fff; padding:7px 8px; font-size:11px; text-align:left;">Keterangan</th>
+            </tr></thead>
+            <tbody>${items.map(d => {
+              const stIcon = d.status === 'Ada' ? '✅' : d.status === 'Tidak Ada' ? '❌' : '—';
+              const stColor = d.status === 'Ada' ? 'var(--green)' : d.status === 'Tidak Ada' ? 'var(--rose)' : 'var(--ink-soft)';
+              const kdIcon = d.kondisi === 'Baik' ? '🟢' : d.kondisi === 'Rusak' ? '🔴' : '';
+              const kdColor = d.kondisi === 'Baik' ? 'var(--green)' : d.kondisi === 'Rusak' ? 'var(--rose)' : 'var(--ink-soft)';
+              return `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 8px; font-size:12.5px; font-weight:600;">${escHtml(d.nama_item)}</td>
+                <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:700; color:${stColor};">${stIcon} ${escHtml(d.status||'—')}</td>
+                <td style="padding:6px 8px; text-align:center; font-size:12px; font-weight:700; color:${kdColor};">${kdIcon} ${escHtml(d.kondisi||'—')}</td>
+                <td style="padding:6px 8px; font-size:12px; color:#111;">${escHtml(d.keterangan||'')}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`}
+        </div>
+        <div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('spDetailModal')">Tutup</button></div>
+      </div>`;
+      openModal('spDetailModal');
+    };
+    const detailPerKelompokSarprasHtml = `
+      <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
+        <div style="background:var(--green); padding:10px 16px;">
+          <div style="font-weight:700; font-size:14px; color:#fff;">📋 Data Lengkap per Kelompok</div>
+        </div>
+        <div>${kelompokScopeSarpras.map(k => {
+          const jml = allData.filter(d => d.kelompok_id === k.id).length;
+          return `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-bottom:1px solid var(--line);">
+            <div>
+              <div style="font-size:13px; font-weight:600;">${escHtml(k.nama)}</div>
+              <div style="font-size:11px; color:var(--ink-soft);">${jml} item</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="SP_lihatDetailKelompok('${k.id}')">Lihat Detail</button>
+          </div>`;
+        }).join('')}</div>
+      </div>`;
+
     // Ringkasan per item
     const itemNames = [...new Set(allData.map(d => d.nama_item))].sort();
     const summaryRows = itemNames.map(item => {
@@ -5835,6 +5891,8 @@ async function renderSarpras() {
 
       <div class="fw-bold" style="font-size:15px; color:var(--rose); margin-bottom:10px;">⚠️ Item Perlu Perhatian (${masalah.length})</div>
       ${masalahHtml}
+
+      ${detailPerKelompokSarprasHtml}
 
       <div class="card" style="margin-top:16px; padding:0; overflow:hidden;">
         <div style="background:var(--green); padding:10px 16px;">
