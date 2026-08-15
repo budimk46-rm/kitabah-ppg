@@ -3247,7 +3247,7 @@ async function renderKelolaKelas() {
 
     const tableHtml = santriList.length ? `
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Nama Lengkap</th><th>Tgl Lahir</th><th>Usia</th><th>Tingkatan</th><th>L/P</th><th>Nama Ortu</th><th>Tahun Depan</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>#</th><th>Nama Lengkap</th><th>Tgl Lahir</th><th>Usia</th><th>Tingkatan</th><th>L/P</th><th>Nama Ortu</th><th>No. HP</th><th>Tahun Depan</th><th>Aksi</th></tr></thead>
         <tbody>${santriList.map((s, i) => {
           const tingkatan = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
           const usia = hitungUsia(s.tgl_lahir);
@@ -3262,6 +3262,7 @@ async function renderKelolaKelas() {
             <td>${tingkatan ? `<span class="badge ${TINGKATAN_COLORS[tingkatan]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[tingkatan]||tingkatan)}</span>` : '—'}</td>
             <td><span class="badge ${s.jenis_kel==='L'?'badge-green':'badge-rose'}">${s.jenis_kel||'—'}</span></td>
             <td>${escHtml(s.nama_ortu||'—')}</td>
+            <td>${s.no_hp ? `<a href="https://wa.me/62${s.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'')}" target="_blank" style="color:#25D366; font-weight:600; text-decoration:none;">📱 ${escHtml(s.no_hp)}</a>` : '—'}</td>
             <td>${naikLevel ? `<span class="badge badge-gold">${escHtml(naikLevel)}</span>` : '—'}</td>
             <td>
               <div style="display:flex; gap:4px;">
@@ -3372,7 +3373,7 @@ async function renderKelolaKelas() {
         <div class="fw-bold" style="font-size:13.5px; color:#8a6a24; margin-bottom:8px;">🗂️ Generus Belum Masuk Kelas (${unassignedManageList.length})</div>
         <div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;">Generus yang belum/sudah tidak berada di kelas manapun. Tetap tersimpan datanya — pindahkan ke kelas atau hapus dari sini kalau memang perlu.</div>
         <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>Nama Lengkap</th><th>Tgl Lahir</th><th>Usia</th><th>Tingkatan</th><th>L/P</th><th>Aksi</th></tr></thead>
+          <thead><tr><th>#</th><th>Nama Lengkap</th><th>Tgl Lahir</th><th>Usia</th><th>Tingkatan</th><th>L/P</th><th>No. HP</th><th>Aksi</th></tr></thead>
           <tbody>${unassignedManageList.map((s,i) => {
             const tingkatan = s.tingkatan_override ? s.tingkatan : hitungTingkatan(s.tgl_lahir);
             const usia = hitungUsia(s.tgl_lahir);
@@ -3384,6 +3385,7 @@ async function renderKelolaKelas() {
               <td>${usia !== null ? usia + ' th' : '—'}</td>
               <td>${tingkatan ? `<span class="badge ${TINGKATAN_COLORS[tingkatan]||'badge-gray'}">${escHtml(TINGKATAN_LABELS[tingkatan]||tingkatan)}</span>` : '—'}</td>
               <td><span class="badge ${s.jenis_kel==='L'?'badge-green':'badge-rose'}">${s.jenis_kel||'—'}</span></td>
+              <td>${s.no_hp ? `<a href="https://wa.me/62${s.no_hp.replace(/^0/,'').replace(/[^0-9]/g,'')}" target="_blank" style="color:#25D366; font-weight:600; text-decoration:none;">📱 ${escHtml(s.no_hp)}</a>` : '—'}</td>
               <td>
                 <div style="display:flex; gap:4px;">
                   <button class="btn-icon" onclick="STR_edit('${s.id}')" title="Edit">
@@ -16302,6 +16304,10 @@ function openAddSantriModal(kelasId, existingSantri, onSaved, kelompokAsalId) {
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>No. HP Generus</label>
+          <input type="tel" inputmode="numeric" id="strNoHp" value="${escHtml(s?.no_hp||'')}" placeholder="Kosongkan jika belum punya HP sendiri (misal Caberawit)" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        </div>
+        <div class="form-group">
           <label>NIS (opsional)</label>
           <input id="strNis" value="${escHtml(s?.nis||'')}" placeholder="Nomor Induk Santri">
         </div>
@@ -16334,6 +16340,7 @@ function openAddSantriModal(kelasId, existingSantri, onSaved, kelompokAsalId) {
     const tgl_lahir = document.getElementById('strTglLahir').value || null;
     const jenis_kel = document.getElementById('strJK').value || null;
     const nama_ortu = document.getElementById('strOrtu').value.trim() || null;
+    const no_hp = document.getElementById('strNoHp').value.trim() || null;
     const nis = document.getElementById('strNis').value.trim() || null;
     const selTingkatan = document.getElementById('strTingkatan');
     const tingkatan_override = !!selTingkatan.value;
@@ -16368,7 +16375,7 @@ function openAddSantriModal(kelasId, existingSantri, onSaved, kelompokAsalId) {
       nama: toTitleCase(nama),
       tgl_lahir, jenis_kel,
       nama_ortu: nama_ortu ? toTitleCase(nama_ortu) : null,
-      nis, tingkatan, tingkatan_override
+      no_hp, nis, tingkatan, tingkatan_override
     };
 
     try {
