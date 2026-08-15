@@ -7520,6 +7520,7 @@ async function renderRekapPengajian() {
     ? (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id)
     : (App.cache.kelompok||[]);
   const scopeLabel = isDesa ? 'kelompok-kelompok di desamu' : 'seluruh kelompok';
+  const DESA_NAMA_MAP = await loadDesaMap();
 
   let bulan = BULAN_LIST[new Date().getMonth()];
   let tahun = new Date().getFullYear();
@@ -7533,7 +7534,7 @@ async function renderRekapPengajian() {
         const totalTercatat = abs.length;
         const hadir = abs.filter(a => a.status === 'H').length;
         const pct = totalTercatat ? Math.round((hadir/totalTercatat)*100) : null;
-        return { kelompok: klp.nama, pertemuanKe: p.pertemuan_ke, tanggal: p.tanggal, pct, hadir, totalTercatat };
+        return { kelompok: klp.nama, desaId: klp.desa_id, pertemuanKe: p.pertemuan_ke, tanggal: p.tanggal, pct, hadir, totalTercatat };
       }));
       return detail;
     }));
@@ -7544,6 +7545,41 @@ async function renderRekapPengajian() {
     const rataRata = rows.length && rows.some(r=>r.pct!=null)
       ? Math.round(rows.filter(r=>r.pct!=null).reduce((s,r)=>s+r.pct,0) / rows.filter(r=>r.pct!=null).length) : null;
     const klpBelumLapor = kelompokScope.filter(k => !rows.some(r => r.kelompok === k.nama)).length;
+
+    function tabelRows(rowList) {
+      return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:var(--green);">
+          <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Pertemuan Ke-</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Tanggal</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Hadir</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">% Hadir</th>
+        </tr></thead>
+        <tbody>${rowList.length ? rowList.map(r => `<tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(r.kelompok)}</td>
+          <td style="padding:6px 10px; text-align:center; font-size:12px;">${r.pertemuanKe||'?'}</td>
+          <td style="padding:6px 10px; text-align:center; font-size:12px;">${fmtDateShort(r.tanggal)}</td>
+          <td style="padding:6px 10px; text-align:center; font-size:12px;">${r.hadir}/${r.totalTercatat}</td>
+          <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700; color:${r.pct!=null&&r.pct<50?'var(--rose)':'var(--ink)'};">${r.pct!=null?r.pct+'%':'-'}</td>
+        </tr>`).join('') : `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--ink-soft); font-size:12.5px;">Belum ada pertemuan Pengajian Kelompok yang tercatat bulan ini.</td></tr>`}</tbody>
+      </table></div>`;
+    }
+
+    let tabelHtml;
+    if (isDesa) {
+      tabelHtml = `<div class="card" style="padding:0; overflow:hidden;">${tabelRows(rows)}</div>`;
+    } else {
+      // Admin / Daerah: dipecah per Desa dulu, tiap Desa isinya kelompok-kelompok di bawahnya
+      const byDesa = {};
+      kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
+      tabelHtml = Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
+        const rowsDesa = rows.filter(r => klpList.some(k => k.nama === r.kelompok));
+        return `<div class="card" style="margin-bottom:12px; padding:0; overflow:hidden;">
+          <div class="fw-bold color-green" style="font-size:13.5px; padding:10px 14px; border-bottom:1px solid var(--line);">🏘️ ${escHtml(DESA_NAMA_MAP[did]||did)}</div>
+          ${tabelRows(rowsDesa)}
+        </div>`;
+      }).join('') : `<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Belum ada data kelompok/desa untuk ditampilkan.</div>`;
+    }
 
     main.innerHTML = `
       <div class="page-header">
@@ -7570,24 +7606,7 @@ async function renderRekapPengajian() {
         </div>
       </div>
 
-      <div class="card" style="padding:0; overflow:hidden;">
-        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
-          <thead><tr style="background:var(--green);">
-            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Pertemuan Ke-</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Tanggal</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Hadir</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">% Hadir</th>
-          </tr></thead>
-          <tbody>${rows.length ? rows.map(r => `<tr style="border-bottom:1px solid var(--line);">
-            <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(r.kelompok)}</td>
-            <td style="padding:6px 10px; text-align:center; font-size:12px;">${r.pertemuanKe||'?'}</td>
-            <td style="padding:6px 10px; text-align:center; font-size:12px;">${fmtDateShort(r.tanggal)}</td>
-            <td style="padding:6px 10px; text-align:center; font-size:12px;">${r.hadir}/${r.totalTercatat}</td>
-            <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700; color:${r.pct!=null&&r.pct<50?'var(--rose)':'var(--ink)'};">${r.pct!=null?r.pct+'%':'-'}</td>
-          </tr>`).join('') : `<tr><td colspan="5" style="padding:24px; text-align:center; color:var(--ink-soft); font-size:12.5px;">Belum ada pertemuan Pengajian Kelompok yang tercatat bulan ini.</td></tr>`}</tbody>
-        </table></div>
-      </div>
+      ${tabelHtml}
       <div style="font-size:11px; color:var(--ink-soft); margin-top:10px;">Rekap ini khusus Pengajian Kelompok (bukan Pengajian Sub Kelompok, karena nama sub berbeda-beda tiap kelompok jadi tidak bisa digabung jadi 1 rekap).</div>
     `;
   }
@@ -8531,26 +8550,56 @@ async function renderPenerobosanRekap() {
   const kelompokScope = (isAdmin || isDaerah)
     ? (App.cache.kelompok || [])
     : (App.cache.kelompok || []).filter(k => k.desa_id === u.desa_id);
+  const DESA_NAMA_MAP = await loadDesaMap();
 
   let bulan = BULAN_LIST[new Date().getMonth()];
   let tahun = new Date().getFullYear();
 
   async function load() {
-    const laporan = await SB.penerobosan.getByKelompokIds(kelompokScope.map(k=>k.id), bulan, tahun) || [];
+    const [laporan, hasilJamaah] = await Promise.all([
+      SB.penerobosan.getByKelompokIds(kelompokScope.map(k=>k.id), bulan, tahun) || [],
+      // Jumlah jamaah LANGSUNG dari fungsi kanonik yang sama dipakai Data Jamaah tiap
+      // kelompok — BUKAN hitung ulang sendiri di sini.
+      Promise.all(kelompokScope.map(async k => ({ id: k.id, ...(await hitungJamaahPerKategoriKelompok(k.id)) }))),
+    ]);
     const byKlp = {};
     laporan.forEach(l => { byKlp[l.kelompok_id] = l; });
-    return byKlp;
+    const jamaahByKlp = new Map(hasilJamaah.map(h => [h.id, h]));
+    return { byKlp, jamaahByKlp };
   }
 
-  function render(byKlp) {
+  function render({ byKlp, jamaahByKlp }) {
     const sudah = kelompokScope.filter(k => byKlp[k.id]).length;
-    main.innerHTML = `
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Penerobosan Pusat</h1>
-          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Rekap status laporan bulanan tiap kelompok</p>
-        </div>
-      </div>
+    const totalJamaahSemua = [...jamaahByKlp.values()].reduce((s,h) => s + h.total, 0);
+
+    function tabelKelompok(klpList) {
+      return `<div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:var(--green);">
+          <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Status</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Jml Jamaah</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Sub</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">KK</th>
+          <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Persenan</th>
+        </tr></thead>
+        <tbody>
+          ${klpList.map(k => {
+            const l = byKlp[k.id];
+            const jml = jamaahByKlp.get(k.id)?.total ?? '-';
+            return `<tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
+              <td style="padding:6px 10px; text-align:center;">${l ? '<span style="font-size:11px; font-weight:700; color:var(--green); background:var(--green-soft); padding:2px 8px; border-radius:8px;">✓ Sudah</span>' : '<span style="font-size:11px; color:var(--ink-soft);">Belum</span>'}</td>
+              <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700;">${jml}</td>
+              <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.sub ?? '-'}</td>
+              <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.kk ?? '-'}</td>
+              <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.persenan!=null ? l.persenan+'%' : '-'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
+    const headerCard = `
       <div class="card" style="margin-bottom:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <div class="form-group" style="margin:0;"><label style="font-size:11px;">Bulan</label>
           <select id="penrBulan" onchange="PENR_gantiPeriode()">${BULAN_LIST.map(b=>`<option value="${b}" ${b===bulan?'selected':''}>${b}</option>`).join('')}</select>
@@ -8560,31 +8609,50 @@ async function renderPenerobosanRekap() {
         </div>
         <span style="font-size:12px; font-weight:700; color:var(--green);">${sudah} / ${kelompokScope.length} kelompok sudah lapor</span>
       </div>
-      <div class="card" style="padding:0; overflow:hidden;">
-        <div class="table-wrap"><table style="width:100%; border-collapse:collapse;">
-          <thead><tr style="background:var(--green);">
-            <th style="padding:7px 10px; text-align:left; font-size:11px; color:#fff;">Kelompok</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Status</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Sub</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">KK</th>
-            <th style="padding:7px 10px; text-align:center; font-size:11px; color:#fff;">Persenan</th>
-          </tr></thead>
-          <tbody>
-            ${kelompokScope.map(k => {
-              const l = byKlp[k.id];
-              return `<tr style="border-bottom:1px solid var(--line);">
-                <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
-                <td style="padding:6px 10px; text-align:center;">${l ? '<span style="font-size:11px; font-weight:700; color:var(--green); background:var(--green-soft); padding:2px 8px; border-radius:8px;">✓ Sudah</span>' : '<span style="font-size:11px; color:var(--ink-soft);">Belum</span>'}</td>
-                <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.sub ?? '-'}</td>
-                <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.kk ?? '-'}</td>
-                <td style="padding:6px 10px; text-align:center; font-size:12px;">${l?.persenan!=null ? l.persenan+'%' : '-'}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table></div>
+      <div class="card" style="margin-bottom:14px; text-align:center; padding:16px;">
+        <div style="font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Total Jamaah ${isDesa?'Se-Desa':'Se-Daerah'}</div>
+        <div style="font-size:28px; font-weight:800; color:var(--green);">${totalJamaahSemua}</div>
+      </div>`;
+
+    let bodyHtml;
+    if (isDesa) {
+      // Level Desa: langsung tabel kelompok, gak perlu dipecah lagi (cuma 1 desa yg dilihat)
+      bodyHtml = `<div class="card" style="padding:0; overflow:hidden;">${tabelKelompok(kelompokScope)}</div>`;
+    } else {
+      // Admin / Daerah: dipecah per Desa, tiap Desa bisa dibuka detail per Kelompoknya
+      const byDesa = {};
+      kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
+      bodyHtml = Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
+        const sudahDesa = klpList.filter(k => byKlp[k.id]).length;
+        const jmlDesa = klpList.reduce((s,k) => s + (jamaahByKlp.get(k.id)?.total ?? 0), 0);
+        const idp = 'penrDetail_' + did;
+        return `<div class="card" style="margin-bottom:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <div class="fw-bold color-green" style="font-size:13.5px;">🏘️ ${escHtml(DESA_NAMA_MAP[did]||did)}</div>
+            <div style="font-size:12px; color:var(--ink-soft);">Jamaah: <b>${jmlDesa}</b> · Lapor: <b style="color:var(--green);">${sudahDesa}/${klpList.length}</b> kelompok</div>
+          </div>
+          <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="PENR_toggleDetail('${idp}')">📋 Detail per Kelompok</button>
+          <div id="${idp}" style="display:none; margin-top:10px;">${tabelKelompok(klpList)}</div>
+        </div>`;
+      }).join('') : `<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Belum ada data kelompok/desa untuk ditampilkan.</div>`;
+    }
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Penerobosan Pusat</h1>
+          <p style="font-size:13px; color:var(--ink-soft); margin:4px 0 0;">Rekap status laporan bulanan${isDesa?' se-Desa':' — dipecah per Desa & Kelompok'}</p>
+        </div>
       </div>
+      ${headerCard}
+      ${bodyHtml}
     `;
   }
+
+  window.PENR_toggleDetail = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  };
 
   window.PENR_gantiPeriode = async () => {
     bulan = document.getElementById('penrBulan').value;
@@ -8679,6 +8747,13 @@ function jamaahKategoriTableHtml(list, santriKategoriMap) {
     if (x.jenis_kelamin === 'L') counts[kat].L++;
     else if (x.jenis_kelamin === 'P') counts[kat].P++;
   });
+  return jamaahKategoriTableHtmlFromCounts(counts);
+}
+
+// Versi yang nerima counts yg SUDAH dihitung (dari hitungJamaahPerKategoriKelompok, atau
+// gabungan/jumlah counts dari beberapa kelompok) — dipakai di rekap Desa/Daerah supaya
+// SATU-SATUNYA sumber kategori tetap fungsi kanonik itu, bukan hitung ulang list mentah lagi.
+function jamaahKategoriTableHtmlFromCounts(counts) {
   const grandTotal = Object.values(counts).reduce((s,c) => ({ L: s.L+c.L, P: s.P+c.P }), { L:0, P:0 });
   const rows = KATEGORI_JAMAAH_ORDER.map(kat => {
     const c = counts[kat] || { L:0, P:0 };
@@ -8705,6 +8780,18 @@ function jamaahKategoriTableHtml(list, santriKategoriMap) {
     </tr></thead>
     <tbody>${rows}${totalRow}</tbody>
   </table></div>`;
+}
+// Jumlahkan beberapa objek counts jadi satu (buat agregasi per-Desa dari counts per-Kelompok)
+function jumlahkanCounts(daftarCounts) {
+  const hasil = {};
+  KATEGORI_JAMAAH_ORDER.forEach(k => { hasil[k] = { L:0, P:0 }; });
+  daftarCounts.forEach(counts => {
+    Object.entries(counts).forEach(([kat, c]) => {
+      if (!hasil[kat]) hasil[kat] = { L:0, P:0 };
+      hasil[kat].L += c.L; hasil[kat].P += c.P;
+    });
+  });
+  return hasil;
 }
 
 /* --- Mode entri: PJP Kelompok --- */
@@ -9625,26 +9712,24 @@ async function renderJamaahRekap() {
     ? (App.cache.kelompok || [])
     : (App.cache.kelompok || []).filter(k => k.desa_id === u.desa_id);
 
-  const allJamaah = await SB.jamaah.getByKelompokIds(kelompokScope.map(k => k.id)) || [];
+  // Ambil hitungan LANGSUNG dari fungsi kanonik yang sama dipakai halaman Data Jamaah tiap
+  // kelompok (& Penerobosan Pusat) — BUKAN nge-fetch mentahan terus hitung ulang sendiri di
+  // sini. Jadi rekap Desa/Daerah ini DIJAMIN sama persis angkanya sama yang dilihat PJP
+  // Kelompok masing-masing, gak akan pernah beda lagi krn sumbernya emang satu.
+  const semuaKelompokUntukSeDaerah = (isDesa) ? (App.cache.kelompok || []) : kelompokScope;
+  const hasilPerKelompok = await Promise.all(semuaKelompokUntukSeDaerah.map(async k => {
+    const { counts } = await hitungJamaahPerKategoriKelompok(k.id);
+    return { kelompok: k, counts };
+  }));
+  const countsByKelompokId = new Map(hasilPerKelompok.map(r => [r.kelompok.id, r.counts]));
 
-  function hitung(list) {
-    return {
-      total: list.length,
-      L: list.filter(x => x.jenis_kelamin === 'L').length,
-      P: list.filter(x => x.jenis_kelamin === 'P').length,
-      lansiaL: list.filter(x => x.jenis_kelamin === 'L' && hitungIstimewa(x.tgl_lahir)).length,
-      lansiaP: list.filter(x => x.jenis_kelamin === 'P' && hitungIstimewa(x.tgl_lahir)).length,
-    };
-  }
-
-  function statCards(c) {
-    return `<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin-bottom:14px;">
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--green);">${c.total}</div><div style="font-size:11px; color:var(--ink-soft);">Total Jamaah</div></div>
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#2563eb;">${c.L}</div><div style="font-size:11px; color:var(--ink-soft);">Laki-laki</div></div>
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:#db2777;">${c.P}</div><div style="font-size:11px; color:var(--ink-soft);">Perempuan</div></div>
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaL}</div><div style="font-size:11px; color:var(--ink-soft);">Istimewa L</div></div>
-      <div class="card" style="text-align:center; padding:14px;"><div style="font-size:22px; font-weight:800; color:var(--gold);">${c.lansiaP}</div><div style="font-size:11px; color:var(--ink-soft);">Istimewa P</div></div>
-    </div>`;
+  function statsFromCounts(counts) {
+    let total=0, L=0, P=0, lansiaL=0, lansiaP=0;
+    Object.entries(counts).forEach(([kat, c]) => {
+      total += c.L + c.P; L += c.L; P += c.P;
+      if (kat === 'Istimewa') { lansiaL += c.L; lansiaP += c.P; }
+    });
+    return { total, L, P, lansiaL, lansiaP };
   }
 
   function detailPerKelompokHtml(klpList, idPrefix) {
@@ -9652,11 +9737,12 @@ async function renderJamaahRekap() {
       return `<div id="${idPrefix}" style="display:none; margin-top:10px; padding:14px; text-align:center; font-size:12px; color:var(--ink-soft); border:1px solid var(--line); border-radius:8px;">Belum ada kelompok terdaftar di sini.</div>`;
     }
     const rows = klpList.map(k => {
-      const c = hitung(allJamaah.filter(x => x.kelompok_id === k.id));
+      const c = statsFromCounts(countsByKelompokId.get(k.id) || {});
       return `<tr style="border-bottom:1px solid var(--line);">
         <td style="padding:6px 10px; font-size:12.5px; font-weight:600;">${escHtml(k.nama)}</td>
         <td style="padding:6px 10px; text-align:center; font-size:12px;">${c.L}</td>
         <td style="padding:6px 10px; text-align:center; font-size:12px;">${c.P}</td>
+        <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700;">${c.total}</td>
         <td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--gold); font-weight:700;">${c.lansiaL}</td>
         <td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--gold); font-weight:700;">${c.lansiaP}</td>
       </tr>`;
@@ -9667,6 +9753,7 @@ async function renderJamaahRekap() {
           <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:#fff;">Kelompok</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">L</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">P</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Total</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Istimewa L</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Istimewa P</th>
         </tr></thead>
@@ -9680,10 +9767,10 @@ async function renderJamaahRekap() {
     if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
   };
 
-  // Total se-daerah — selalu dihitung dari SEMUA kelompok (bukan cuma scope si viewer),
-  // supaya Desa pun tetap bisa lihat gambaran besar seluruh daerah.
-  const allKelompokIds = (App.cache.kelompok || []).map(k => k.id);
-  const cSeDaerah = (isAdmin || isDaerah) ? hitung(allJamaah) : hitung(await SB.jamaah.getByKelompokIds(allKelompokIds) || []);
+  // Total se-daerah — selalu dari SEMUA kelompok (bukan cuma scope si viewer), supaya Desa
+  // pun tetap bisa lihat gambaran besar seluruh daerah.
+  const countsSeDaerah = jumlahkanCounts([...countsByKelompokId.values()]);
+  const cSeDaerah = statsFromCounts(countsSeDaerah);
   const totalSeDaerahHtml = `<div class="card" style="margin-bottom:14px; text-align:center; padding:18px;">
     <div style="font-size:11.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">Total Jamaah Se-Daerah</div>
     <div style="font-size:30px; font-weight:800; color:var(--green); margin-bottom:6px;">${cSeDaerah.total}</div>
@@ -9691,25 +9778,28 @@ async function renderJamaahRekap() {
   </div>`;
 
   let bodyHtml = totalSeDaerahHtml;
+  const DESA_NAMA_MAP = await loadDesaMap();
   if (isDesa) {
+    const countsDesaIni = jumlahkanCounts(kelompokScope.map(k => countsByKelompokId.get(k.id) || {}));
     bodyHtml += `
-      <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>
+      <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtmlFromCounts(countsDesaIni)}</div>
       <div class="card">
-        <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail Istimewa per Kelompok</button>
+        <button class="btn btn-outline btn-sm" onclick="JMH_toggleDetail('jmhDetailDesa')">📋 Detail per Kelompok</button>
         ${detailPerKelompokHtml(kelompokScope, 'jmhDetailDesa')}
       </div>`;
   } else {
-    // Admin / Daerah — total keseluruhan + breakdown per desa
-    const DESA_NAMA_MAP = await loadDesaMap();
+    // Admin / Daerah — total keseluruhan + breakdown per Desa, tiap Desa bisa dibuka lagi
+    // detail per Kelompok-nya (sesuai diminta: dipecah per Desa, lalu tiap Kelompok di dalamnya).
     const byDesa = {};
     kelompokScope.forEach(k => { (byDesa[k.desa_id] ||= []).push(k); });
-    bodyHtml += `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtml(allJamaah)}</div>` + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
-      const c = hitung(allJamaah.filter(x => klpList.some(k => k.id === x.kelompok_id)));
+    bodyHtml += `<div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">${jamaahKategoriTableHtmlFromCounts(countsSeDaerah)}</div>` + (Object.keys(byDesa).length ? Object.entries(byDesa).map(([did, klpList]) => {
+      const countsDesa = jumlahkanCounts(klpList.map(k => countsByKelompokId.get(k.id) || {}));
+      const c = statsFromCounts(countsDesa);
       const idp = 'jmhDetail_' + did;
       return `<div class="card" style="margin-bottom:12px;">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div class="fw-bold color-green" style="font-size:13.5px;">🏘️ ${escHtml(DESA_NAMA_MAP[did]||did)}</div>
-          <div style="font-size:12px; color:var(--ink-soft);">L: <b>${c.L}</b> · P: <b>${c.P}</b> · Istimewa L: <b style="color:var(--gold);">${c.lansiaL}</b> · Istimewa P: <b style="color:var(--gold);">${c.lansiaP}</b></div>
+          <div style="font-size:12px; color:var(--ink-soft);">Total: <b>${c.total}</b> · L: <b>${c.L}</b> · P: <b>${c.P}</b> · Istimewa L: <b style="color:var(--gold);">${c.lansiaL}</b> · Istimewa P: <b style="color:var(--gold);">${c.lansiaP}</b></div>
         </div>
         <button class="btn btn-outline btn-sm" style="margin-top:8px;" onclick="JMH_toggleDetail('${idp}')">📋 Detail per Kelompok</button>
         ${detailPerKelompokHtml(klpList, idp)}
