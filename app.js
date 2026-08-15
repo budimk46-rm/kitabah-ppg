@@ -6166,9 +6166,28 @@ async function renderMtMs() {
 
   // === PDF MT/MS ===
   window.MTMS_downloadPdf = async () => {
+    showToast('Menyiapkan PDF...');
+
+    // Lazy load pdf-lib dari CDN — sebelumnya gak ada sama sekali di sini, jadi gagal
+    // "PDFLib is not defined" kalau user belum pernah buka halaman lain yg udah muat pdf-lib duluan.
+    if (!window.PDFLib) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = resolve;
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s2.onload = resolve; s2.onerror = reject;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      }).catch(() => { showToast('Gagal memuat pustaka PDF dari internet — cek koneksi internet, lalu coba lagi', true); throw new Error('pdf-lib gagal dimuat'); });
+    }
+
     try {
       showToast('Membuat PDF...');
-      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
       const doc = await PDFDocument.create();
       const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fReg = await doc.embedFont(StandardFonts.Helvetica);
