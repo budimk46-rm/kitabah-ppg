@@ -482,15 +482,21 @@ function formFieldHtml(f) {
 // Kotak Tanggal/Bulan/Tahun terpisah — GANTI <input type="date"> yang di HP defaultnya
 // selalu nunjuk tahun SEKARANG, gampang kelupaan kegeser pas orang isi tanggal lahir sendiri
 // (banyak kejadian: taggal-bulan bener, tapi tahunnya lupa diganti dari tahun sekarang).
-function tanggalLahirDropdownHtml(fieldKey) {
+function tanggalLahirDropdownHtml(fieldKey, existingValue) {
   const tahunSekarang = new Date().getFullYear();
   const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
   const opsiTgl = Array.from({length:31}, (_,i) => i+1);
-  const opsiTahun = Array.from({length:100}, (_,i) => tahunSekarang - i); // sampai 100 tahun ke belakang
+  let opsiTahun = Array.from({length:100}, (_,i) => tahunSekarang - i); // sampai 100 tahun ke belakang
+  let selTgl = '', selBln = '', selThn = '';
+  if (existingValue && /^\d{4}-\d{2}-\d{2}$/.test(existingValue)) {
+    const [y, m, d] = existingValue.split('-');
+    selThn = String(parseInt(y,10)); selBln = String(parseInt(m,10)); selTgl = String(parseInt(d,10));
+    if (!opsiTahun.includes(parseInt(y,10))) opsiTahun.push(parseInt(y,10)); // jaga2 data lama di luar 100 th
+  }
   return `<div style="display:flex; gap:6px;">
-    <select id="pf_${fieldKey}_tgl" style="flex:0.8;"><option value="">Tgl</option>${opsiTgl.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
-    <select id="pf_${fieldKey}_bln" style="flex:1.6;"><option value="">Bulan</option>${namaBulan.map((b,i)=>`<option value="${i+1}">${b}</option>`).join('')}</select>
-    <select id="pf_${fieldKey}_thn" style="flex:1;"><option value="">Tahun</option>${opsiTahun.map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+    <select id="pf_${fieldKey}_tgl" style="flex:0.8;"><option value="">Tgl</option>${opsiTgl.map(t=>`<option value="${t}" ${String(t)===selTgl?'selected':''}>${t}</option>`).join('')}</select>
+    <select id="pf_${fieldKey}_bln" style="flex:1.6;"><option value="">Bulan</option>${namaBulan.map((b,i)=>`<option value="${i+1}" ${String(i+1)===selBln?'selected':''}>${b}</option>`).join('')}</select>
+    <select id="pf_${fieldKey}_thn" style="flex:1;"><option value="">Tahun</option>${opsiTahun.map(t=>`<option value="${t}" ${String(t)===selThn?'selected':''}>${t}</option>`).join('')}</select>
   </div>`;
 }
 // Gabungkan hasil ke-3 dropdown itu jadi 1 string ISO (YYYY-MM-DD), atau '' kalau ada yg kosong
@@ -9084,6 +9090,8 @@ async function renderJamaahEntry() {
           </button>
           <button class="btn btn-outline btn-sm" onclick="JMH_cetakKartuQR()">🔖 Cetak Kartu QR (utk Absensi Pengajian)</button>
           ${canEdit ? `
+          <button class="btn btn-outline btn-sm" onclick="JMH_downloadTemplate()">📥 Template Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="JMH_openImportExcel()">📊 Import Excel</button>
           ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
           <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>` : ''}
         </div>
@@ -9559,6 +9567,211 @@ async function renderJamaahEntry() {
     showToast('Kartu QR siap — dibuka di tab baru ✓');
   };
 
+  // ── Template Excel (dibuat langsung di browser, bukan file statis) ──
+  window.JMH_downloadTemplate = async () => {
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload = res;
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.20.1/dist/xlsx.full.min.js';
+          s2.onload = res; s2.onerror = rej;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      }).catch(() => { showToast('Gagal memuat pustaka Excel — cek koneksi internet', true); throw new Error('xlsx gagal dimuat'); });
+    }
+    const aoa = [
+      ['TEMPLATE DATA JAMAAH'],
+      ['Isi mulai baris ke-5 (baris contoh di bawah boleh dihapus atau ditimpa).'],
+      ['Kolom Tanggal Lahir wajib format YYYY-MM-DD. Kolom Status Pernikahan: menikah / belum_menikah (boleh dikosongkan kalau belum usia nikah).'],
+      ['No', 'Nama', 'L/P', 'Tanggal Lahir', 'Status Pernikahan', 'No. HP', 'Keterangan'],
+      [1, 'Ahmad Fulan bin Budi', 'L', '1990-05-15', 'menikah', '081234567890', 'Ayah dari Fulan'],
+      [2, 'Siti Aminah binti Darto', 'P', '2015-03-20', '', '', 'Anak'],
+    ];
+    const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:5},{wch:28},{wch:6},{wch:14},{wch:16},{wch:16},{wch:24}];
+    ws['!merges'] = [
+      { s:{r:0,c:0}, e:{r:0,c:6} },
+      { s:{r:1,c:0}, e:{r:1,c:6} },
+      { s:{r:2,c:0}, e:{r:2,c:6} },
+    ];
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Data Jamaah');
+    window.XLSX.writeFile(wb, 'Template_Data_Jamaah.xlsx');
+  };
+
+  // ── Import Excel ──
+  window.JMH_openImportExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload = res;
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.20.1/dist/xlsx.full.min.js';
+          s2.onload = res; s2.onerror = rej;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      }).catch(() => { showToast('Gagal memuat pustaka Excel — cek koneksi internet', true); throw new Error('xlsx gagal dimuat'); });
+    }
+
+    let el = document.getElementById('jmhImportModal');
+    if (!el) { el = document.createElement('div'); el.id = 'jmhImportModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal modal-lg">
+      <div class="modal-head"><h3 class="modal-title">Import Data Jamaah dari Excel</h3><button class="modal-close" onclick="closeModal('jmhImportModal')">✕</button></div>
+      <div class="modal-body">
+        <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:16px; font-size:13px; color:var(--green);">
+          <b>Petunjuk:</b> Upload file Excel sesuai format Template. Sistem akan memvalidasi tiap baris sebelum menyimpan.
+        </div>
+        <div id="jmhImportDropZone"
+          style="border:2px dashed var(--line); border-radius:var(--radius); padding:32px; text-align:center; cursor:pointer;"
+          onclick="document.getElementById('jmhImportFileInput').click()"
+          ondragover="event.preventDefault(); this.style.borderColor='var(--green)'; this.style.background='var(--green-soft)';"
+          ondragleave="this.style.borderColor='var(--line)'; this.style.background='';"
+          ondrop="event.preventDefault(); this.style.borderColor='var(--line)'; this.style.background=''; JMH_handleImportDrop(event);">
+          <div style="font-size:32px; margin-bottom:8px;">📊</div>
+          <div style="font-weight:700; color:var(--green); margin-bottom:4px;">Klik atau drag file Excel di sini</div>
+          <div style="font-size:12px; color:var(--ink-soft);">Format: .xlsx · Template bisa diunduh dari tombol "Template Excel"</div>
+          <input type="file" id="jmhImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="JMH_handleImportFile(this.files[0])">
+        </div>
+        <div id="jmhImportPreview" style="margin-top:16px; display:none;">
+          <div id="jmhImportStats" style="margin-bottom:10px;"></div>
+          <div id="jmhImportTable" style="max-height:280px; overflow-y:auto;"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('jmhImportModal')">Batal</button>
+        <button class="btn btn-green" id="jmhImportSaveBtn" style="display:none;" onclick="JMH_doImportSave()">Simpan ke Database</button>
+      </div>
+    </div>`;
+
+    let parsedRows = [];
+
+    window.JMH_handleImportDrop = (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file) JMH_handleImportFile(file);
+    };
+
+    window.JMH_handleImportFile = async (file) => {
+      if (!file) return;
+      document.getElementById('jmhImportPreview').style.display = 'none';
+      document.getElementById('jmhImportSaveBtn').style.display = 'none';
+      try {
+        const buf = await file.arrayBuffer();
+        const wb = window.XLSX.read(buf, { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1:G20');
+        parsedRows = [];
+
+        for (let r = 4; r <= range.e.r; r++) { // baris ke-5 (0-indexed r=4) dan seterusnya
+          const getCell = (col) => {
+            const addr = window.XLSX.utils.encode_cell({ r, c: col });
+            const cell = ws[addr];
+            if (!cell) return '';
+            if (cell.t === 'd') {
+              const d = cell.v;
+              return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            }
+            return String(cell.v || '').trim();
+          };
+
+          const nama = getCell(1); // B
+          const jk = getCell(2).toUpperCase(); // C
+          const tglLahir = getCell(3); // D
+          const statusNikah = getCell(4).toLowerCase(); // E
+          const noHp = getCell(5); // F
+          const keterangan = getCell(6); // G
+
+          if (!nama && !tglLahir) continue;
+          if (nama === 'Ahmad Fulan bin Budi' || nama === 'Siti Aminah binti Darto') continue;
+
+          const rowNum = r + 1;
+          const rowErrors = [];
+          if (!nama) rowErrors.push('Nama kosong');
+          if (!jk) rowErrors.push('L/P kosong');
+          else if (!['L','P'].includes(jk)) rowErrors.push('L/P harus L atau P');
+          if (tglLahir && !/^\d{4}-\d{2}-\d{2}$/.test(tglLahir)) rowErrors.push('Format tgl lahir salah (harus YYYY-MM-DD)');
+          if (statusNikah && !['menikah','belum_menikah'].includes(statusNikah)) rowErrors.push('Status Pernikahan harus "menikah" atau "belum_menikah" (atau kosongkan)');
+
+          parsedRows.push({
+            _rowNum: rowNum, _errors: rowErrors,
+            nama, jenis_kelamin: jk || null, tgl_lahir: tglLahir || null,
+            status_menikah: statusNikah || null, no_hp: noHp || null, keterangan: keterangan || null,
+            kelompok_id: u.kelompok_id,
+          });
+        }
+
+        if (!parsedRows.length) { showToast('Tidak ada data. Pastikan data dimulai baris ke-5.', true); return; }
+
+        const valid = parsedRows.filter(r => !r._errors.length);
+        const invalid = parsedRows.filter(r => r._errors.length);
+
+        document.getElementById('jmhImportStats').innerHTML = `
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <span class="badge badge-green">${valid.length} baris valid ✓</span>
+            ${invalid.length ? `<span class="badge badge-rose">${invalid.length} baris error ✗</span>` : ''}
+            <span class="badge badge-gray">${parsedRows.length} total</span>
+          </div>`;
+
+        document.getElementById('jmhImportTable').innerHTML = `
+          <table style="width:100%; font-size:12px; border-collapse:collapse;">
+            <thead><tr style="background:var(--green); color:#fff;">
+              <th style="padding:7px;">Baris</th><th style="padding:7px; text-align:left;">Nama</th>
+              <th style="padding:7px;">L/P</th><th style="padding:7px;">Tgl Lahir</th>
+              <th style="padding:7px; text-align:left;">Status</th>
+            </tr></thead>
+            <tbody>${parsedRows.map(r => {
+              const bg = r._errors.length ? 'var(--rose-soft)' : '';
+              return `<tr style="background:${bg}; border-bottom:1px solid var(--line);">
+                <td style="padding:6px; text-align:center;">${r._rowNum}</td>
+                <td style="padding:6px;"><b>${escHtml(r.nama)}</b></td>
+                <td style="padding:6px; text-align:center;">${escHtml(r.jenis_kelamin||'—')}</td>
+                <td style="padding:6px; text-align:center;">${escHtml(r.tgl_lahir||'—')}</td>
+                <td style="padding:6px; font-size:11px; color:${r._errors.length?'var(--rose)':'var(--green)'};">
+                  ${r._errors.length ? '✗ '+r._errors.join(', ') : '✓ OK'}
+                </td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>`;
+
+        document.getElementById('jmhImportPreview').style.display = 'block';
+        if (valid.length) {
+          const btn = document.getElementById('jmhImportSaveBtn');
+          btn.style.display = 'flex';
+          btn.textContent = `Simpan ${valid.length} Jamaah ke Database`;
+        }
+      } catch(e) { showToast('Gagal membaca file: ' + e.message, true); }
+    };
+
+    window.JMH_doImportSave = async () => {
+      const valid = parsedRows.filter(r => !r._errors.length);
+      if (!valid.length) return;
+      const btn = document.getElementById('jmhImportSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      let berhasil = 0, gagal = 0;
+      for (let i = 0; i < valid.length; i += 20) {
+        const batch = valid.slice(i, i+20).map(r => ({
+          nama: toTitleCase(r.nama), jenis_kelamin: r.jenis_kelamin, tgl_lahir: r.tgl_lahir,
+          status_menikah: r.status_menikah, no_hp: r.no_hp, keterangan: r.keterangan,
+          kelompok_id: r.kelompok_id, aktif: true,
+        }));
+        try { await SB.jamaah.insert(batch); berhasil += batch.length; }
+        catch(e) { gagal += batch.length; console.error(e); }
+      }
+      showToast(`Import selesai: ${berhasil} berhasil${gagal?', '+gagal+' gagal':''}`);
+      closeModal('jmhImportModal');
+      await refreshJamaahData();
+      render();
+    };
+
+    openModal('jmhImportModal');
+  };
+
   window.JMH_downloadPdf = async () => {
     if (!listUrut.length) { showToast('Belum ada data jamaah untuk diunduh', true); return; }
     showToast('Menyiapkan PDF...');
@@ -9712,7 +9925,7 @@ async function renderJamaahEntry() {
         <div class="form-group"><label>Jenis Kelamin *</label>
           <select id="jmhJK"><option value="">Pilih...</option><option value="L" ${existing?.jenis_kelamin==='L'?'selected':''}>Laki-laki</option><option value="P" ${existing?.jenis_kelamin==='P'?'selected':''}>Perempuan</option></select>
         </div>
-        <div class="form-group"><label>Tanggal Lahir</label><input type="date" id="jmhTgl" value="${existing?.tgl_lahir||''}"></div>
+        <div class="form-group"><label>Tanggal Lahir</label>${tanggalLahirDropdownHtml('jmhTgl', existing?.tgl_lahir||'')}</div>
         <div class="form-group"><label>Status Pernikahan (kalau usia 19 th ke atas)</label>
           <select id="jmhStatusNikah"><option value="">Pilih...</option><option value="belum_menikah" ${existing?.status_menikah==='belum_menikah'?'selected':''}>Belum Menikah</option><option value="menikah" ${existing?.status_menikah==='menikah'?'selected':''}>Menikah</option></select>
         </div>
@@ -9763,7 +9976,7 @@ async function renderJamaahEntry() {
     document.getElementById('jmhSaveBtn').onclick = async () => {
       const nama = document.getElementById('jmhNama').value.trim();
       const jk = document.getElementById('jmhJK').value;
-      const tgl = document.getElementById('jmhTgl').value || null;
+      const tgl = bacaTanggalDropdown('jmhTgl') || null;
       const statusNikah = document.getElementById('jmhStatusNikah').value || null;
       const hp = document.getElementById('jmhHp').value.trim() || null;
       const ket = document.getElementById('jmhKet').value.trim() || null;
