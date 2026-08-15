@@ -2278,8 +2278,21 @@ async function renderUsers() {
   }
 
   const pending = sortUsers(allUsers.filter(u => u.status === 'pending'));
-  const approved = sortUsers(allUsers.filter(u => u.status === 'approved'));
-  const rejected = sortUsers(allUsers.filter(u => u.status === 'rejected'));
+  const approvedAll = sortUsers(allUsers.filter(u => u.status === 'approved'));
+  const rejectedAll = sortUsers(allUsers.filter(u => u.status === 'rejected'));
+
+  let searchQuery = '';
+  function cocokPencarian(u) {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    const teks = [
+      u.nama_lengkap, u.username, u.jabatan,
+      ROLE_LABELS[u.role] || u.role,
+      u.kelompok_id ? kelompokMap[u.kelompok_id] : '',
+      u.desa_id ? desaMap[u.desa_id] : '',
+    ].filter(Boolean).join(' ').toLowerCase();
+    return teks.includes(q);
+  }
 
   function badge(status) {
     const map = { pending: 'badge-gold', approved: 'badge-green', rejected: 'badge-rose' };
@@ -2343,19 +2356,30 @@ async function renderUsers() {
     }).join('');
   }
 
-  main.innerHTML = `
+  function render() {
+    const approved = approvedAll.filter(cocokPencarian);
+    const rejected = rejectedAll.filter(cocokPencarian);
+    const pendingF = pending.filter(cocokPencarian);
+
+    main.innerHTML = `
     <div class="page-header">
       <div>
         <h1 class="page-title">Kelola Pengguna</h1>
         <p class="page-subtitle">${allUsers.length} total · ${pending.length} menunggu persetujuan</p>
       </div>
     </div>
-    ${pending.length > 0 ? `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:11px;">🔍 Cari Pengguna</label>
+        <input type="text" id="usrSearchInput" value="${escHtml(searchQuery)}" oninput="USR_search(this.value)" placeholder="Cari nama, username, dapukan, kelompok, atau desa..." style="width:100%;">
+      </div>
+    </div>
+    ${pendingF.length > 0 ? `
     <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft); margin-bottom:6px;">
-      <div class="fw-bold color-green" style="margin-bottom:12px;">👥 Menunggu Persetujuan (${pending.length})</div>
+      <div class="fw-bold color-green" style="margin-bottom:12px;">👥 Menunggu Persetujuan (${pendingF.length})</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Nama & Dapukan</th><th>Level</th><th>Kelompok / Desa</th><th>Username</th><th>Status</th><th>Daftar</th><th>Aksi</th></tr></thead>
-        <tbody>${userRows(pending)}</tbody>
+        <tbody>${userRows(pendingF)}</tbody>
       </table></div>
     </div>` : ''}
     <div class="card">
@@ -2373,7 +2397,19 @@ async function renderUsers() {
         <tbody>${userRows(rejected)}</tbody>
       </table></div>
     </div>` : ''}
+    ${searchQuery.trim() && !pendingF.length && !approved.length && !rejected.length ? `<div class="card" style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Tidak ada pengguna yang cocok dengan "${escHtml(searchQuery)}".</div>` : ''}
   `;
+  }
+
+  window.USR_search = (val) => {
+    searchQuery = val;
+    const cursorPos = document.getElementById('usrSearchInput')?.selectionStart;
+    render();
+    const newEl = document.getElementById('usrSearchInput');
+    if (newEl) { newEl.focus(); if (cursorPos != null) newEl.setSelectionRange(cursorPos, cursorPos); }
+  };
+
+  render();
 
   window.USR_approve = async (id) => {
     await SB.anggota.approve(id);
