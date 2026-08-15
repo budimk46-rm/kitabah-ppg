@@ -36,7 +36,7 @@ async function sbFetch(path, options = {}) {
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
 async function sbLogin(username, password) {
-  const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.trim().toLowerCase())}&select=*`);
+  const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.trim())}&select=*`);
   if (!data || data.length === 0) throw new Error('Nama pengguna tidak ditemukan.');
   const user = data[0];
   // Simple comparison (app-level, production should use bcrypt)
@@ -105,7 +105,7 @@ const sbUsers = {
         p_desa_id: data.desa_id || null,
       })
     });
-    const cek = await sbFetch(`anggota?username=eq.${encodeURIComponent(data.username)}&select=id`);
+    const cek = await sbFetch(`anggota?username=ilike.${encodeURIComponent(data.username)}&select=id`);
     if (!cek || !cek.length) {
       throw new Error('Pendaftaran gagal tersimpan. Coba lagi beberapa saat, atau hubungi admin kalau terus berulang.');
     }
@@ -113,7 +113,7 @@ const sbUsers = {
     // PATCH terpisah begitu barisnya sudah kebuat, dicocokkan lewat username.
     if (data.no_hp) {
       try {
-        await sbFetch(`anggota?username=eq.${encodeURIComponent(data.username)}`, {
+        await sbFetch(`anggota?username=ilike.${encodeURIComponent(data.username)}`, {
           method: 'PATCH', body: JSON.stringify({ no_hp: data.no_hp }),
         });
       } catch(e) { /* diamkan — kalaupun gagal, pop-up wajib saat login pertama tetap jadi jaring pengaman */ }

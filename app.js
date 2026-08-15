@@ -1206,8 +1206,9 @@ async function doRegister() {
   btn.innerHTML = '<span class="spinner"></span> Mendaftarkan...';
 
   try {
-    // Cek username langsung per query
-    const cek = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.toLowerCase())}&select=id`);
+    // Cek username langsung per query — case-insensitive (biar "Budi123" & "budi123"
+    // tetap dianggap bentrok), tapi yang TERSIMPAN nanti tetap sesuai huruf asli yg diketik.
+    const cek = await sbFetch(`anggota?username=ilike.${encodeURIComponent(username)}&select=id`);
     if (cek && cek.length > 0) {
       if (alertEl) alertEl.innerHTML = '<div class="alert error">Nama pengguna sudah dipakai, coba yang lain.</div>';
       btn.disabled = false;
@@ -1225,7 +1226,7 @@ async function doRegister() {
     const role = JABATAN_ROLE[WIZ_STATE.jabatan] || 'kelompok';
 
     await SB.anggota.register({
-      username: username.toLowerCase(),
+      username: username.trim(),
       password_hash: password,
       nama_lengkap: toTitleCase(namaLengkap),
       role,
