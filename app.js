@@ -1334,7 +1334,7 @@ const NAV_ITEMS = {
     { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
     { id: 'rekap_pengajian', icon: clipboardCheckIcon(), label: 'Rekap Absensi Pengajian' },
     { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
-    { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap Semua Desa' },
+    { id: 'rekap_daerah', icon: chartIcon(), label: 'Rekap KBM' },
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
@@ -15716,7 +15716,7 @@ async function renderRekapDaerah() {
     main.innerHTML = `
       <div class="page-header">
         <div>
-          <h1 class="page-title">Rekap Daerah</h1>
+          <h1 class="page-title">Rekap KBM</h1>
           <p class="page-subtitle">PPG Sidoarjo Utara · ${kelompokList.length} kelompok · Bulan ${selectedBulan} · TA ${getTahunAjaran()}</p>
         </div>
         <button class="btn btn-outline btn-sm" onclick="RDA_downloadPdf()">
