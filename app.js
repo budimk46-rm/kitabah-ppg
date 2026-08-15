@@ -45,6 +45,7 @@ const ROLE_LABELS = {
   admin: 'Administrator',
   daerah: 'Level Daerah',
   desa: 'Level Desa',
+  desa_view: 'Pengelola Desa',
   pjp_kelompok: 'PJP Kelompok',
   wali_kbm: 'Wali KBM',
   guru: 'Guru Generus',
@@ -872,7 +873,7 @@ const JABATAN_CONFIG = {
     { val:'daerah_bidang', icon:'🏢', label:'Bidang PPG', sub:'Pilih salah satu bidang' },
   ],
   desa: [
-    { val:'desa', icon:'👑', label:'Ulil Amri', sub:'Pimpinan desa' },
+    { val:'desa_ulil_amri', icon:'👑', label:'Ulil Amri', sub:'Pimpinan desa' },
     { val:'pjp_desa_kbm', icon:'📚', label:'PJP Desa KBM', sub:'Penanggung jawab KBM desa' },
     { val:'pjp_desa_sarpras', icon:'🏗️', label:'PJP Desa Sarpras', sub:'Sarana dan prasarana' },
     { val:'pjp_desa_bk', icon:'🤝', label:'PJP Desa BK', sub:'Bimbingan konseling' },
@@ -887,10 +888,11 @@ const JABATAN_CONFIG = {
   ],
 };
 
-// Role mapping ke database (harus sesuai constraint: admin/daerah/desa/pjp_kelompok/wali_kbm/guru/kelompok)
+// Role mapping ke database (harus sesuai constraint: admin/daerah/desa/desa_view/pjp_kelompok/wali_kbm/guru/kelompok)
 const JABATAN_ROLE = {
   daerah:           'daerah',
   daerah_bidang:    'daerah',
+  desa_ulil_amri:   'desa_view', // Ulil Amri Desa — level Desa, read-only (BUG LAMA: gak ada mapping, jatuh ke 'kelompok')
   pjp_desa_kbm:     'desa',
   pjp_desa_sarpras: 'desa',
   pjp_desa_bk:      'desa',
@@ -1363,6 +1365,30 @@ const NAV_ITEMS = {
     { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif', section: 'SISTEM' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
+  // Pengelola Desa (Ulil Amri Desa) — level Desa, TAPI READ-ONLY. Menu-nya SAMA PERSIS
+  // kayak 'desa' (PJP Desa) di atas, biar bisa lihat semua yang sama — cuma gak bisa
+  // edit apapun (canEdit di tiap halaman terkait sengaja gak nyantumin role ini).
+  desa_view: [
+    { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
+    { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
+    { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
+    { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
+    { id: 'santri', icon: usersIcon(), label: 'Data Generus', section: 'DATA & KELOLA' },
+    { id: 'data_bk', icon: alertIcon(), label: 'Data BK' },
+    { id: 'sarpras', icon: boxIcon(), label: 'Data Sarpras' },
+    { id: 'mtms', icon: idCardIcon(), label: 'Data MT/MS' },
+    { id: 'guru_sekolah', icon: gradCapIcon(), label: 'Data Guru Sekolah' },
+    { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
+    { id: 'data_jamaah', icon: usersIcon(), label: 'Data Jamaah' },
+    { id: 'penerobosan', icon: clipboardCheckIcon(), label: 'Penerobosan Pusat' },
+    { id: 'rekap_pengajian', icon: clipboardCheckIcon(), label: 'Rekap Absensi Pengajian' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
+    { id: 'rekap_desa', icon: chartIcon(), label: 'Rekap Kelompok' },
+    { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
+    { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
+    { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
+  ],
   pjp_kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
@@ -1767,15 +1793,15 @@ async function loadOnlineUsersWidget() {
 function getQuickMenuItems() {
   const u = App.user;
   const all = [
-    { page: 'kurikulum', emoji: '📖', label: 'Kurikulum', roles: ['admin','kelompok','pjp_kelompok','wali_kbm','guru','desa','daerah'] },
+    { page: 'kurikulum', emoji: '📖', label: 'Kurikulum', roles: ['admin','kelompok','pjp_kelompok','wali_kbm','guru','desa','desa_view','daerah'] },
     { page: 'absensi', emoji: '📋', label: 'Absensi & Jurnal', roles: ['admin','guru','pjp_kelompok'] },
-    { page: 'santri', emoji: '👥', label: 'Data Santri', roles: ['admin','kelompok','pjp_kelompok','desa'] },
+    { page: 'santri', emoji: '👥', label: 'Data Santri', roles: ['admin','kelompok','pjp_kelompok','desa','desa_view'] },
     { page: 'rekap', emoji: '📊', label: 'Rekap KBM', roles: ['admin','kelompok','pjp_kelompok','wali_kbm'] },
-    { page: 'sarpras', emoji: '📦', label: 'Data Sarpras', roles: ['kelompok','pjp_kelompok','desa'] },
-    { page: 'data_jamaah', emoji: '🕌', label: 'Data Jamaah', roles: ['kelompok','pjp_kelompok','desa','daerah','admin'] },
-    { page: 'musyawarah', emoji: '💬', label: 'Musyawarah', roles: ['kelompok','pjp_kelompok','guru','desa'] },
-    { page: 'rekap_desa', emoji: '🏡', label: 'Rekap Desa', roles: ['admin','desa'] },
-    { page: 'monitor_mus', emoji: '📋', label: 'Monitoring Musyawarah', roles: ['desa'] },
+    { page: 'sarpras', emoji: '📦', label: 'Data Sarpras', roles: ['kelompok','pjp_kelompok','desa','desa_view'] },
+    { page: 'data_jamaah', emoji: '🕌', label: 'Data Jamaah', roles: ['kelompok','pjp_kelompok','desa','desa_view','daerah','admin'] },
+    { page: 'musyawarah', emoji: '💬', label: 'Musyawarah', roles: ['kelompok','pjp_kelompok','guru','desa','desa_view'] },
+    { page: 'rekap_desa', emoji: '🏡', label: 'Rekap Desa', roles: ['admin','desa','desa_view'] },
+    { page: 'monitor_mus', emoji: '📋', label: 'Monitoring Musyawarah', roles: ['desa','desa_view'] },
     { page: 'rekap_daerah', emoji: '🗺️', label: 'Rekap Daerah', roles: ['admin','daerah'] },
     { page: 'proker', emoji: '💼', label: 'Program Kerja PPG', roles: ['admin','daerah'] },
     { page: 'users', emoji: '⚙️', label: 'Kelola Pengguna', roles: ['admin'] },
@@ -2435,6 +2461,7 @@ async function renderUsers() {
 
     let el = document.getElementById('editUserModal');
     if (!el) { el = document.createElement('div'); el.id = 'editUserModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    const ROLE_OPTIONS = ['admin','daerah','desa','desa_view','pjp_kelompok','kelompok','wali_kbm','guru'];
     el.innerHTML = `<div class="modal">
       <div class="modal-head"><h3 class="modal-title">Edit Data — ${escHtml(target.nama_lengkap)}</h3><button class="modal-close" onclick="closeModal('editUserModal')">✕</button></div>
       <div class="modal-body">
@@ -2442,6 +2469,11 @@ async function renderUsers() {
         <div class="form-group"><label>Username</label><input id="eudUsername" value="${escHtml(target.username||'')}"></div>
         <div class="form-group"><label>Dapukan / Jabatan</label><input id="eudJabatan" value="${escHtml(target.jabatan||'')}"></div>
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="eudNoHp" value="${escHtml(target.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+        <div class="form-group">
+          <label>Peran / Level</label>
+          <select id="eudRole">${ROLE_OPTIONS.map(r => `<option value="${r}" ${r===target.role?'selected':''}>${escHtml(ROLE_LABELS[r]||r)}</option>`).join('')}</select>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Hati-hati mengubah ini — menentukan menu & hak akses apa saja yang bisa dilihat/diedit user. Kelompok/Desa yang sudah tersimpan TIDAK ikut berubah, cuma perannya saja.</div>
+        </div>
         <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Ganti username berarti user harus login pakai username baru mulai sekarang. Pastikan sudah diinfokan ke yang bersangkutan.</div>
       </div>
       <div class="modal-foot">
@@ -2455,13 +2487,14 @@ async function renderUsers() {
       const username = document.getElementById('eudUsername').value.trim();
       const jabatan = document.getElementById('eudJabatan').value.trim();
       const noHp = document.getElementById('eudNoHp').value.trim();
+      const role = document.getElementById('eudRole').value;
       if (!nama || !username) { showToast('Nama dan Username wajib diisi', true); return; }
 
       const btn = document.getElementById('eudSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
-        await SB.anggota.update(target.id, { nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null, no_hp: noHp || null });
-        target.nama_lengkap = toTitleCase(nama); target.username = username; target.jabatan = jabatan || null; target.no_hp = noHp || null;
+        await SB.anggota.update(target.id, { nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null, no_hp: noHp || null, role });
+        target.nama_lengkap = toTitleCase(nama); target.username = username; target.jabatan = jabatan || null; target.no_hp = noHp || null; target.role = role;
         logActivity('ubah', 'Kelola Pengguna', `Edit data user: ${target.nama_lengkap}`);
         showToast('Data tersimpan');
         closeModal('editUserModal');
@@ -2672,7 +2705,7 @@ async function renderSantri() {
   const main = document.getElementById('mainContent');
   const u = App.user;
   const isAdmin = u.role === 'admin' || u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isKelompok = u.role === 'kelompok' || u.role === 'pjp_kelompok' || u.role === 'guru';
 
   // Load data master kelompok
@@ -3138,7 +3171,7 @@ async function renderKelolaKelas() {
 
   // ── Form Kelola Kelas Generus ──
   const isAdminForm = u.role === 'admin';
-  const isDesaForm = u.role === 'desa';
+  const isDesaForm = u.role === 'desa' || u.role === 'desa_view';
   const showPicker = isAdminForm || isDesaForm;
   const canEdit = isAdminForm || u.role === 'pjp_kelompok' || u.role === 'guru';
 
@@ -4641,7 +4674,7 @@ async function renderPenilaian() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isKelompok = ['pjp_kelompok','guru','kelompok','wali_kbm'].includes(u.role);
   const canEdit = isAdmin || u.role === 'pjp_kelompok' || u.role === 'guru';
 
@@ -5184,7 +5217,7 @@ async function renderDataBK() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isKelompok = ['pjp_kelompok','guru','kelompok','wali_kbm'].includes(u.role);
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
@@ -5442,7 +5475,7 @@ async function renderMonitorMus() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
 
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const DESA_NAMA_MAP = await loadDesaMap();
@@ -5693,7 +5726,7 @@ async function renderSarpras() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isPjp = u.role === 'pjp_kelompok';
   const canEdit = isAdmin || isPjp;
   const isRekap = isAdmin || isDaerah || isDesa;
@@ -6081,7 +6114,7 @@ async function renderMtMs() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isPjp = u.role === 'pjp_kelompok';
   const canEdit = isAdmin || isPjp;
 
@@ -6486,7 +6519,7 @@ async function renderGuruSekolah() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isPjp = u.role === 'pjp_kelompok';
   const isWaliKbm = u.role === 'wali_kbm';
   const canEdit = isAdmin || isPjp || isWaliKbm;
@@ -6741,7 +6774,7 @@ async function renderUserTidakAktif() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
 
   function getMonday(d) {
     const date = new Date(d);
@@ -7612,7 +7645,7 @@ async function renderRekapPengajian() {
   const u = App.user;
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const kelompokScope = isDesa
     ? (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id)
     : (App.cache.kelompok||[]);
@@ -7723,7 +7756,7 @@ async function renderRekapPengajian() {
 async function renderPenerobosan() {
   const u = App.user;
   if (u.role === 'pjp_kelompok' || u.role === 'kelompok') return renderPenerobosanEntry();
-  if (u.role === 'desa') return renderPenerobosanDesa();
+  if (u.role === 'desa' || u.role === 'desa_view') return renderPenerobosanDesa();
   return renderPenerobosanRekap();
 }
 
@@ -8193,6 +8226,7 @@ const PENEROBOSAN_4S_DESA = [
 async function renderPenerobosanDesa() {
   const main = document.getElementById('mainContent');
   const u = App.user;
+  const canEdit = u.role === 'desa' || u.role === 'admin';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const kelompokList = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
@@ -8641,7 +8675,7 @@ async function renderPenerobosanDesa() {
 async function renderPenerobosanRekap() {
   const main = document.getElementById('mainContent');
   const u = App.user;
-  const isAdmin = u.role === 'admin', isDaerah = u.role === 'daerah', isDesa = u.role === 'desa';
+  const isAdmin = u.role === 'admin', isDaerah = u.role === 'daerah', isDesa = u.role === 'desa' || u.role === 'desa_view';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
   const kelompokScope = (isAdmin || isDaerah)
@@ -9801,7 +9835,7 @@ async function renderJamaahRekap() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
   if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
 
@@ -10612,7 +10646,7 @@ async function renderRekapRaport() {
   const u = App.user;
   const isAdmin = u.role === 'admin';
   const isDaerah = u.role === 'daerah';
-  const isDesa = u.role === 'desa';
+  const isDesa = u.role === 'desa' || u.role === 'desa_view';
   const isKelompok = ['pjp_kelompok','wali_kbm','guru','kelompok'].includes(u.role);
 
   const SECTION_LABEL = { A: 'Akhlaqul Karimah', B: 'Alim Faqih', C: 'Kemandirian' };
@@ -11252,7 +11286,7 @@ async function renderPengurus() {
     }
     if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
 
-    if (isAdmin || u.role === 'daerah' || u.role === 'desa') {
+    if (isAdmin || u.role === 'daerah' || u.role === 'desa' || u.role === 'desa_view') {
       const DESA_NAMA_MAP = await loadDesaMap();
       const desaList = isAdmin || u.role === 'daerah'
         ? Object.entries(DESA_NAMA_MAP)
@@ -11274,7 +11308,7 @@ async function renderPengurus() {
       }));
     } else if (u.kelompok_id) {
       pengurusKlp[u.kelompok_id] = await SB.musPeserta.getByKelompok(u.kelompok_id) || [];
-    } else if (u.role === 'desa') {
+    } else if (u.role === 'desa' || u.role === 'desa_view') {
       const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
       await Promise.all(klpDesa.map(async klp => {
         pengurusKlp[klp.id] = await SB.musPeserta.getByKelompok(klp.id) || [];
@@ -11621,8 +11655,8 @@ const MUSYAWARAH_LEVEL = {
   guru_generus: { label: 'Musyawarah Guru Generus', icon: '👨‍🏫', warna: 'badge-green', roles: ['pjp_kelompok','wali_kbm','guru','kelompok','admin'] },
   unsur_5:      { label: 'Musyawarah 5 Unsur Kelompok', icon: '🤝', warna: 'badge-gold', roles: ['pjp_kelompok','kelompok','admin'] },
   kelompok_umum:{ label: 'Musyawarah Kelompok', icon: '🕌', warna: 'badge-green', roles: ['pjp_kelompok','kelompok','admin'] },
-  pjp_desa:     { label: 'Musyawarah PJP Desa', icon: '🏘️', warna: 'badge-rose', roles: ['desa','pjp_kelompok','admin'] },
-  ppg_daerah:   { label: 'Musyawarah PPG Daerah', icon: '🏛️', warna: 'badge-gray', roles: ['daerah','desa','admin'] },
+  pjp_desa:     { label: 'Musyawarah PJP Desa', icon: '🏘️', warna: 'badge-rose', roles: ['desa','desa_view','pjp_kelompok','admin'] },
+  ppg_daerah:   { label: 'Musyawarah PPG Daerah', icon: '🏛️', warna: 'badge-gray', roles: ['daerah','desa','desa_view','admin'] },
 };
 
 // Level yang bisa DILIHAT per role (level saya dan di atas saya)
@@ -11632,6 +11666,7 @@ const MUSYAWARAH_VISIBLE = {
   kelompok:     ['guru_generus','unsur_5','kelompok_umum'],
   pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum','pjp_desa'],
   desa:         ['guru_generus','unsur_5','pjp_desa'],
+  desa_view:    ['guru_generus','unsur_5','pjp_desa'], // Pengelola Desa — sama kayak 'desa', tapi read-only (lihat MUSYAWARAH_CREATE)
   daerah:       ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
   admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','ppg_daerah'],
 };
@@ -11643,6 +11678,7 @@ const MUSYAWARAH_CREATE = {
   kelompok:     ['guru_generus','unsur_5','kelompok_umum'],
   pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum'],
   desa:         ['pjp_desa'],
+  desa_view:    [], // Pengelola Desa — read-only, gak bisa bikin notulensi baru
   daerah:       ['ppg_daerah'],
   admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','ppg_daerah'],
 };
@@ -11662,7 +11698,7 @@ async function renderMusyawarah() {
   try {
     if (role === 'admin' || role === 'daerah') {
       allMusyawarah = await SB.musyawarah.getAll();
-    } else if (role === 'desa') {
+    } else if (role === 'desa' || role === 'desa_view') {
       // Desa: musyawarah desa sendiri + kelompok di desa + ppg_daerah
       const desaId = u.desa_id;
       const desaMus = await SB.musyawarah.getByDesa(desaId) || [];
@@ -11710,7 +11746,7 @@ async function renderMusyawarah() {
   // Auto-detect default level musyawarah berdasar role
   let defaultLevel = '';
   if (role === 'daerah') defaultLevel = 'ppg_daerah';
-  else if (role === 'desa') defaultLevel = 'pjp_desa';
+  else if (role === 'desa' || role === 'desa_view') defaultLevel = 'pjp_desa';
   else if (role === 'admin') defaultLevel = '';  // admin pilih sendiri
   // kelompok level → pilih antara guru_generus atau unsur_5
 
