@@ -12162,6 +12162,19 @@ async function renderMusyawarah() {
               SB.kelas.getByKelompok(klp.id),
             ]);
             const materiCount = prog.filter(p => p.bulan === tampilBulan).length;
+            // Target materi bulan ini = jumlah topik terjadwal di Kurikulum, DIHITUNG SEKALI
+            // per kombinasi jenjang+semester yg ADA di kelompok ini (bukan per kelas — kalau
+            // ada 2 kelas paralel di jenjang sama, targetnya jangan didobel).
+            const col = tampilBulan.toLowerCase();
+            const jenjangSemSet = new Set(kelasList.map(k => `${k.jenjang}|${k.semester}`));
+            let materiTarget = 0;
+            jenjangSemSet.forEach(js => {
+              const [jenjang, semester] = js.split('|');
+              materiTarget += (App.cache.materi||[]).filter(r =>
+                r.jenjang === jenjang && String(r.semester) === String(semester) && r[col] && r[col].trim()
+              ).length;
+            });
+            const pctMateri = materiTarget > 0 ? Math.round(materiCount/materiTarget*100) : null;
             const kelasMeta = await Promise.all(kelasList.map(async k => {
               const [ptList, sList] = await Promise.all([
                 SB.pertemuan.getByKelas(k.id, getTahunAjaran()),
@@ -12169,8 +12182,8 @@ async function renderMusyawarah() {
               ]);
               return { k, ptBulan: ptList.filter(p => p.bulan === tampilBulan), sList };
             }));
-            return { klp, materiCount, kelasMeta, ok: true };
-          } catch(e) { return { klp, materiCount: 0, kelasMeta: [], ok: false }; }
+            return { klp, materiCount, materiTarget, pctMateri, kelasMeta, ok: true };
+          } catch(e) { return { klp, materiCount: 0, materiTarget: 0, pctMateri: null, kelasMeta: [], ok: false }; }
         }));
 
         // Satu kali fetch absensi untuk SEMUA pertemuan se-daerah (bukan per kelas per kelompok)
@@ -12180,8 +12193,8 @@ async function renderMusyawarah() {
         allAbsMus.forEach(a => { (absByPtMus[a.pertemuan_id] ||= []).push(a); });
 
         const klpData = {};
-        klpMeta.forEach(({ klp, materiCount, kelasMeta, ok }) => {
-          if (!ok) { klpData[klp.id] = { materi: 0, pctHadir: null, kelasStats: [] }; return; }
+        klpMeta.forEach(({ klp, materiCount, materiTarget, pctMateri, kelasMeta, ok }) => {
+          if (!ok) { klpData[klp.id] = { materi: 0, materiTarget: 0, pctMateri: null, pctHadir: null, kelasStats: [] }; return; }
           let totalH=0, totalSlot=0;
           const kelasStats = kelasMeta.map(({ k, ptBulan, sList }) => {
             let kH=0, kSlot=0;
@@ -12203,6 +12216,8 @@ async function renderMusyawarah() {
           });
           klpData[klp.id] = {
             materi: materiCount,
+            materiTarget,
+            pctMateri,
             pctHadir: totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null,
             kelasStats,
           };
@@ -12210,20 +12225,22 @@ async function renderMusyawarah() {
 
         let daerahHtml = '';
         for (const [desaNama, klpList] of Object.entries(desaMap)) {
-          const totalMateri = klpList.reduce((n,k) => n + (klpData[k.id]?.materi||0), 0);
+          const totalMateriCapai = klpList.reduce((n,k) => n + (klpData[k.id]?.materi||0), 0);
+          const totalMateriTarget = klpList.reduce((n,k) => n + (klpData[k.id]?.materiTarget||0), 0);
+          const avgMateriDesa = totalMateriTarget > 0 ? Math.round(totalMateriCapai/totalMateriTarget*100) : null;
           const hadirArr = klpList.map(k => klpData[k.id]?.pctHadir).filter(p => p !== null);
           const avgHadir = hadirArr.length ? Math.round(hadirArr.reduce((a,b)=>a+b,0)/hadirArr.length) : null;
           const desaElId = 'musRekapDesa_' + desaNama.replace(/\s/g,'_');
 
           let detailRows = klpList.map(klp => {
-            const d = klpData[klp.id] || { materi:0, pctHadir:null, kelasStats:[] };
+            const d = klpData[klp.id] || { materiTarget:0, pctMateri:null, pctHadir:null, kelasStats:[] };
             const kelasDetail = d.kelasStats.map(ks =>
               `<span style="font-size:10px; margin-left:8px; color:var(--ink-soft);">${escHtml(ks.nama)}: ${ks.pctHadir!==null?ks.pctHadir+'%':'-'}</span>`
             ).join('');
             return `<div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; font-size:11.5px; flex-wrap:wrap; gap:2px;">
               <span style="font-weight:600;">${escHtml(klp.nama)}</span>
               <span>
-                ${pctBadge(d.pctHadir)} hadir · <b>${d.materi}</b> materi
+                ${pctBadge(d.pctHadir)} hadir · ${pctBadge(d.pctMateri)} materi
                 ${kelasDetail}
               </span>
             </div>`;
@@ -12234,7 +12251,7 @@ async function renderMusyawarah() {
               <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; cursor:pointer;" onclick="document.getElementById('${desaElId}').style.display = document.getElementById('${desaElId}').style.display==='none'?'block':'none'">
                 <div style="font-weight:700; font-size:13px;">📍 ${escHtml(desaNama)} <span style="font-size:11px; color:var(--ink-soft);">(${klpList.length} klp)</span></div>
                 <div style="font-size:12px;">
-                  ${pctBadge(avgHadir)} hadir · <b style="color:var(--green);">${totalMateri}</b> materi
+                  ${pctBadge(avgHadir)} hadir · ${pctBadge(avgMateriDesa)} materi
                   <span style="font-size:10px; color:var(--ink-soft); margin-left:4px;">▼ detail</span>
                 </div>
               </div>
