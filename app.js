@@ -6404,7 +6404,11 @@ async function renderMtMs() {
       });
 
       const bytes = await doc.save();
-      downloadPdf(bytes, 'Data_MT_MS_' + scopeLabel.replace(/ /g,'_') + '.pdf');
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const urlObj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj; a.download = 'Data_MT_MS_' + scopeLabel.replace(/ /g,'_') + '.pdf'; a.click();
+      URL.revokeObjectURL(urlObj);
       showToast('PDF berhasil diunduh');
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
