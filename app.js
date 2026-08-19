@@ -6345,7 +6345,13 @@ async function renderMtMs() {
       const scopeLabel = isDesa ? (DESA_NAMA_MAP_PDF[u.desa_id]||'Desa') : (isDaerah||isAdmin ? 'Daerah Sidoarjo Utara' : ((App.cache.kelompok||[]).find(k=>k.id===u.kelompok_id)?.nama||''));
       page.drawText('DATA MT / MS — ' + scopeLabel, { x: ML, y, font: fBold, size: 14, color: GREEN });
       y -= 16;
-      page.drawText('Total: ' + allData.length + ' orang | MT: ' + mtList.length + ' | MS: ' + msList.length + ' | Mengajar Generus: ' + mengajar.length + ' | Tidak Aktif: ' + tidakAktif.length, { x: ML, y, font: fReg, size: 8, color: GRAY });
+      // mtList/msList/mengajar/tidakAktif cuma ada di scope render() (fungsi tetangga) — dihitung
+      // ulang di sini dari allData yg SAMA, bukan diakses langsung (beda scope, bakal ReferenceError).
+      const mtListPdf = allData.filter(d => d.dapukan === 'MT');
+      const msListPdf = allData.filter(d => d.dapukan === 'MS');
+      const mengajarPdf = allData.filter(d => d.status_mengajar === 'Kelas Generus');
+      const tidakAktifPdf = allData.filter(d => d.status_mengajar === 'Tidak Aktif');
+      page.drawText('Total: ' + allData.length + ' orang | MT: ' + mtListPdf.length + ' | MS: ' + msListPdf.length + ' | Mengajar Generus: ' + mengajarPdf.length + ' | Tidak Aktif: ' + tidakAktifPdf.length, { x: ML, y, font: fReg, size: 8, color: GRAY });
       y -= 20;
 
       // Group by kelompok
