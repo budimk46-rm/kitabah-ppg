@@ -218,9 +218,13 @@ function showFullscreenKelas(k) {
       <div style="font-size:20px; font-weight:800; color:var(--green); margin-bottom:14px;">📋 Daftar Materi Bulan Ini</div>
       <div style="background:#fff; border-radius:16px; padding:10px 24px; box-shadow:0 2px 10px rgba(0,0,0,.06);">
         ${k.daftarMateri.length ? k.daftarMateri.map(m => `
-          <div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); font-size:19px;">
-            <span style="font-size:22px;">${m.selesai?'✅':'⬜'}</span>
-            <span style="color:${m.selesai?'var(--ink)':'var(--ink-soft)'}; font-weight:${m.selesai?'600':'400'};">${escHtml(m.topik)}</span>
+          <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-bottom:1px solid var(--line);">
+            <span style="font-size:22px; flex-shrink:0;">${m.selesai?'✅':'⬜'}</span>
+            <div>
+              <div style="font-size:19px; font-weight:700; color:${m.selesai?'var(--ink)':'var(--ink-soft)'};">${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
+              ${m.subTitle ? `<div style="font-size:17px; font-weight:600; color:${m.selesai?'var(--ink)':'var(--ink-soft)'}; margin-top:2px;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
+              ${m.poinTitle ? `<div style="font-size:15px; color:var(--ink-soft); margin-top:2px;">${escHtml(m.poinTitle)}</div>` : ''}
+            </div>
           </div>`).join('') : '<div style="padding:20px 0; color:var(--ink-soft); font-size:16px;">Belum ada materi terjadwal bulan ini.</div>'}
       </div>
     </div>`;
@@ -238,6 +242,17 @@ document.addEventListener('fullscreenchange', () => {
     if (el) el.style.display = 'none';
   }
 });
+
+// Tampilan kompak 1 item materi (bab/sub/poin) — dipakai di daftar toggle "Detail Materi"
+// di ketiga level Rekap KBM (beda dari showFullscreenKelas yg lebih besar/lega buat presentasi)
+function materiItemCompactHtml(m) {
+  const c = m.selesai ? 'var(--green)' : 'var(--ink-soft)';
+  return `<div style="padding:4px 0; border-bottom:1px solid var(--line);">
+    <div style="color:${c}; font-weight:700;">${m.selesai?'✅':'⬜'} ${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
+    ${m.subTitle ? `<div style="color:${c}; margin-left:20px; font-weight:600;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
+    ${m.poinTitle ? `<div style="color:var(--ink-soft); margin-left:20px;">${escHtml(m.poinTitle)}</div>` : ''}
+  </div>`;
+}
 
 // Peta nama Desa (id -> nama lengkap, mis. "Desa Barat 1") — diambil dari tabel `desa`
 // di database (di-cache sekali di App.cache.desa), BUKAN ditulis manual di kode.
@@ -14891,7 +14906,7 @@ async function renderRekap() {
       }).join('');
 
       const kUid = 'kk_' + ks.kelas.id;
-      const daftarMateri = ks.materiTarget.map(m => ({ topik: m.topik || '(tanpa judul)', selesai: progressSet.has(m.id+'|'+selectedBulan) }));
+      const daftarMateri = ks.materiTarget.map(m => ({ bab: m.bab, babTitle: m.bab_title, sub: m.sub, subTitle: m.sub_title, poin: m.poin, poinTitle: m.poin_title, selesai: progressSet.has(m.id+'|'+selectedBulan) }));
       window._rekapKelasData[kUid] = {
         nama: namaKelas, kelompokNama: lastKelompokNama || myKlpObj?.nama || '',
         santri: ks.totalSantri, pctHadir: ks.pctHadir, pctMateri: ks.pctMateri,
@@ -14940,7 +14955,7 @@ async function renderRekap() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
           </summary>
           <div style="margin-top:10px; font-size:12.5px;">
-            ${daftarMateri.map(m => `<div style="padding:3px 0; color:${m.selesai?'var(--green)':'var(--ink-soft)'};">${m.selesai?'✅':'⬜'} ${escHtml(m.topik)}</div>`).join('')}
+            ${daftarMateri.map(materiItemCompactHtml).join('')}
           </div>
         </details>` : ''}
 
@@ -15493,7 +15508,7 @@ async function renderRekapDesa() {
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
       const kMT = materiKelas.length;
-      const daftarMateri = materiKelas.map(r => ({ topik: r.topik || '(tanpa judul)', selesai: d.progressSet.has(r.id+'|'+bulan) }));
+      const daftarMateri = materiKelas.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, selesai: d.progressSet.has(r.id+'|'+bulan) }));
       const kMC = daftarMateri.filter(x => x.selesai).length;
       materiTarget += kMT;
       materiTercapai += kMC;
@@ -15606,7 +15621,7 @@ async function renderRekapDesa() {
               <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" data-kuid="${kUid}" onclick="RD_fullscreenKelas(this)">⛶ Layar Penuh</button>
             </div>
             <div class="rda_materi_list" style="display:none; font-size:11px; padding:6px 10px; background:#fff; border:1px solid var(--line); border-radius:6px; margin-top:4px;">
-              ${k.daftarMateri.length ? k.daftarMateri.map(m => `<div style="padding:2px 0; color:${m.selesai?'var(--green)':'var(--ink-soft)'};">${m.selesai?'✅':'⬜'} ${escHtml(m.topik)}</div>`).join('') : '<span style="color:var(--ink-soft);">Belum ada materi terjadwal bulan ini.</span>'}
+              ${k.daftarMateri.length ? k.daftarMateri.map(materiItemCompactHtml).join('') : '<span style="color:var(--ink-soft);">Belum ada materi terjadwal bulan ini.</span>'}
             </div>
           </td>
         </tr>`;
@@ -16079,7 +16094,7 @@ async function renderRekapDaerah() {
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
       const kMateriTarget = mk.length;
-      const daftarMateri = mk.map(r => ({ topik: r.topik || '(tanpa judul)', selesai: d.progressSet.has(r.id+'|'+bulan) }));
+      const daftarMateri = mk.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, selesai: d.progressSet.has(r.id+'|'+bulan) }));
       const kMateriCapai = daftarMateri.filter(x => x.selesai).length;
       materiTarget += kMateriTarget;
       materiTercapai += kMateriCapai;
@@ -16194,7 +16209,7 @@ async function renderRekapDaerah() {
                 <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" data-kuid="${kUid}" onclick="event.stopPropagation(); RDA_fullscreenKelas(this)">⛶ Layar Penuh</button>
               </div>
               <div class="rda_materi_list" style="display:none; font-size:11px; padding:6px 10px; background:#fff; border:1px solid var(--line); border-radius:6px; margin-bottom:4px;">
-                ${k.daftarMateri.length ? k.daftarMateri.map(m => `<div style="padding:2px 0; color:${m.selesai?'var(--green)':'var(--ink-soft)'};">${m.selesai?'✅':'⬜'} ${escHtml(m.topik)}</div>`).join('') : '<span style="color:var(--ink-soft);">Belum ada materi terjadwal bulan ini.</span>'}
+                ${k.daftarMateri.length ? k.daftarMateri.map(materiItemCompactHtml).join('') : '<span style="color:var(--ink-soft);">Belum ada materi terjadwal bulan ini.</span>'}
               </div>
             </td>
           </tr>`;
