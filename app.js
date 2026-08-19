@@ -6362,7 +6362,7 @@ async function renderMtMs() {
 
       for (const [klpNama, list] of Object.entries(byKlp)) {
         checkY(40);
-        page.drawText('👥 ' + klpNama + ' (' + list.length + ' orang)', { x: ML, y, font: fBold, size: 10, color: GREEN });
+        page.drawText('Kelompok: ' + klpNama + ' (' + list.length + ' orang)', { x: ML, y, font: fBold, size: 10, color: GREEN });
         y -= 14;
 
         // Header
@@ -13209,7 +13209,7 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
       solusi: document.getElementById('musSolusi').value.trim() || null,
       tindak_lanjut: document.getElementById('musTindakLanjut').value.trim() || null,
       kelompok_id: u.kelompok_id || null,
-      desa_id: u.desa_id || u.kelompok_id || null,
+      desa_id: u.desa_id || null,
       dibuat_oleh: u.id,
     };
 
@@ -13999,12 +13999,12 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   const selectedDapukan = new Set(existing?.dapukan_wajib || []);
 
   function renderKonfig() {
-    const checkboxes = options.map(d => `
-      <label style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:1.5px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:8px; cursor:pointer; background:${selectedDapukan.has(d)?'var(--green-soft)':'var(--white)'}; transition:all .15s;" onclick="KONFIG_toggle('${escHtml(d)}')">
-        <div style="width:20px; height:20px; border:2px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:4px; display:flex; align-items:center; justify-content:center; background:${selectedDapukan.has(d)?'var(--green)':'transparent'}; flex-shrink:0;">
+    const checkboxes = options.map((d, idx) => `
+      <label id="konfigChk_${idx}" data-dapukan="${escHtml(d)}" style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:1.5px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:8px; cursor:pointer; background:${selectedDapukan.has(d)?'var(--green-soft)':'var(--white)'}; transition:all .15s;" onclick="KONFIG_toggle(this)">
+        <div class="konfig-check-box" style="width:20px; height:20px; border:2px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:4px; display:flex; align-items:center; justify-content:center; background:${selectedDapukan.has(d)?'var(--green)':'transparent'}; flex-shrink:0;">
           ${selectedDapukan.has(d) ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
         </div>
-        <span style="font-size:13px; font-weight:${selectedDapukan.has(d)?'700':'500'}; color:${selectedDapukan.has(d)?'var(--green)':'var(--ink)'};">${escHtml(d)}</span>
+        <span class="konfig-check-label" style="font-size:13px; font-weight:${selectedDapukan.has(d)?'700':'500'}; color:${selectedDapukan.has(d)?'var(--green)':'var(--ink)'};">${escHtml(d)}</span>
       </label>`).join('');
 
     el.innerHTML = `<div class="modal modal-lg">
@@ -14017,7 +14017,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
           Centang dapukan yang <b>wajib hadir</b> di musyawarah ini. Peserta dengan dapukan yang dicentang akan otomatis muncul di form absensi.
         </div>
         ${levelMus === 'ppg_daerah' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="KONFIG_tambahDariDesa()">+ Tambah Dapukan dari Level Desa (Kyai, PJP KBM, PJP SarPras)</button>` : ''}
-        <div style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">Dipilih: ${selectedDapukan.size} dapukan</div>
+        <div id="konfigDipilihCount" style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">Dipilih: ${selectedDapukan.size} dapukan</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px;">
           ${checkboxes}
         </div>
@@ -14029,10 +14029,28 @@ async function openKonfigMusyawarahModal(levelMus, u) {
     </div>`;
   }
 
-  window.KONFIG_toggle = (dapukan) => {
+  // Toggle SATU checkbox aja langsung di DOM-nya (gak render ulang seluruh modal) —
+  // biar gak kerasa "kayak refresh" tiap kali centang. data-dapukan dibaca dari elemen-nya
+  // sendiri (via `this`, bukan ditempel ke string onclick) — aman dari nama dapukan yang
+  // ada tanda kutipnya (mis. "Tim Dhu'afa"), yg sebelumnya bikin tombolnya gak bisa diklik.
+  window.KONFIG_toggle = (el) => {
+    const dapukan = el.dataset.dapukan;
     if (selectedDapukan.has(dapukan)) selectedDapukan.delete(dapukan);
     else selectedDapukan.add(dapukan);
-    renderKonfig();
+    const aktif = selectedDapukan.has(dapukan);
+
+    el.style.borderColor = aktif ? 'var(--green)' : 'var(--line)';
+    el.style.background = aktif ? 'var(--green-soft)' : 'var(--white)';
+    const box = el.querySelector('.konfig-check-box');
+    box.style.borderColor = aktif ? 'var(--green)' : 'var(--line)';
+    box.style.background = aktif ? 'var(--green)' : 'transparent';
+    box.innerHTML = aktif ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>' : '';
+    const label = el.querySelector('.konfig-check-label');
+    label.style.fontWeight = aktif ? '700' : '500';
+    label.style.color = aktif ? 'var(--green)' : 'var(--ink)';
+
+    const counter = document.getElementById('konfigDipilihCount');
+    if (counter) counter.textContent = `Dipilih: ${selectedDapukan.size} dapukan`;
   };
 
   window.KONFIG_tambahDariDesa = () => {
