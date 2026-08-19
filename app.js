@@ -455,7 +455,7 @@ const FORM_CONFIGS = {
       { key:'nama', label:'Nama Lengkap', type:'text', required:true },
       { key:'jenis_kelamin', label:'Jenis Kelamin', type:'select', options:[['L','Laki-laki'],['P','Perempuan']], required:true },
       { key:'tgl_lahir', label:'Tanggal Lahir', type:'date' },
-      { key:'status_menikah', label:'Status Pernikahan (kalau usia 19 th ke atas)', type:'select', options:[['belum_menikah','Belum Menikah'],['menikah','Menikah']] },
+      { key:'status_menikah', label:'Status Pernikahan (kalau usia 19 th ke atas)', type:'select', options:[['belum_menikah','Belum Menikah'],['menikah','Menikah'],['duda','Duda'],['janda','Janda']] },
       { key:'no_hp', label:'No. HP / WhatsApp', type:'tel' },
       { key:'keterangan', label:'Keterangan (nama panggilan anak / ortu dari siapa)', type:'text' },
     ],
@@ -6912,7 +6912,7 @@ const PENGAJIAN_STATUS_COLOR = { H:'#1a6b3a', S:'#a67c00', I:'#1a5ba6', A:'#a648
 function pengajianJenisLabel(j) { return j==='sub' ? 'Sub Pengajian' : j==='ibu_ibu' ? 'Ibu-Ibu Kelompok' : 'Kelompok'; }
 // Bp./Ibu untuk yang sudah menikah, Sdra./Sdri. untuk yang belum — dipakai di tampilan Absensi Pengajian
 function gelarNama(x) {
-  const menikah = x.status_menikah === 'menikah';
+  const menikah = ['menikah','duda','janda'].includes(x.status_menikah);
   const prefix = x.jenis_kelamin === 'L' ? (menikah ? 'Bp. ' : 'Sdra. ') : (menikah ? 'Ibu ' : 'Sdri. ');
   return prefix + (x.nama || '');
 }
@@ -6951,9 +6951,10 @@ async function renderAbsensiPengajian() {
     let base;
 
     if (jenis === 'ibu_ibu') {
-      // Semua jamaah perempuan yang SUDAH MENIKAH — dicek langsung dari field status_menikah
-      // (bukan dari kategori usia, krn Istimewa/60+ bisa nutupin status Dewasa meski udah nikah).
-      base = allJamaahKelompok.filter(x => x.jenis_kelamin === 'P' && x.status_menikah === 'menikah');
+      // Semua jamaah perempuan yang SUDAH/PERNAH MENIKAH (termasuk Janda) — dicek langsung
+      // dari field status_menikah (bukan dari kategori usia, krn Istimewa/60+ bisa nutupin
+      // status Dewasa meski udah nikah).
+      base = allJamaahKelompok.filter(x => x.jenis_kelamin === 'P' && ['menikah','janda'].includes(x.status_menikah));
     } else {
       base = allJamaahKelompok.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
 
@@ -8817,7 +8818,7 @@ function kategoriUsiaJamaah(tglLahir, statusMenikah) {
   if (!tglLahir) return 'Belum Diketahui';
   const usia = hitungUsia(tglLahir);
   if (usia >= 60) return 'Istimewa'; // Istimewa selalu menang, apapun status nikahnya
-  if (statusMenikah === 'menikah') return 'Dewasa'; // sudah menikah = Dewasa, berapapun usianya
+  if (['menikah','duda','janda'].includes(statusMenikah)) return 'Dewasa'; // sudah/pernah menikah = Dewasa, berapapun usianya
   if (usia < 4) return 'Bayi';
   if (usia <= 6) return 'PAUD/TK';
   if (usia <= 12) return 'Caberawit';
@@ -9115,6 +9116,12 @@ async function renderJamaahEntry() {
 
       <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
         ${jamaahKategoriTableHtml(list, kategoriDariSantriMap)}
+      </div>
+
+      <div class="card" style="margin-bottom:16px; text-align:center; padding:16px; max-width:220px;">
+        <div style="font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Jumlah KK</div>
+        <div style="font-size:28px; font-weight:800; color:var(--green);">${list.filter(x => x.kepala_keluarga === true).length}</div>
+        <div style="font-size:10.5px; color:var(--ink-soft); margin-top:2px;">Dari yang ditandai "Status Kepala Keluarga: Ya"</div>
       </div>
 
       <div class="card" style="margin-bottom:12px;">
@@ -9586,7 +9593,7 @@ async function renderJamaahEntry() {
     const aoa = [
       ['TEMPLATE DATA JAMAAH'],
       ['Isi mulai baris ke-5 (baris contoh di bawah boleh dihapus atau ditimpa).'],
-      ['Kolom Tanggal Lahir wajib format YYYY-MM-DD. Kolom Status Pernikahan: menikah / belum_menikah (boleh dikosongkan kalau belum usia nikah).'],
+      ['Kolom Tanggal Lahir wajib format YYYY-MM-DD. Kolom Status Pernikahan: menikah / belum_menikah / duda / janda (boleh dikosongkan kalau belum usia nikah).'],
       ['No', 'Nama', 'L/P', 'Tanggal Lahir', 'Status Pernikahan', 'No. HP', 'Keterangan'],
       [1, 'Ahmad Fulan bin Budi', 'L', '1990-05-15', 'menikah', '081234567890', 'Ayah dari Fulan'],
       [2, 'Siti Aminah binti Darto', 'P', '2015-03-20', '', '', 'Anak'],
@@ -9696,7 +9703,7 @@ async function renderJamaahEntry() {
           if (!jk) rowErrors.push('L/P kosong');
           else if (!['L','P'].includes(jk)) rowErrors.push('L/P harus L atau P');
           if (tglLahir && !/^\d{4}-\d{2}-\d{2}$/.test(tglLahir)) rowErrors.push('Format tgl lahir salah (harus YYYY-MM-DD)');
-          if (statusNikah && !['menikah','belum_menikah'].includes(statusNikah)) rowErrors.push('Status Pernikahan harus "menikah" atau "belum_menikah" (atau kosongkan)');
+          if (statusNikah && !['menikah','belum_menikah','duda','janda'].includes(statusNikah)) rowErrors.push('Status Pernikahan harus "menikah", "belum_menikah", "duda", atau "janda" (atau kosongkan)');
 
           parsedRows.push({
             _rowNum: rowNum, _errors: rowErrors,
@@ -9927,7 +9934,11 @@ async function renderJamaahEntry() {
         </div>
         <div class="form-group"><label>Tanggal Lahir</label>${tanggalLahirDropdownHtml('jmhTgl', existing?.tgl_lahir||'')}</div>
         <div class="form-group"><label>Status Pernikahan (kalau usia 19 th ke atas)</label>
-          <select id="jmhStatusNikah"><option value="">Pilih...</option><option value="belum_menikah" ${existing?.status_menikah==='belum_menikah'?'selected':''}>Belum Menikah</option><option value="menikah" ${existing?.status_menikah==='menikah'?'selected':''}>Menikah</option></select>
+          <select id="jmhStatusNikah"><option value="">Pilih...</option><option value="belum_menikah" ${existing?.status_menikah==='belum_menikah'?'selected':''}>Belum Menikah</option><option value="menikah" ${existing?.status_menikah==='menikah'?'selected':''}>Menikah</option><option value="duda" ${existing?.status_menikah==='duda'?'selected':''}>Duda</option><option value="janda" ${existing?.status_menikah==='janda'?'selected':''}>Janda</option></select>
+        </div>
+        <div class="form-group"><label>Status Kepala Keluarga</label>
+          <select id="jmhKepalaKeluarga"><option value="">Pilih...</option><option value="ya" ${existing?.kepala_keluarga===true?'selected':''}>Ya</option><option value="tidak" ${existing?.kepala_keluarga===false?'selected':''}>Tidak</option></select>
+          <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Dasar hitung Jumlah KK — tandai "Ya" untuk 1 orang per rumah tangga (biasanya kepala keluarga/suami, tapi bisa siapa saja yang mewakili 1 KK).</div>
         </div>
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="jmhHp" value="${escHtml(existing?.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <div class="form-group"><label>Keterangan (opsional)</label><input id="jmhKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: Ahmad (anak) / Ortu dari Ahmad"></div>
@@ -9978,6 +9989,8 @@ async function renderJamaahEntry() {
       const jk = document.getElementById('jmhJK').value;
       const tgl = bacaTanggalDropdown('jmhTgl') || null;
       const statusNikah = document.getElementById('jmhStatusNikah').value || null;
+      const kkRaw = document.getElementById('jmhKepalaKeluarga').value;
+      const kepalaKeluarga = kkRaw === 'ya' ? true : (kkRaw === 'tidak' ? false : null);
       const hp = document.getElementById('jmhHp').value.trim() || null;
       const ket = document.getElementById('jmhKet').value.trim() || null;
       const subPengajianEl = document.getElementById('jmhSubPengajian');
@@ -9988,12 +10001,12 @@ async function renderJamaahEntry() {
       try {
         let jamaahId = existing?.id;
         if (existing) {
-          const updatePayload = { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket };
+          const updatePayload = { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, kepala_keluarga: kepalaKeluarga, no_hp: hp, keterangan: ket };
           if (subPengajianId !== undefined) updatePayload.sub_pengajian_id = subPengajianId;
           await SB.jamaah.update(existing.id, updatePayload);
           logActivity('ubah', 'Data Jamaah', `Mengubah data jamaah: ${nama}`);
         } else {
-          const res = await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, no_hp: hp, keterangan: ket, aktif: true });
+          const res = await SB.jamaah.insert({ kelompok_id: u.kelompok_id, nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, status_menikah: statusNikah, kepala_keluarga: kepalaKeluarga, no_hp: hp, keterangan: ket, aktif: true });
           jamaahId = res?.[0]?.id;
           logActivity('tambah', 'Data Jamaah', `Menambah data jamaah: ${nama}`);
         }
@@ -13020,7 +13033,21 @@ async function renderMusyawarah() {
       try { absList = await SB.musAbsensi.getByMusyawarah(m.id); } catch(e){}
       if (absList.length) {
         page.drawText('DAFTAR HADIR', {x:ML,y,font:fBold,size:10,color:GREEN}); y-=14;
-        absList.forEach((a,i) => {
+        // Urutkan sama seperti Data Pengurus: 4S dulu, baru Tim 7, baru Unsur PPG/lainnya
+        // (urutan asli di masing2 tingkatan tetap terjaga — sort stabil).
+        function rankJabatan(j) {
+          const i4s = EMPAT_S.indexOf(j);
+          if (i4s >= 0) return i4s;
+          const iTim7 = TIM_7.indexOf(j);
+          if (iTim7 >= 0) return 100 + iTim7;
+          return 1000;
+        }
+        const absUrut = [...absList].sort((a, b) => {
+          const jabA = a.peserta_id ? (a.musyawarah_peserta?.jabatan||'') : (a.jabatan_tamu||'');
+          const jabB = b.peserta_id ? (b.musyawarah_peserta?.jabatan||'') : (b.jabatan_tamu||'');
+          return rankJabatan(jabA) - rankJabatan(jabB);
+        });
+        absUrut.forEach((a,i) => {
           checkY(14);
           const nama = a.peserta_id ? (a.musyawarah_peserta?.nama||'-') : (a.nama_tamu||'Tamu');
           const jab = a.peserta_id ? (a.musyawarah_peserta?.jabatan||'') : (a.jabatan_tamu||'Tamu');
@@ -13032,7 +13059,7 @@ async function renderMusyawarah() {
       }
 
       const sections = [
-        ['PENCAPAIAN MATERI', m.pencapaian],
+        [m.level === 'kelompok_umum' ? 'HASIL MUSYAWARAH' : 'PENCAPAIAN MATERI', m.pencapaian],
         ['KENDALA', m.kendala],
         ['SOLUSI', m.solusi],
         ['TINDAK LANJUT', m.tindak_lanjut],
