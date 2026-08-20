@@ -254,6 +254,77 @@ function materiItemCompactHtml(m) {
   </div>`;
 }
 
+// ===== EDITOR TEKS KAYA (Bold/Italic/dll) — dipakai di field2 notulensi Musyawarah =====
+// Toolbar sederhana + <div contenteditable>. Isinya disimpan sbg HTML terbatas (cuma tag
+// b/i/u/ul/li/br yg diperbolehkan execCommand dari toolbar ini — user gak bisa nyisipin
+// tag lain krn gak ada cara paste-HTML dari toolbar ini, cuma ngetik+format biasa).
+function richTextEditorHtml(id, initialHtml) {
+  return `<div class="rte-wrap" style="border:1.5px solid var(--line); border-radius:var(--radius-sm); overflow:hidden;">
+    <div style="display:flex; gap:2px; padding:5px 6px; background:var(--cream-2,#F4EFE3); border-bottom:1px solid var(--line);">
+      <button type="button" onmousedown="event.preventDefault()" onclick="RTE_exec('${id}','bold')" title="Tebal (Bold)" style="width:28px; height:28px; border:none; background:none; border-radius:5px; cursor:pointer; font-weight:800; font-size:13px;">B</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="RTE_exec('${id}','italic')" title="Miring (Italic)" style="width:28px; height:28px; border:none; background:none; border-radius:5px; cursor:pointer; font-style:italic; font-size:13px;">I</button>
+      <button type="button" onmousedown="event.preventDefault()" onclick="RTE_exec('${id}','underline')" title="Garis Bawah" style="width:28px; height:28px; border:none; background:none; border-radius:5px; cursor:pointer; text-decoration:underline; font-size:13px;">U</button>
+      <div style="width:1px; background:var(--line); margin:4px 3px;"></div>
+      <button type="button" onmousedown="event.preventDefault()" onclick="RTE_exec('${id}','insertUnorderedList')" title="Daftar Poin" style="width:28px; height:28px; border:none; background:none; border-radius:5px; cursor:pointer; font-size:14px;">•≡</button>
+    </div>
+    <div id="${id}" class="rte-editor" contenteditable="true" style="min-height:90px; max-height:320px; overflow-y:auto; padding:9px 12px; font-size:13.5px; font-family:inherit; outline:none; background:var(--white);">${initialHtml || ''}</div>
+  </div>`;
+}
+window.RTE_exec = (id, cmd) => {
+  document.getElementById(id)?.focus();
+  document.execCommand(cmd, false, null);
+};
+// Ambil isi editor sbg HTML utk disimpan. Div/p kosong dari browser (kadang muncul pas
+// user Enter berkali2) dirapikan dikit, tapi TIDAK dihapus total krn itu representasi baris
+// kosong yg sengaja ditekan user.
+function RTE_getHtml(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  const html = el.innerHTML.trim();
+  return (html === '<br>' || html === '') ? '' : html;
+}
+// Konten field notulensi bisa 2 macam: teks polos LAMA (dari sebelum ada rich-text editor
+// ini) atau HTML BARU (dari editor). Dibedakan sederhana: kalau ada tag HTML ('<'), anggap
+// udah HTML; kalau nggak, itu teks polos lama — escape dulu baru \n diubah jadi <br> biar
+// baris barunya tetap kebaca pas ditampilkan di editor/tampilan HTML.
+function contentToDisplayHtml(content) {
+  if (!content) return '';
+  if (content.includes('<')) return content;
+  return escHtml(content).replace(/\n/g, '<br>');
+}
+// Parse HTML notulensi (dari editor RTE, tag terbatas b/i/u/ul/li/br/div) jadi array baris,
+// tiap baris array run {text, bold, italic} — dipakai buat gambar PDF per-baris dgn font yg
+// beda (Bold/Italic) tanpa kehilangan formatnya, bukan cuma strip semua tag jadi teks polos.
+function htmlToPdfLines(html) {
+  if (!html) return [];
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  const lines = [];
+  let curLine = [];
+  function pushLine() { lines.push(curLine); curLine = []; }
+  function walk(node, bold, italic) {
+    if (node.nodeType === 3) { // text node
+      const t = node.textContent;
+      if (t) curLine.push({ text: t, bold, italic });
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    const nb = bold || tag === 'b' || tag === 'strong';
+    const ni = italic || tag === 'i' || tag === 'em';
+    if (tag === 'br') { pushLine(); return; }
+    if (tag === 'li') curLine.push({ text: '•  ', bold: false, italic: false });
+    Array.from(node.childNodes).forEach(c => walk(c, nb, ni));
+    if (['div','p','li','ul'].includes(tag)) pushLine();
+  }
+  Array.from(container.childNodes).forEach(c => walk(c, false, false));
+  if (curLine.length) pushLine();
+  // Buang baris yg bener2 kosong DI UJUNG doang (baris kosong di TENGAH tetep dipertahankan
+  // sbg jarak antar paragraf yg sengaja dibuat user)
+  while (lines.length && !lines[lines.length-1].some(r => r.text.trim())) lines.pop();
+  return lines;
+}
+
 // Peta nama Desa (id -> nama lengkap, mis. "Desa Barat 1") — diambil dari tabel `desa`
 // di database (di-cache sekali di App.cache.desa), BUKAN ditulis manual di kode.
 // Jadi kalau suatu saat nambah/ubah nama Desa, tinggal ubah lewat Supabase (tabel desa),
@@ -2160,16 +2231,20 @@ async function renderKurikulum() {
 
       // ---- Fungsi utilitas ----
       const wrap = (text, maxW, size, font) => {
-        const words = String(text || '').split(' ');
-        const lines = []; let cur = '';
-        for (const w of words) {
-          const test = cur ? cur + ' ' + w : w;
-          if (font.widthOfTextAtSize(test, size) > maxW) {
-            if (cur) lines.push(cur);
-            cur = w;
-          } else cur = test;
-        }
-        if (cur) lines.push(cur);
+        const lines = [];
+        String(text || '').split('\n').forEach(para => {
+          const words = para.split(' ').filter(Boolean);
+          let cur = '';
+          if (!words.length) { lines.push(''); return; }
+          for (const w of words) {
+            const test = cur ? cur + ' ' + w : w;
+            if (font.widthOfTextAtSize(test, size) > maxW) {
+              if (cur) lines.push(cur);
+              cur = w;
+            } else cur = test;
+          }
+          if (cur) lines.push(cur);
+        });
         return lines.length ? lines : [''];
       };
 
@@ -10760,14 +10835,18 @@ async function renderRaportCaberawit() {
       addPage();
 
       const wrap = (text, maxW, size, font) => {
-        const words = String(text||'').split(' ');
-        const lines = []; let cur = '';
-        for (const w of words) {
-          const test = cur ? cur + ' ' + w : w;
-          if (font.widthOfTextAtSize(test, size) > maxW) { if (cur) lines.push(cur); cur = w; }
-          else cur = test;
-        }
-        if (cur) lines.push(cur);
+        const lines = [];
+        String(text||'').split('\n').forEach(para => {
+          const words = para.split(' ').filter(Boolean);
+          let cur = '';
+          if (!words.length) { lines.push(''); return; }
+          for (const w of words) {
+            const test = cur ? cur + ' ' + w : w;
+            if (font.widthOfTextAtSize(test, size) > maxW) { if (cur) lines.push(cur); cur = w; }
+            else cur = test;
+          }
+          if (cur) lines.push(cur);
+        });
         return lines.length ? lines : [''];
       };
       const checkSpace = (need) => {
@@ -12158,24 +12237,24 @@ async function renderMusyawarah() {
             <div id="musNotulensiStandar">
               <div style="margin-bottom:10px;">
                 <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Pencapaian Materi</label>
-                <textarea id="musPencapaianInline" rows="3" placeholder="Pencapaian target materi bulan ini per kelas usia..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+                ${richTextEditorHtml('musPencapaianInline', '')}
               </div>
               <div style="margin-bottom:10px;">
                 <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Kendala</label>
-                <textarea id="musKendalaInline" rows="2" placeholder="Kendala yang dihadapi..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+                ${richTextEditorHtml('musKendalaInline', '')}
               </div>
               <div style="margin-bottom:10px;">
                 <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Solusi</label>
-                <textarea id="musSolusiInline" rows="2" placeholder="Solusi yang disepakati..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+                ${richTextEditorHtml('musSolusiInline', '')}
               </div>
               <div style="margin-bottom:14px;">
                 <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Tindak Lanjut</label>
-                <textarea id="musTindakLanjutInline" rows="2" placeholder="Tindak lanjut, PIC, target waktu..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+                ${richTextEditorHtml('musTindakLanjutInline', '')}
               </div>
             </div>
             <div id="musNotulensiKelompokUmum" style="display:none; margin-bottom:14px;">
               <label style="font-size:12px; font-weight:700; color:var(--green); display:block; margin-bottom:5px;">Hasil Musyawarah</label>
-              <textarea id="musHasilInline" rows="10" placeholder="Tuliskan hasil pembahasan musyawarah kelompok di sini — bebas panjang, sesuai kebutuhan..." style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px; resize:vertical;"></textarea>
+              ${richTextEditorHtml('musHasilInline', '')}
             </div>
           </div>
 
@@ -12234,10 +12313,10 @@ async function renderMusyawarah() {
           </div>` : ''}
         </div>
         <div style="display:grid; gap:8px;">
-          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">${m.level==='kelompok_umum'?'Hasil Musyawarah':'Pencapaian Materi'}</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.pencapaian)}</div></div>` : ''}
-          ${m.kendala ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--rose); margin-bottom:3px;">Kendala</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.kendala)}</div></div>` : ''}
-          ${m.solusi ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--gold); margin-bottom:3px;">Solusi</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.solusi)}</div></div>` : ''}
-          ${m.tindak_lanjut ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:3px;">Tindak Lanjut</div><div style="font-size:13px; color:var(--ink); white-space:pre-wrap;">${escHtml(m.tindak_lanjut)}</div></div>` : ''}
+          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">${m.level==='kelompok_umum'?'Hasil Musyawarah':'Pencapaian Materi'}</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.pencapaian)}</div></div>` : ''}
+          ${m.kendala ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--rose); margin-bottom:3px;">Kendala</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.kendala)}</div></div>` : ''}
+          ${m.solusi ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--gold); margin-bottom:3px;">Solusi</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.solusi)}</div></div>` : ''}
+          ${m.tindak_lanjut ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:3px;">Tindak Lanjut</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.tindak_lanjut)}</div></div>` : ''}
         </div>
       </div>`;
     }).join('') :
@@ -12991,11 +13070,11 @@ async function renderMusyawarah() {
       level, tanggal, bulan,
       tahun: new Date(tanggal).getFullYear(),
       pencapaian: level === 'kelompok_umum'
-        ? (document.getElementById('musHasilInline')?.value.trim() || null)
-        : (document.getElementById('musPencapaianInline')?.value.trim() || null),
-      kendala: document.getElementById('musKendalaInline')?.value.trim() || null,
-      solusi: document.getElementById('musSolusiInline')?.value.trim() || null,
-      tindak_lanjut: document.getElementById('musTindakLanjutInline')?.value.trim() || null,
+        ? (RTE_getHtml('musHasilInline') || null)
+        : (RTE_getHtml('musPencapaianInline') || null),
+      kendala: RTE_getHtml('musKendalaInline') || null,
+      solusi: RTE_getHtml('musSolusiInline') || null,
+      tindak_lanjut: RTE_getHtml('musTindakLanjutInline') || null,
       kelompok_id: u.kelompok_id || null,
       desa_id: u.desa_id || null,
       dibuat_oleh: u.id,
@@ -13031,12 +13110,10 @@ async function renderMusyawarah() {
       showToast('Notulensi & absensi berhasil disimpan ✓');
 
       // Reset form
-      document.getElementById('musPencapaianInline').value = '';
-      document.getElementById('musKendalaInline').value = '';
-      document.getElementById('musSolusiInline').value = '';
-      document.getElementById('musTindakLanjutInline').value = '';
-      const musHasilEl = document.getElementById('musHasilInline');
-      if (musHasilEl) musHasilEl.value = '';
+      ['musPencapaianInline','musKendalaInline','musSolusiInline','musTindakLanjutInline','musHasilInline'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+      });
       musInlineTamu = [];
       musInlinePeserta.forEach(p => { delete musInlineAbsensi[p.id]; });
       MUS_renderAbsensiInline();
@@ -13092,6 +13169,8 @@ async function renderMusyawarah() {
       const doc = await PDFDocument.create();
       const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const fItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
+      const fBoldItalic = await doc.embedFont(StandardFonts.HelveticaBoldOblique);
       const W=595, H=842, ML=40, MR=40, MT=44;
       const GREEN=rgb(0.106,0.227,0.173), GRAY=rgb(0.5,0.5,0.5);
 
@@ -13137,6 +13216,33 @@ async function renderMusyawarah() {
         y-=6;
       }
 
+      // Gambar 1 baris (array of {text,bold,italic}) ke PDF, word-wrap sambil GANTI FONT per
+      // run kalau ada campuran bold/italic dalam 1 baris — bukan cuma teks polos 1 font lagi.
+      function fontFor(bold, italic) {
+        if (bold && italic) return fBoldItalic;
+        if (bold) return fBold;
+        if (italic) return fItalic;
+        return fReg;
+      }
+      function drawRichLine(runs, size, indent) {
+        let x = ML + indent;
+        checkY(size + 4);
+        runs.forEach(run => {
+          const font = fontFor(run.bold, run.italic);
+          const words = run.text.split(/(\s+)/); // pertahankan spasi sbg elemen sendiri
+          words.forEach(w => {
+            if (!w) return;
+            const wWidth = font.widthOfTextAtSize(w, size);
+            if (x + wWidth > W - MR && w.trim()) {
+              y -= (size + 4); x = ML + indent; checkY(size + 4);
+            }
+            if (w.trim()) page.drawText(w, { x, y, font, size, color: rgb(0.15,0.15,0.15) });
+            x += wWidth;
+          });
+        });
+        y -= (size + 4);
+      }
+
       const sections = [
         [m.level === 'kelompok_umum' ? 'HASIL MUSYAWARAH' : 'PENCAPAIAN MATERI', m.pencapaian],
         ['KENDALA', m.kendala],
@@ -13147,18 +13253,9 @@ async function renderMusyawarah() {
         if (!text) return;
         checkY(30);
         page.drawText(title, {x:ML,y,font:fBold,size:10,color:GREEN}); y-=14;
-        // Wrap text
-        const words = text.split(/\s+/);
-        let line = '';
-        words.forEach(w => {
-          const test = line ? line+' '+w : w;
-          if (fReg.widthOfTextAtSize(test,9) > W-ML-MR-10) {
-            checkY(13);
-            page.drawText(line, {x:ML+4,y,font:fReg,size:9,color:rgb(0.15,0.15,0.15)});
-            y-=13; line=w;
-          } else line=test;
-        });
-        if (line) { checkY(13); page.drawText(line,{x:ML+4,y,font:fReg,size:9,color:rgb(0.15,0.15,0.15)}); y-=13; }
+        const richLines = htmlToPdfLines(contentToDisplayHtml(text));
+        if (!richLines.length) { y -= 9; }
+        richLines.forEach(runs => drawRichLine(runs, 9, 4));
         y-=6;
       });
 
@@ -13239,7 +13336,7 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
       ${m?.level === 'kelompok_umum' ? `
       <div class="form-group">
         <label>Hasil Musyawarah</label>
-        <textarea id="musPencapaian" rows="10" placeholder="Tuliskan hasil pembahasan musyawarah kelompok di sini — bebas panjang, sesuai kebutuhan...">${escHtml(m?.pencapaian||'')}</textarea>
+        ${richTextEditorHtml('musPencapaian', contentToDisplayHtml(m?.pencapaian))}
       </div>
       <input type="hidden" id="musKendala" value="">
       <input type="hidden" id="musSolusi" value="">
@@ -13247,19 +13344,19 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
       ` : `
       <div class="form-group">
         <label>Pencapaian Materi</label>
-        <textarea id="musPencapaian" rows="4" placeholder="Pencapaian target materi bulan ini per kelas usia, capaian KBM, dll...">${escHtml(m?.pencapaian||'')}</textarea>
+        ${richTextEditorHtml('musPencapaian', contentToDisplayHtml(m?.pencapaian))}
       </div>
       <div class="form-group">
         <label>Kendala</label>
-        <textarea id="musKendala" rows="3" placeholder="Kendala yang dihadapi selama bulan ini...">${escHtml(m?.kendala||'')}</textarea>
+        ${richTextEditorHtml('musKendala', contentToDisplayHtml(m?.kendala))}
       </div>
       <div class="form-group">
         <label>Solusi</label>
-        <textarea id="musSolusi" rows="3" placeholder="Solusi yang disepakati dalam musyawarah...">${escHtml(m?.solusi||'')}</textarea>
+        ${richTextEditorHtml('musSolusi', contentToDisplayHtml(m?.solusi))}
       </div>
       <div class="form-group">
         <label>Tindak Lanjut</label>
-        <textarea id="musTindakLanjut" rows="3" placeholder="Tindak lanjut yang akan dilaksanakan, PIC, dan target waktu...">${escHtml(m?.tindak_lanjut||'')}</textarea>
+        ${richTextEditorHtml('musTindakLanjut', contentToDisplayHtml(m?.tindak_lanjut))}
       </div>
       `}
     </div>
@@ -13279,14 +13376,23 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
     const btn = document.getElementById('musSaveBtn');
     btn.disabled = true; btn.textContent = 'Menyimpan...';
 
+    // Field ini bisa jadi editor kaya (contenteditable) ATAU input hidden biasa, tergantung
+    // level (kelompok_umum vs standar) — baca dgn cara yg sesuai.
+    function readMusField(id) {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      const val = el.isContentEditable ? RTE_getHtml(id) : el.value.trim();
+      return val || null;
+    }
+
     const data = {
       level, tanggal, bulan,
       tahun: new Date(tanggal).getFullYear(),
       peserta: document.getElementById('musPeserta').value.trim() || null,
-      pencapaian: document.getElementById('musPencapaian').value.trim() || null,
-      kendala: document.getElementById('musKendala').value.trim() || null,
-      solusi: document.getElementById('musSolusi').value.trim() || null,
-      tindak_lanjut: document.getElementById('musTindakLanjut').value.trim() || null,
+      pencapaian: readMusField('musPencapaian'),
+      kendala: readMusField('musKendala'),
+      solusi: readMusField('musSolusi'),
+      tindak_lanjut: readMusField('musTindakLanjut'),
       kelompok_id: u.kelompok_id || null,
       desa_id: u.desa_id || null,
       dibuat_oleh: u.id,
