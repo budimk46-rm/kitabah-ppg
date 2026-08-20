@@ -302,6 +302,7 @@ function htmlToPdfLines(html) {
   const lines = [];
   let curLine = [];
   function pushLine() { lines.push(curLine); curLine = []; }
+  const BLOCK_TAGS = ['div','p','li','ul','ol'];
   function walk(node, bold, italic) {
     if (node.nodeType === 3) { // text node
       const t = node.textContent;
@@ -315,9 +316,18 @@ function htmlToPdfLines(html) {
     if (tag === 'br') { pushLine(); return; }
     if (tag === 'li') curLine.push({ text: '•  ', bold: false, italic: false });
     Array.from(node.childNodes).forEach(c => walk(c, nb, ni));
-    if (['div','p','li','ul'].includes(tag)) pushLine();
   }
-  Array.from(container.childNodes).forEach(c => walk(c, false, false));
+  // Proses tiap ANAK LANGSUNG container satu-satu: kalau dia block-level (div/p/li/ul),
+  // tutup dulu baris yg lagi "lepas" (teks/format inline yg ketik SEBELUM Enter pertama,
+  // belum kebungkus tag apapun) SEBELUM masuk block itu — baru block-nya sendiri jadi baris
+  // baru terpisah lagi setelahnya. Ini yg tadinya kelewat: teks lepas + div pertama nempel
+  // jadi 1 baris krn cuma nunggu tag div NUTUP buat pushLine, gak ada pemisah SEBELUM masuk.
+  Array.from(container.childNodes).forEach(child => {
+    const isBlock = child.nodeType === 1 && BLOCK_TAGS.includes(child.tagName.toLowerCase());
+    if (isBlock && curLine.length) pushLine();
+    walk(child, false, false);
+    if (isBlock) pushLine();
+  });
   if (curLine.length) pushLine();
   // Buang baris yg bener2 kosong DI UJUNG doang (baris kosong di TENGAH tetep dipertahankan
   // sbg jarak antar paragraf yg sengaja dibuat user)
