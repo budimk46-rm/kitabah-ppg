@@ -13509,12 +13509,26 @@ async function openMusAbsensiModal(musId, level, u) {
       // Coba kedua format
       let p1 = await SB.musPeserta.getByDesa(desaId);
       let p2 = desaNama !== desaId ? await SB.musPeserta.getByDesa(desaNama) : [];
+      // Sekalian tarik pengurus level KELOMPOK di desa ini juga — krn Konfigurasi Peserta
+      // Musyawarah PJP Desa MEMANG nawarin pilihan dapukan dari kelompok2 di desa itu juga
+      // (bukan cuma dapukan level desa doang), jadi daftar peserta di sini WAJIB sinkron.
+      if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
+      const klpDiDesaIni = (App.cache.kelompok||[]).filter(k => k.desa_id === desaId);
+      const pKlpArrs = await Promise.all(klpDiDesaIni.map(klp => SB.musPeserta.getByKelompok(klp.id)));
       // Gabungkan dan dedup
       const seen = new Set();
-      pesertaTetap = [...(p1||[]), ...(p2||[])].filter(p => {
+      let semuaPesertaDesa = [...(p1||[]), ...(p2||[]), ...pKlpArrs.filter(Boolean).flat()].filter(p => {
         if (seen.has(p.id)) return false;
         seen.add(p.id); return true;
       });
+      // Filter sesuai dapukan yg dicentang di Konfigurasi Peserta Musyawarah — SEBELUMNYA
+      // gak pernah diterapkan sama sekali di sini, makanya SEMUA pengurus desa+kelompok
+      // ikut kehitung "wajib hadir" walau konfigurasinya udah diatur.
+      const konfigRes = await SB.musKonfig.get('pjp_desa', null, desaId);
+      const dapukanWajibDesa = konfigRes?.[0]?.dapukan_wajib || [];
+      pesertaTetap = dapukanWajibDesa.length
+        ? semuaPesertaDesa.filter(p => dapukanWajibDesa.includes(p.jabatan))
+        : semuaPesertaDesa; // belum dikonfigurasi sama sekali — tampilkan semua dulu
     } else if (level === 'kelompok_umum' && u.kelompok_id) {
       const [semuaPengurus, konfigRes] = await Promise.all([
         SB.musPeserta.getByKelompok(u.kelompok_id),
