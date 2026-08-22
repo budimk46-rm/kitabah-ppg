@@ -401,13 +401,20 @@ const sbMusKonfig = {
     else q += '&kelompok_id=is.null';
     if (data.desa_id) q += `&desa_id=eq.${encodeURIComponent(data.desa_id)}`;
     else q += '&desa_id=is.null';
-    const existing = await sbFetch(q + '&select=id&limit=1');
+    const existing = await sbFetch(q + '&select=id,dapukan_wajib,peserta_dikecualikan&limit=1');
     if (existing && existing.length) {
-      // Update
+      // Update — cuma timpa field yg BENERAN dikirim di `data` (biarin field lain apa
+      // adanya), biar manggil upsert() cuma buat ubah peserta_dikecualikan (mis. tombol
+      // "Keluarkan Peserta") gak sampe ngosongin dapukan_wajib yg udah diatur, ATAU
+      // sebaliknya (Konfigurasi Peserta biasa cuma ngirim dapukan_wajib doang, gak sampe
+      // ngosongin peserta_dikecualikan yg udah ada).
+      const body = { dibuat_oleh: data.dibuat_oleh, updated_at: data.updated_at };
+      body.dapukan_wajib = data.dapukan_wajib !== undefined ? data.dapukan_wajib : existing[0].dapukan_wajib;
+      body.peserta_dikecualikan = data.peserta_dikecualikan !== undefined ? data.peserta_dikecualikan : existing[0].peserta_dikecualikan;
       return await sbFetch(`musyawarah_konfigurasi?id=eq.${existing[0].id}`, {
         method: 'PATCH',
         headers: {'Prefer':'return=representation'},
-        body: JSON.stringify({ dapukan_wajib: data.dapukan_wajib, dibuat_oleh: data.dibuat_oleh, updated_at: data.updated_at }),
+        body: JSON.stringify(body),
       });
     } else {
       // Insert

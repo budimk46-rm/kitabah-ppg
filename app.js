@@ -13543,14 +13543,25 @@ async function openMusAbsensiModal(musId, level, u) {
   // Load peserta tetap sesuai level
   let pesertaTetap = [];
   let kelompokNamaMapUntukLabel = {};
+  let musKonfigIdAktif = null; // id baris musyawarah_konfigurasi yg lagi dipakai — dibutuhin buat simpen "keluarkan peserta"
+  let konfigScopeAktif = null; // {level, kelompok_id, desa_id} — scope yg SAMA PERSIS dipakai fetch konfigRes di atas, biar upsert exclusion-nya nyambung ke baris yg benar
+  let pesertaDikecualikanDetail = []; // {id, nama, jabatan} — buat tampilan "lihat/kembalikan yg dikecualikan"
+  let excludedIdsAktif = new Set(); // set id peserta yg udah dikecualikan, buat dicek pas render
   const DESA_NAMA_MAP = await loadDesaMap();
   try {
     if (level === 'ppg_daerah') {
-      const [unsurDaerah, unsurDesa] = await Promise.all([
+      const [unsurDaerah, unsurDesa, konfigRes] = await Promise.all([
         SB.musPeserta.getByDaerah(),
         loadUnsurDesaUntukMusDaerah(),
+        SB.musKonfig.get('ppg_daerah', null, null),
       ]);
-      pesertaTetap = urutkanPesertaDaerah([...(unsurDaerah||[]), ...unsurDesa]);
+      musKonfigIdAktif = konfigRes?.[0]?.id || null;
+      konfigScopeAktif = { level: 'ppg_daerah', kelompok_id: null, desa_id: null };
+      excludedIdsAktif = new Set(konfigRes?.[0]?.peserta_dikecualikan || []);
+      const gabunganDaerahMentah = [...(unsurDaerah||[]), ...unsurDesa];
+      pesertaDikecualikanDetail = gabunganDaerahMentah.filter(p => excludedIdsAktif.has(p.id));
+      const gabunganDaerah = gabunganDaerahMentah.filter(p => !excludedIdsAktif.has(p.id));
+      pesertaTetap = urutkanPesertaDaerah(gabunganDaerah);
     } else if (level === 'pjp_desa') {
       // User punya desa_id = D1, tapi peserta disimpan dengan desa_id = "Desa Barat 1"
       const desaId = u.desa_id || '';
@@ -13574,10 +13585,15 @@ async function openMusAbsensiModal(musId, level, u) {
       // gak pernah diterapkan sama sekali di sini, makanya SEMUA pengurus desa+kelompok
       // ikut kehitung "wajib hadir" walau konfigurasinya udah diatur.
       const konfigRes = await SB.musKonfig.get('pjp_desa', null, desaId);
+      musKonfigIdAktif = konfigRes?.[0]?.id || null;
+      konfigScopeAktif = { level: 'pjp_desa', kelompok_id: null, desa_id: desaId };
+      excludedIdsAktif = new Set(konfigRes?.[0]?.peserta_dikecualikan || []);
       const dapukanWajibDesa = konfigRes?.[0]?.dapukan_wajib || [];
-      let pesertaTerfilterDesa = dapukanWajibDesa.length
+      const pesertaDesaSetelahDapukan = dapukanWajibDesa.length
         ? semuaPesertaDesa.filter(p => dapukanWajibDesa.includes(p.jabatan))
         : semuaPesertaDesa; // belum dikonfigurasi sama sekali — tampilkan semua dulu
+      pesertaDikecualikanDetail = pesertaDesaSetelahDapukan.filter(p => excludedIdsAktif.has(p.id));
+      let pesertaTerfilterDesa = pesertaDesaSetelahDapukan.filter(p => !excludedIdsAktif.has(p.id));
       // Rapikan urutan tampil: 4S Desa → Unsur PPG Desa → tiap Kelompok (4S lalu Unsur PPG
       // masing2 kelompok), bukan urutan acak sesuai data mentah dari database.
       kelompokNamaMapUntukLabel = Object.fromEntries(klpDiDesaIni.map(k => [k.id, k.nama]));
@@ -13587,13 +13603,27 @@ async function openMusAbsensiModal(musId, level, u) {
         SB.musPeserta.getByKelompok(u.kelompok_id),
         SB.musKonfig.get('kelompok_umum', u.kelompok_id, null),
       ]);
+      musKonfigIdAktif = konfigRes?.[0]?.id || null;
+      konfigScopeAktif = { level: 'kelompok_umum', kelompok_id: u.kelompok_id, desa_id: null };
+      excludedIdsAktif = new Set(konfigRes?.[0]?.peserta_dikecualikan || []);
       const dapukanWajib = konfigRes?.[0]?.dapukan_wajib || [];
-      pesertaTetap = dapukanWajib.length
+      const pesertaKlpSetelahDapukan = dapukanWajib.length
         ? (semuaPengurus||[]).filter(p => dapukanWajib.includes(p.jabatan))
         : (semuaPengurus||[]); // belum dikonfigurasi sama sekali — tampilkan semua dulu
+      pesertaDikecualikanDetail = pesertaKlpSetelahDapukan.filter(p => excludedIdsAktif.has(p.id));
+      pesertaTetap = pesertaKlpSetelahDapukan.filter(p => !excludedIdsAktif.has(p.id));
     } else if (u.kelompok_id) {
-      // Level kelompok: guru_generus atau unsur_5
-      pesertaTetap = await SB.musPeserta.getByKelompok(u.kelompok_id);
+      // Level kelompok: guru_generus atau unsur_5 — belum ada Konfigurasi dapukan_wajib
+      // buat level ini, tapi pengecualian per-orang tetap bisa dipakai.
+      const [semuaPengurusKlp, konfigRes] = await Promise.all([
+        SB.musPeserta.getByKelompok(u.kelompok_id),
+        SB.musKonfig.get(level, u.kelompok_id, null),
+      ]);
+      musKonfigIdAktif = konfigRes?.[0]?.id || null;
+      konfigScopeAktif = { level, kelompok_id: u.kelompok_id, desa_id: null };
+      excludedIdsAktif = new Set(konfigRes?.[0]?.peserta_dikecualikan || []);
+      pesertaDikecualikanDetail = (semuaPengurusKlp||[]).filter(p => excludedIdsAktif.has(p.id));
+      pesertaTetap = (semuaPengurusKlp||[]).filter(p => !excludedIdsAktif.has(p.id));
     }
   } catch(e) { console.error('Load peserta error:', e); }
 
@@ -13627,7 +13657,7 @@ async function openMusAbsensiModal(musId, level, u) {
       const headerLabel = labelHeaderPeserta(p);
       const headerRow = (headerLabel && headerLabel !== lastHeader) ? (() => {
         lastHeader = headerLabel;
-        return `<tr><td colspan="3" style="padding:10px 8px 4px; font-size:11.5px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em; border-bottom:1.5px solid var(--green);">${escHtml(headerLabel)}</td></tr>`;
+        return `<tr><td colspan="4" style="padding:10px 8px 4px; font-size:11.5px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em; border-bottom:1.5px solid var(--green);">${escHtml(headerLabel)}</td></tr>`;
       })() : '';
       return headerRow + `<tr>
         <td>
@@ -13643,6 +13673,9 @@ async function openMusAbsensiModal(musId, level, u) {
                 ${st}
               </button>`).join('')}
           </div>
+        </td>
+        <td style="text-align:center;">
+          <button onclick="MABS_keluarkanPeserta(this)" data-peserta-id="${escHtml(p.id)}" data-peserta-nama="${escHtml(p.nama)}" title="Keluarkan dari peserta wajib — cukup diwakili yang lain" style="width:28px; height:28px; border:1.5px solid var(--line); background:var(--white); border-radius:6px; color:var(--ink-soft); cursor:pointer; font-size:13px;">✕</button>
         </td>
       </tr>`;
     }).join('');
@@ -13689,6 +13722,17 @@ async function openMusAbsensiModal(musId, level, u) {
           ${totalBelum ? `<span class="badge" style="background:#f2f2f2; color:#888;">Belum Diisi: ${totalBelum}</span>` : ''}
           <span class="badge badge-gray">Total: ${pesertaTetap.length + tamuList.length}</span>
         </div>
+        ${pesertaDikecualikanDetail.length ? `
+        <details style="margin-bottom:14px;">
+          <summary style="cursor:pointer; font-size:12.5px; font-weight:700; color:var(--ink-soft); padding:6px 0;">🚫 ${pesertaDikecualikanDetail.length} orang dikeluarkan dari peserta wajib (klik utk lihat/kembalikan)</summary>
+          <div style="margin-top:6px; display:flex; flex-direction:column; gap:5px;">
+            ${pesertaDikecualikanDetail.map(p => `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:#f7f7f7; border-radius:6px;">
+                <div><span style="font-size:12.5px; font-weight:600;">${escHtml(p.nama)}</span> <span style="font-size:11px; color:var(--ink-soft);">— ${escHtml(p.jabatan||'')}</span></div>
+                <button onclick="MABS_kembalikanPeserta('${escHtml(p.id)}')" style="font-size:11px; padding:3px 10px; border:1px solid var(--green); background:#fff; color:var(--green); border-radius:6px; cursor:pointer;">↩ Kembalikan</button>
+              </div>`).join('')}
+          </div>
+        </details>` : ''}
         ${pesertaTetap.length ? `
         <div class="table-wrap" style="margin-bottom:14px;">
           <table>
@@ -13696,6 +13740,7 @@ async function openMusAbsensiModal(musId, level, u) {
               <th>Nama & Dapukan</th>
               <th>No HP</th>
               <th style="text-align:center;">H &nbsp; I &nbsp; A</th>
+              <th style="text-align:center;">Aksi</th>
             </tr></thead>
             <tbody>${pesertaRows}</tbody>
           </table>
@@ -13731,6 +13776,52 @@ async function openMusAbsensiModal(musId, level, u) {
   window.MABS_set = (pesertaId, status) => {
     absensiState[pesertaId] = status;
     renderAbsensiModal();
+  };
+
+  window.MABS_keluarkanPeserta = async (btn) => {
+    const pesertaId = btn.dataset.pesertaId;
+    const namaPeserta = btn.dataset.pesertaNama;
+    if (!confirm(`Keluarkan "${namaPeserta}" dari daftar peserta wajib musyawarah ini?\n\nBerlaku ke musyawarah tingkat ini SETERUSNYA (bukan cuma sekali ini), sampai dikembalikan lagi lewat Konfigurasi Peserta.`)) return;
+    if (!konfigScopeAktif) { showToast('Gagal: scope konfigurasi tidak diketahui', true); return; }
+    btn.disabled = true;
+    try {
+      excludedIdsAktif.add(pesertaId);
+      await SB.musKonfig.upsert({
+        level_musyawarah: konfigScopeAktif.level,
+        kelompok_id: konfigScopeAktif.kelompok_id,
+        desa_id: konfigScopeAktif.desa_id,
+        peserta_dikecualikan: [...excludedIdsAktif],
+      });
+      pesertaTetap = pesertaTetap.filter(p => p.id !== pesertaId);
+      delete absensiState[pesertaId];
+      showToast(`"${namaPeserta}" dikeluarkan dari peserta wajib ✓`);
+      renderAbsensiModal();
+    } catch(e) {
+      excludedIdsAktif.delete(pesertaId);
+      showToast('Gagal menyimpan: ' + e.message, true);
+      btn.disabled = false;
+    }
+  };
+
+  window.MABS_kembalikanPeserta = async (pesertaId) => {
+    if (!konfigScopeAktif) { showToast('Gagal: scope konfigurasi tidak diketahui', true); return; }
+    try {
+      excludedIdsAktif.delete(pesertaId);
+      await SB.musKonfig.upsert({
+        level_musyawarah: konfigScopeAktif.level,
+        kelompok_id: konfigScopeAktif.kelompok_id,
+        desa_id: konfigScopeAktif.desa_id,
+        peserta_dikecualikan: [...excludedIdsAktif],
+      });
+      const dikembalikan = pesertaDikecualikanDetail.find(p => p.id === pesertaId);
+      pesertaDikecualikanDetail = pesertaDikecualikanDetail.filter(p => p.id !== pesertaId);
+      if (dikembalikan) pesertaTetap = [...pesertaTetap, dikembalikan];
+      showToast('Peserta dikembalikan ke daftar wajib ✓');
+      renderAbsensiModal();
+    } catch(e) {
+      excludedIdsAktif.add(pesertaId);
+      showToast('Gagal menyimpan: ' + e.message, true);
+    }
   };
 
   window.MABS_setTamuStatus = async (id, status) => {
