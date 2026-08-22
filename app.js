@@ -530,12 +530,21 @@ const EMPAT_S = ['Kyai', 'Wakil Kyai', 'KU', 'Penulis KU', 'Penerobos', 'Mubaleg
 const DAPUKAN_CATALOG = {
   kelompok: {
     '4S': EMPAT_S,
-    'Unsur PPG': ['PJP KBM', 'PJP SarPras', 'Wali KBM Caberawit', 'Wali KBM Pra Remaja', 'Wali KBM Remaja', 'Wali KBM Pra Nikah', 'Ketua MM', 'BK', 'MT', 'Guru Generus'],
+    // Struktur baru (Ags 2026): PJP KBM+SarPras digabung jadi "Bagian Pembiayaan dan
+    // Pengadaan Fasilitas", Ketua MM diganti "Pengurus Muda Mudi Kelompok" (mewakili
+    // KMM+Keputrian). Data lama yg masih pakai nama jabatan sebelumnya TETAP tersimpan
+    // apa adanya (dapukan cuma teks bebas) — cuma pilihan buat entri BARU yg berubah.
+    'Unsur PPG': ['Bagian Pembiayaan dan Pengadaan Fasilitas', 'Wali KBM Caberawit', 'Wali KBM Pra Remaja', 'Wali KBM Remaja', 'Wali KBM Pra Nikah', 'Pengurus Muda Mudi Kelompok', 'BK', 'MT', 'Guru Generus'],
     'Tim 7': TIM_7,
   },
   desa: {
     '4S': EMPAT_S,
-    'Unsur PPG': ['PJP KBM', 'PJP SarPras', 'Ketua MM', 'BK'],
+    // Struktur baru (Ags 2026): PJP KBM diganti jadi 5 Bidang Pendidikan terpisah
+    // (Kurikulum/Tahfidz/Tenaga Pendidik/Kemandirian/Seni&Olahraga, 1 orang tiap bidang —
+    // salah satunya bisa ditunjuk sbg koordinator, tapi gak ada dapukan terpisah utk itu).
+    // PJP SarPras digabung PJP KBM jadi "Bagian Pembiayaan dan Pengadaan Fasilitas".
+    // Ketua MM diganti "Pengurus Muda Mudi Desa" (mewakili KMM+Keputrian).
+    'Unsur PPG': ['Bidang Kurikulum', 'Bidang Tahfidz', 'Bidang Tenaga Pendidik', 'Bidang Kemandirian', 'Bidang Seni & Olahraga', 'Bagian Pembiayaan dan Pengadaan Fasilitas', 'Pengurus Muda Mudi Desa', 'BK'],
     'Tim 7': TIM_7,
   },
   daerah: {
@@ -1030,15 +1039,16 @@ const JABATAN_CONFIG = {
   ],
   desa: [
     { val:'desa_ulil_amri', icon:'👑', label:'Ulil Amri', sub:'Pimpinan desa' },
-    { val:'pjp_desa_kbm', icon:'📚', label:'PJP Desa KBM', sub:'Penanggung jawab KBM desa' },
-    { val:'pjp_desa_sarpras', icon:'🏗️', label:'PJP Desa Sarpras', sub:'Sarana dan prasarana' },
-    { val:'pjp_desa_bk', icon:'🤝', label:'PJP Desa BK', sub:'Bimbingan konseling' },
+    { val:'pjp_desa_kbm', icon:'📚', label:'Bagian Pendidikan', sub:'Kurikulum/Tahfidz/Tenaga Pendidik/Kemandirian/Seni & Olahraga' },
+    { val:'pjp_desa_sarpras', icon:'🏗️', label:'Bagian Pembiayaan dan Pengadaan Fasilitas', sub:'Penggalang dana & sarana prasarana' },
+    { val:'pjp_desa_mm', icon:'🕌', label:'Pengurus Muda Mudi Desa', sub:'Kegiatan MM & Keputrian' },
+    { val:'pjp_desa_bk', icon:'🤝', label:'BK Desa', sub:'Bimbingan konseling' },
   ],
   kelompok: [
     { val:'kelompok', icon:'👑', label:'Ulil Amri', sub:'Pimpinan kelompok' },
     { val:'kelompok', icon:'🤝', label:'BK', sub:'Bimbingan Konseling' },
-    { val:'pjp_kelompok', icon:'📚', label:'PJP Kelompok KBM', sub:'Penanggung jawab KBM kelompok' },
-    { val:'pjp_kelompok', icon:'🏗️', label:'PJP Kelompok Sarpras', sub:'Sarana dan prasarana' },
+    { val:'pjp_kelompok', icon:'💰', label:'Bagian Pembiayaan dan Pengadaan Fasilitas', sub:'Penggalang dana & sarana prasarana' },
+    { val:'pjp_kelompok', icon:'🕌', label:'Pengurus Muda Mudi Kelompok', sub:'Kegiatan MM & Keputrian' },
     { val:'wali_kbm', icon:'🎓', label:'Wali KBM', sub:'Pilih kelas usia yang diampu' },
     { val:'guru', icon:'👨‍🏫', label:'Guru Generus', sub:'Pengajar generus' },
   ],
@@ -1051,6 +1061,7 @@ const JABATAN_ROLE = {
   desa_ulil_amri:   'desa_view', // Ulil Amri Desa — level Desa, read-only (BUG LAMA: gak ada mapping, jatuh ke 'kelompok')
   pjp_desa_kbm:     'desa',
   pjp_desa_sarpras: 'desa',
+  pjp_desa_mm:      'desa',
   pjp_desa_bk:      'desa',
   kelompok:         'kelompok',
   pjp_kelompok:     'pjp_kelompok',
@@ -13440,7 +13451,7 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
 // 3. Unsur PPG — Pengurus Harian lalu Pengurus Bidang per bidang
 // Yang jabatannya tidak cocok daftar ini (misal Tim 7) tetap muncul di akhir, urut abjad.
 const DAERAH_4S_URUTAN = ['Kyai', 'Wakil Kyai', 'KU', 'Penulis KU', 'Penerobos', 'Mubalegh', 'Aghnia'];
-const DESA_UNSUR_URUTAN = ['Kyai', 'PJP KBM', 'PJP SarPras'];
+const DESA_UNSUR_URUTAN = ['Kyai', 'Bidang Kurikulum', 'Bidang Tahfidz', 'Bidang Tenaga Pendidik', 'Bidang Kemandirian', 'Bidang Seni & Olahraga', 'Bagian Pembiayaan dan Pengadaan Fasilitas'];
 const PPG_URUTAN = [
   'Ketua PPG', 'Wakil Ketua', 'Sekretaris', 'Bendahara',
   'Kurikulum', 'Tenaga Pendidik', 'Seni & Olahraga', 'Kemandirian', 'Keputrian',
@@ -14225,7 +14236,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
           Centang dapukan yang <b>wajib hadir</b> di musyawarah ini. Peserta dengan dapukan yang dicentang akan otomatis muncul di form absensi.
         </div>
-        ${levelMus === 'ppg_daerah' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="KONFIG_tambahDariDesa()">+ Tambah Dapukan dari Level Desa (Kyai, PJP KBM, PJP SarPras)</button>` : ''}
+        ${levelMus === 'ppg_daerah' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="KONFIG_tambahDariDesa()">+ Tambah Dapukan dari Level Desa (Kyai, Bidang Kurikulum, Bagian Pembiayaan dan Pengadaan Fasilitas)</button>` : ''}
         <div id="konfigDipilihCount" style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">Dipilih: ${selectedDapukan.size} dapukan</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px;">
           ${checkboxes}
@@ -14263,14 +14274,14 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   };
 
   window.KONFIG_tambahDariDesa = () => {
-    const targetDapukan = ['Kyai', 'PJP KBM', 'PJP SarPras'];
+    const targetDapukan = ['Kyai', 'Bidang Kurikulum', 'Bagian Pembiayaan dan Pengadaan Fasilitas'];
     const belumAda = targetDapukan.filter(d => !options.includes(d));
     targetDapukan.forEach(d => selectedDapukan.add(d));
     renderKonfig();
     if (belumAda.length) {
       showToast(`Ditambahkan ke pilihan ✓ (tapi ${belumAda.join(', ')} belum ada orangnya di Data Pengurus desa manapun, jadi belum muncul di daftar/absensi sampai diisi)`, true);
     } else {
-      showToast('Kyai, PJP KBM, PJP SarPras ditambahkan ke pilihan ✓');
+      showToast('Kyai, Bidang Kurikulum, Bagian Pembiayaan dan Pengadaan Fasilitas ditambahkan ke pilihan ✓');
     }
   };
 
@@ -14396,10 +14407,10 @@ async function openKelolaMusPesertaModal(refId, u, mode='kelompok') {
 
     const jabSuggMap = {
       daerah: ['Ulil Amri Daerah','Penghar PPG','Bidang Kurikulum','Bidang Tenaga Pendidik','Bidang Seni & Olahraga','Bidang Kemandirian','Bidang Keputrian','Bidang KMM Daerah','Bidang Tahfidz','Bidang Sarpras','Bidang Penggalang Dana','Bidang BK'],
-      desa: ['Ulil Amri Desa','PJP Desa KBM','PJP Desa Sarpras','PJP Desa BK','Pengurus Desa'],
+      desa: ['Ulil Amri Desa','Bidang Kurikulum','Bidang Tahfidz','Bidang Tenaga Pendidik','Bidang Kemandirian','Bidang Seni & Olahraga','Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Desa','BK Desa'],
       kelompok_guru: ['PJP Kelompok','Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah','Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah'],
-      kelompok_5unsur: ['Ulil Amri Kelompok','PJP Kelompok','Sekretaris','Bendahara','Bidang Kelompok'],
-      kelompok: ['PJP Kelompok','Wali KBM','Guru','Ulil Amri'],
+      kelompok_5unsur: ['Ulil Amri Kelompok','Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Kelompok','Sekretaris','Bendahara','Bidang Kelompok'],
+      kelompok: ['Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Kelompok','Wali KBM','Guru','Ulil Amri','BK'],
     };
     const jabSugg = jabSuggMap[mode] || jabSuggMap.kelompok;
 
