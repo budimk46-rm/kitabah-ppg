@@ -530,11 +530,14 @@ const EMPAT_S = ['Kyai', 'Wakil Kyai', 'KU', 'Penulis KU', 'Penerobos', 'Mubaleg
 const DAPUKAN_CATALOG = {
   kelompok: {
     '4S': EMPAT_S,
-    // Struktur baru (Ags 2026): PJP KBM+SarPras digabung jadi "Bagian Pembiayaan dan
-    // Pengadaan Fasilitas", Ketua MM diganti "Pengurus Muda Mudi Kelompok" (mewakili
-    // KMM+Keputrian). Data lama yg masih pakai nama jabatan sebelumnya TETAP tersimpan
-    // apa adanya (dapukan cuma teks bebas) — cuma pilihan buat entri BARU yg berubah.
-    'Unsur PPG': ['Bagian Pembiayaan dan Pengadaan Fasilitas', 'Wali KBM Caberawit', 'Wali KBM Pra Remaja', 'Wali KBM Remaja', 'Wali KBM Pra Nikah', 'Pengurus Muda Mudi Kelompok', 'BK', 'MT', 'Guru Generus'],
+    // Wali KBM tetap header sendiri (gak diubah Budi, tetap kepisah dari restrukturisasi ini).
+    'Wali KBM': ['Wali KBM Caberawit', 'Wali KBM Pra Remaja', 'Wali KBM Remaja', 'Wali KBM Pra Nikah'],
+    // Struktur baru (Ags 2026, koreksi final): 1 header "Pelaksana Pembinaan Generus" isinya
+    // 4 kategori (di-flatten jadi 1 level, katalog cuma support 1 level nesting) —
+    // Guru Generus (MT/MS/Asisten), Bagian Pembiayaan (Penggalang Dana/Sarpras),
+    // Pengurus Muda Mudi (KMM/Keputrian), BK Kelompok. Data lama tetap tersimpan apa
+    // adanya (dapukan cuma teks bebas) — cuma pilihan buat entri BARU yg berubah.
+    'Pelaksana Pembinaan Generus': ['MT', 'MS', 'Asisten Guru Generus', 'Bidang Penggalang Dana', 'Bidang Sarpras', 'Bidang Kegiatan MM (KMM)', 'Bidang Keputrian', 'BK Kelompok'],
     'Tim 7': TIM_7,
   },
   desa: {
@@ -13484,6 +13487,39 @@ function urutkanPesertaDaerah(list) {
   });
 }
 
+// Urutan tampil peserta Musyawarah PJP Desa di layar Absensi (mirip pola PPG Daerah di
+// atas, cuma 1 tingkat lebih rendah — desa jadi "atas", kelompok2 di desa itu jadi
+// "kelompok anak"):
+// 1. Unsur 4S Desa
+// 2. Unsur PPG Desa (Bagian Pendidikan/Pembiayaan/Pengurus MM/BK — DESA_UNSUR_URUTAN)
+// 3. Tiap Kelompok (urut abjad nama kelompok), isinya 4S Kelompok dulu baru Unsur PPG Kelompok
+const KELOMPOK_UNSUR_URUTAN = ['MT', 'MS', 'Asisten Guru Generus', 'Bidang Penggalang Dana', 'Bidang Sarpras', 'Bidang Kegiatan MM (KMM)', 'Bidang Keputrian', 'BK Kelompok'];
+function rankPesertaDesaMus(p, kelompokNamaMap) {
+  if (p.kelompok_id) {
+    const namaKlp = kelompokNamaMap[p.kelompok_id] || '';
+    const i4s = EMPAT_S.indexOf(p.jabatan);
+    if (i4s !== -1) return [1, namaKlp, 0, i4s];
+    const jKlp = KELOMPOK_UNSUR_URUTAN.indexOf(p.jabatan);
+    if (jKlp !== -1) return [1, namaKlp, 1, jKlp];
+    return [1, namaKlp, 2, 0]; // dapukan kelompok lain di luar daftar (mis. Wali KBM, Tim 7)
+  }
+  // desa-level
+  const i4s = EMPAT_S.indexOf(p.jabatan);
+  if (i4s !== -1) return [0, '', 0, i4s];
+  const jPpg = DESA_UNSUR_URUTAN.indexOf(p.jabatan);
+  if (jPpg !== -1) return [0, '', 1, jPpg];
+  return [0, '', 2, 0]; // dapukan desa lain di luar daftar (mis. Tim 7)
+}
+function urutkanPesertaDesaMus(list, kelompokNamaMap) {
+  return [...list].sort((a, b) => {
+    const ra = rankPesertaDesaMus(a, kelompokNamaMap), rb = rankPesertaDesaMus(b, kelompokNamaMap);
+    for (let i = 0; i < ra.length; i++) {
+      if (ra[i] !== rb[i]) return ra[i] < rb[i] ? -1 : (ra[i] > rb[i] ? 1 : 0);
+    }
+    return (a.nama||'').localeCompare(b.nama||'');
+  });
+}
+
 // Ambil Kyai/PJP KBM/PJP SarPras dari SEMUA desa (6), buat gabung ke Absensi Musyawarah Daerah
 async function loadUnsurDesaUntukMusDaerah() {
   const DESA_NAMA_MAP = await loadDesaMap();
@@ -13506,6 +13542,7 @@ async function openMusAbsensiModal(musId, level, u) {
 
   // Load peserta tetap sesuai level
   let pesertaTetap = [];
+  let kelompokNamaMapUntukLabel = {};
   const DESA_NAMA_MAP = await loadDesaMap();
   try {
     if (level === 'ppg_daerah') {
@@ -13538,9 +13575,13 @@ async function openMusAbsensiModal(musId, level, u) {
       // ikut kehitung "wajib hadir" walau konfigurasinya udah diatur.
       const konfigRes = await SB.musKonfig.get('pjp_desa', null, desaId);
       const dapukanWajibDesa = konfigRes?.[0]?.dapukan_wajib || [];
-      pesertaTetap = dapukanWajibDesa.length
+      let pesertaTerfilterDesa = dapukanWajibDesa.length
         ? semuaPesertaDesa.filter(p => dapukanWajibDesa.includes(p.jabatan))
         : semuaPesertaDesa; // belum dikonfigurasi sama sekali — tampilkan semua dulu
+      // Rapikan urutan tampil: 4S Desa → Unsur PPG Desa → tiap Kelompok (4S lalu Unsur PPG
+      // masing2 kelompok), bukan urutan acak sesuai data mentah dari database.
+      kelompokNamaMapUntukLabel = Object.fromEntries(klpDiDesaIni.map(k => [k.id, k.nama]));
+      pesertaTetap = urutkanPesertaDesaMus(pesertaTerfilterDesa, kelompokNamaMapUntukLabel);
     } else if (level === 'kelompok_umum' && u.kelompok_id) {
       const [semuaPengurus, konfigRes] = await Promise.all([
         SB.musPeserta.getByKelompok(u.kelompok_id),
@@ -13569,9 +13610,26 @@ async function openMusAbsensiModal(musId, level, u) {
   let tamuList = absensiList.filter(a => !a.peserta_id);
 
   function renderAbsensiModal() {
+    // Label header section buat peserta level pjp_desa (4S Desa / Unsur PPG Desa / per Kelompok)
+    // — biar urutannya BENERAN kelihatan rapi terbagi, bukan cuma urutan tersembunyi doang.
+    function labelHeaderPeserta(p) {
+      if (level !== 'pjp_desa') return null;
+      const i4s = EMPAT_S.indexOf(p.jabatan);
+      if (!p.kelompok_id) {
+        return i4s !== -1 ? '👑 Unsur 4S Desa' : '🏢 Unsur PPG Desa';
+      }
+      const namaKlp = kelompokNamaMapUntukLabel[p.kelompok_id] || 'Kelompok';
+      return `🏘️ ${namaKlp}`;
+    }
+    let lastHeader = null;
     const pesertaRows = pesertaTetap.map(p => {
       const status = absensiState[p.id] || null;
-      return `<tr>
+      const headerLabel = labelHeaderPeserta(p);
+      const headerRow = (headerLabel && headerLabel !== lastHeader) ? (() => {
+        lastHeader = headerLabel;
+        return `<tr><td colspan="3" style="padding:10px 8px 4px; font-size:11.5px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em; border-bottom:1.5px solid var(--green);">${escHtml(headerLabel)}</td></tr>`;
+      })() : '';
+      return headerRow + `<tr>
         <td>
           <div style="font-weight:700; font-size:13px;">${escHtml(p.nama)}</div>
           <div style="font-size:11px; color:var(--ink-soft);">${escHtml(p.jabatan||'')}</div>
@@ -14440,7 +14498,7 @@ async function openKelolaMusPesertaModal(refId, u, mode='kelompok') {
       desa: ['Ulil Amri Desa','Bidang Kurikulum','Bidang Tahfidz','Bidang Tenaga Pendidik','Bidang Kemandirian','Bidang Seni & Olahraga','Bidang Penggalang Dana','Bidang Sarpras','Bidang Kegiatan MM (KMM)','Bidang Keputrian','BK Desa'],
       kelompok_guru: ['PJP Kelompok','Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah','Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah'],
       kelompok_5unsur: ['Ulil Amri Kelompok','Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Kelompok','Sekretaris','Bendahara','Bidang Kelompok'],
-      kelompok: ['Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Kelompok','Wali KBM','Guru','Ulil Amri','BK'],
+      kelompok: ['MT','MS','Asisten Guru Generus','Bidang Penggalang Dana','Bidang Sarpras','Bidang Kegiatan MM (KMM)','Bidang Keputrian','BK Kelompok','Wali KBM','Guru','Ulil Amri'],
     };
     const jabSugg = jabSuggMap[mode] || jabSuggMap.kelompok;
 
