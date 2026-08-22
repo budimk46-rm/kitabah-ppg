@@ -539,12 +539,13 @@ const DAPUKAN_CATALOG = {
   },
   desa: {
     '4S': EMPAT_S,
-    // Struktur baru (Ags 2026): PJP KBM diganti jadi 5 Bidang Pendidikan terpisah
-    // (Kurikulum/Tahfidz/Tenaga Pendidik/Kemandirian/Seni&Olahraga, 1 orang tiap bidang —
-    // salah satunya bisa ditunjuk sbg koordinator, tapi gak ada dapukan terpisah utk itu).
-    // PJP SarPras digabung PJP KBM jadi "Bagian Pembiayaan dan Pengadaan Fasilitas".
-    // Ketua MM diganti "Pengurus Muda Mudi Desa" (mewakili KMM+Keputrian).
-    'Unsur PPG': ['Bidang Kurikulum', 'Bidang Tahfidz', 'Bidang Tenaga Pendidik', 'Bidang Kemandirian', 'Bidang Seni & Olahraga', 'Bagian Pembiayaan dan Pengadaan Fasilitas', 'Pengurus Muda Mudi Desa', 'BK'],
+    // Struktur baru (Ags 2026, koreksi): "Unsur PPG" dipecah jadi 4 header terpisah biar
+    // lebih jelas per bagian. Bagian Pembiayaan & Pengurus MM Desa itu HEADER GRUP yg isinya
+    // 2 bidang masing2 (BUKAN 1 dapukan gabungan kayak versi sebelumnya).
+    'Bagian Pendidikan': ['Bidang Kurikulum', 'Bidang Tahfidz', 'Bidang Tenaga Pendidik', 'Bidang Kemandirian', 'Bidang Seni & Olahraga'],
+    'Bagian Pembiayaan dan Pengadaan Fasilitas': ['Bidang Penggalang Dana', 'Bidang Sarpras'],
+    'Pengurus MM Desa': ['Bidang Kegiatan MM (KMM)', 'Bidang Keputrian'],
+    'BK Desa': ['BK Desa'],
     'Tim 7': TIM_7,
   },
   daerah: {
@@ -13451,7 +13452,7 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
 // 3. Unsur PPG — Pengurus Harian lalu Pengurus Bidang per bidang
 // Yang jabatannya tidak cocok daftar ini (misal Tim 7) tetap muncul di akhir, urut abjad.
 const DAERAH_4S_URUTAN = ['Kyai', 'Wakil Kyai', 'KU', 'Penulis KU', 'Penerobos', 'Mubalegh', 'Aghnia'];
-const DESA_UNSUR_URUTAN = ['Kyai', 'Bidang Kurikulum', 'Bidang Tahfidz', 'Bidang Tenaga Pendidik', 'Bidang Kemandirian', 'Bidang Seni & Olahraga', 'Bagian Pembiayaan dan Pengadaan Fasilitas'];
+const DESA_UNSUR_URUTAN = ['Kyai', 'Bidang Kurikulum', 'Bidang Tahfidz', 'Bidang Tenaga Pendidik', 'Bidang Kemandirian', 'Bidang Seni & Olahraga', 'Bidang Penggalang Dana', 'Bidang Sarpras', 'Bidang Kegiatan MM (KMM)', 'Bidang Keputrian', 'BK Desa'];
 const PPG_URUTAN = [
   'Ketua PPG', 'Wakil Ketua', 'Sekretaris', 'Bendahara',
   'Kurikulum', 'Tenaga Pendidik', 'Seni & Olahraga', 'Kemandirian', 'Keputrian',
@@ -14160,6 +14161,10 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   // Daftar semua dapukan yang tersedia per level
   // Load dapukan dari database (dinamis)
   let allPesertaForKonfig = [];
+  // Khusus pjp_desa: dipisah 2 sumber (desa vs kelompok) biar bisa ditampilkan 2 bagian
+  // terpisah di Konfigurasi — user Desa bisa pilih bebas dari dapukan level Desa MAUPUN
+  // level Kelompok yang wajib ikut musyawarah PJP Desa.
+  let pesertaDesaSaja = [], pesertaKelompokSaja = [];
   try {
     if (levelMus === 'ppg_daerah') {
       allPesertaForKonfig = await SB.musPeserta.getByDaerah() || [];
@@ -14183,13 +14188,14 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         const desaNama = DESA_NAMA_MAP_K[myDesaId] || myDesaId;
         const dp1 = await SB.musPeserta.getByDesa(myDesaId) || [];
         const dp2 = desaNama !== myDesaId ? await SB.musPeserta.getByDesa(desaNama) || [] : [];
-        allPesertaForKonfig = [...dp1, ...dp2];
+        pesertaDesaSaja = [...dp1, ...dp2];
         if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
         const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === myDesaId);
         await Promise.all(klpDesa.map(async klp => {
           const kp = await SB.musPeserta.getByKelompok(klp.id) || [];
-          allPesertaForKonfig = [...allPesertaForKonfig, ...kp];
+          pesertaKelompokSaja = [...pesertaKelompokSaja, ...kp];
         }));
+        allPesertaForKonfig = [...pesertaDesaSaja, ...pesertaKelompokSaja];
       }
     } else {
       // guru_generus / unsur_5 — hanya kelompok sendiri (cepat)
@@ -14208,6 +14214,9 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   const options = [...new Set(
     allPesertaForKonfig.map(p => (p.jabatan||'').trim()).filter(j => j)
   )].sort();
+  // Versi terpisah khusus pjp_desa
+  const optionsDesaLevel = [...new Set(pesertaDesaSaja.map(p => (p.jabatan||'').trim()).filter(j => j))].sort();
+  const optionsKelompokLevel = [...new Set(pesertaKelompokSaja.map(p => (p.jabatan||'').trim()).filter(j => j))].sort();
 
   // Load konfigurasi existing
   let existing = null;
@@ -14219,13 +14228,36 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   const selectedDapukan = new Set(existing?.dapukan_wajib || []);
 
   function renderKonfig() {
-    const checkboxes = options.map((d, idx) => `
-      <label id="konfigChk_${idx}" data-dapukan="${escHtml(d)}" style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:1.5px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:8px; cursor:pointer; background:${selectedDapukan.has(d)?'var(--green-soft)':'var(--white)'}; transition:all .15s;" onclick="KONFIG_toggle(this)">
-        <div class="konfig-check-box" style="width:20px; height:20px; border:2px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:4px; display:flex; align-items:center; justify-content:center; background:${selectedDapukan.has(d)?'var(--green)':'transparent'}; flex-shrink:0;">
-          ${selectedDapukan.has(d) ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+    function buildCheckboxes(opts, idPrefix) {
+      return opts.map((d, idx) => `
+        <label id="${idPrefix}_${idx}" data-dapukan="${escHtml(d)}" style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:1.5px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:8px; cursor:pointer; background:${selectedDapukan.has(d)?'var(--green-soft)':'var(--white)'}; transition:all .15s;" onclick="KONFIG_toggle(this)">
+          <div class="konfig-check-box" style="width:20px; height:20px; border:2px solid ${selectedDapukan.has(d)?'var(--green)':'var(--line)'}; border-radius:4px; display:flex; align-items:center; justify-content:center; background:${selectedDapukan.has(d)?'var(--green)':'transparent'}; flex-shrink:0;">
+            ${selectedDapukan.has(d) ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+          </div>
+          <span class="konfig-check-label" style="font-size:13px; font-weight:${selectedDapukan.has(d)?'700':'500'}; color:${selectedDapukan.has(d)?'var(--green)':'var(--ink)'};">${escHtml(d)}</span>
+        </label>`).join('');
+    }
+
+    // Level PJP Desa: dipecah 2 bagian (Level Desa & Level Kelompok) biar user Desa bisa
+    // pilih bebas dari dapukan level manapun yg wajib ikut musyawarah PJP Desa.
+    const bodyChecklist = levelMus === 'pjp_desa' ? `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12.5px; font-weight:700; color:var(--green); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em;">📍 Dapukan Level Desa</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          ${optionsDesaLevel.length ? buildCheckboxes(optionsDesaLevel, 'konfigChkDesa') : '<div style="grid-column:1/-1; font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada dapukan level Desa tercatat di Data Pengurus.</div>'}
         </div>
-        <span class="konfig-check-label" style="font-size:13px; font-weight:${selectedDapukan.has(d)?'700':'500'}; color:${selectedDapukan.has(d)?'var(--green)':'var(--ink)'};">${escHtml(d)}</span>
-      </label>`).join('');
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12.5px; font-weight:700; color:var(--green); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em; border-top:1px solid var(--line); padding-top:10px;">🏘️ Dapukan Level Kelompok</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          ${optionsKelompokLevel.length ? buildCheckboxes(optionsKelompokLevel, 'konfigChkKlp') : '<div style="grid-column:1/-1; font-size:12px; color:var(--ink-soft); padding:6px 0;">Belum ada dapukan level Kelompok tercatat di Data Pengurus.</div>'}
+        </div>
+      </div>
+    ` : `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px;">
+        ${buildCheckboxes(options, 'konfigChk')}
+      </div>
+    `;
 
     el.innerHTML = `<div class="modal modal-lg">
       <div class="modal-head">
@@ -14236,11 +14268,9 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:14px; font-size:12.5px; color:var(--green);">
           Centang dapukan yang <b>wajib hadir</b> di musyawarah ini. Peserta dengan dapukan yang dicentang akan otomatis muncul di form absensi.
         </div>
-        ${levelMus === 'ppg_daerah' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="KONFIG_tambahDariDesa()">+ Tambah Dapukan dari Level Desa (Kyai, Bidang Kurikulum, Bagian Pembiayaan dan Pengadaan Fasilitas)</button>` : ''}
+        ${levelMus === 'ppg_daerah' ? `<button type="button" class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="KONFIG_tambahDariDesa()">+ Tambah Dapukan dari Level Desa (Kyai, Bidang Kurikulum, Bidang Sarpras)</button>` : ''}
         <div id="konfigDipilihCount" style="font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;">Dipilih: ${selectedDapukan.size} dapukan</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px;">
-          ${checkboxes}
-        </div>
+        ${bodyChecklist}
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('konfigMusModal')">Batal</button>
@@ -14274,14 +14304,14 @@ async function openKonfigMusyawarahModal(levelMus, u) {
   };
 
   window.KONFIG_tambahDariDesa = () => {
-    const targetDapukan = ['Kyai', 'Bidang Kurikulum', 'Bagian Pembiayaan dan Pengadaan Fasilitas'];
+    const targetDapukan = ['Kyai', 'Bidang Kurikulum', 'Bidang Sarpras'];
     const belumAda = targetDapukan.filter(d => !options.includes(d));
     targetDapukan.forEach(d => selectedDapukan.add(d));
     renderKonfig();
     if (belumAda.length) {
       showToast(`Ditambahkan ke pilihan ✓ (tapi ${belumAda.join(', ')} belum ada orangnya di Data Pengurus desa manapun, jadi belum muncul di daftar/absensi sampai diisi)`, true);
     } else {
-      showToast('Kyai, Bidang Kurikulum, Bagian Pembiayaan dan Pengadaan Fasilitas ditambahkan ke pilihan ✓');
+      showToast('Kyai, Bidang Kurikulum, Bidang Sarpras ditambahkan ke pilihan ✓');
     }
   };
 
@@ -14407,7 +14437,7 @@ async function openKelolaMusPesertaModal(refId, u, mode='kelompok') {
 
     const jabSuggMap = {
       daerah: ['Ulil Amri Daerah','Penghar PPG','Bidang Kurikulum','Bidang Tenaga Pendidik','Bidang Seni & Olahraga','Bidang Kemandirian','Bidang Keputrian','Bidang KMM Daerah','Bidang Tahfidz','Bidang Sarpras','Bidang Penggalang Dana','Bidang BK'],
-      desa: ['Ulil Amri Desa','Bidang Kurikulum','Bidang Tahfidz','Bidang Tenaga Pendidik','Bidang Kemandirian','Bidang Seni & Olahraga','Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Desa','BK Desa'],
+      desa: ['Ulil Amri Desa','Bidang Kurikulum','Bidang Tahfidz','Bidang Tenaga Pendidik','Bidang Kemandirian','Bidang Seni & Olahraga','Bidang Penggalang Dana','Bidang Sarpras','Bidang Kegiatan MM (KMM)','Bidang Keputrian','BK Desa'],
       kelompok_guru: ['PJP Kelompok','Wali KBM Caberawit','Wali KBM Pra Remaja','Wali KBM Remaja','Wali KBM Pra Nikah','Guru Caberawit','Guru Pra Remaja','Guru Remaja','Guru Pra Nikah'],
       kelompok_5unsur: ['Ulil Amri Kelompok','Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Kelompok','Sekretaris','Bendahara','Bidang Kelompok'],
       kelompok: ['Bagian Pembiayaan dan Pengadaan Fasilitas','Pengurus Muda Mudi Kelompok','Wali KBM','Guru','Ulil Amri','BK'],
