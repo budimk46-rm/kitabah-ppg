@@ -4681,6 +4681,7 @@ async function renderAbsensi() {
         : `Pertemuan ke-${kePertemuan} berhasil disimpan ✓`;
       showToast(label);
       await loadDetail(pId);
+      await loadNotifOrtuSection(pId);
     } catch(e) {
       showToast('Gagal: ' + e.message, true);
       console.error(e);
