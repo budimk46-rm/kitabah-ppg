@@ -12833,6 +12833,9 @@ async function renderMusyawarah() {
   let musInlineTamu = []; // [{nama, jabatan, no_hp}]
   let musInlinePeserta = []; // daftar peserta tetap
   let musInlineLevel = null;
+  let musInlineExcludedIds = new Set(); // id peserta yg dikecualikan dari daftar wajib
+  let musInlineDikecualikanDetail = []; // {id, nama, jabatan} — buat tampilan lihat/kembalikan
+  let musInlineKonfigScope = null; // {level, kelompok_id, desa_id} — dipakai simpen exclusion
 
   window.MUS_loadAbsensiInline = async (level) => {
     musInlineLevel = level;
@@ -12860,6 +12863,8 @@ async function renderMusyawarah() {
       if (res && res.length) konfig = res[0];
     } catch(e) {}
     const dapukanWajib = konfig?.dapukan_wajib || [];
+    musInlineExcludedIds = new Set(konfig?.peserta_dikecualikan || []);
+    musInlineKonfigScope = { level, kelompok_id: u.kelompok_id || null, desa_id: u.desa_id || null };
     console.log('Konfig musyawarah:', level, 'dapukan wajib:', dapukanWajib, 'konfig:', konfig);
 
     // Load semua peserta yang relevan
@@ -12905,8 +12910,9 @@ async function renderMusyawarah() {
     console.log('allPeserta:', allPeserta.length, 'dapukan list:', [...new Set(allPeserta.map(p=>p.jabatan))]);
 
     // Filter berdasarkan konfigurasi dapukan wajib
+    let pesertaSetelahDapukan;
     if (dapukanWajib.length > 0) {
-      musInlinePeserta = allPeserta.filter(p => {
+      pesertaSetelahDapukan = allPeserta.filter(p => {
         const pDap = (p.jabatan||'').toLowerCase().trim();
         return dapukanWajib.some(d => {
           const dLow = d.toLowerCase().trim();
@@ -12916,8 +12922,10 @@ async function renderMusyawarah() {
       });
     } else {
       // Belum dikonfigurasi — tampilkan semua
-      musInlinePeserta = allPeserta;
+      pesertaSetelahDapukan = allPeserta;
     }
+    musInlineDikecualikanDetail = pesertaSetelahDapukan.filter(p => musInlineExcludedIds.has(p.id));
+    musInlinePeserta = pesertaSetelahDapukan.filter(p => !musInlineExcludedIds.has(p.id));
 
     // Belum dipilih statusnya — user wajib isi manual per peserta
 
@@ -12958,6 +12966,11 @@ async function renderMusyawarah() {
     // Kelompokkan peserta berdasarkan kelompok_id / desa_id / daerah
     if (!App.cache.kelompok) App.cache.kelompok = [];
     const groups = {};
+    const groupOrder = []; // urutan header pertama kali muncul — dipakai buat urutan tampil final
+    function pushToGroup(key, p) {
+      if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+      groups[key].push(p);
+    }
     if (musInlineLevel === 'ppg_daerah') {
       // Khusus Musyawarah PPG Daerah: 3 bagian sesuai struktur Data Pengurus,
       // sudah terurut (Unsur Daerah -> Unsur Desa -> Unsur PPG)
@@ -12967,7 +12980,38 @@ async function renderMusyawarah() {
           : rank[0] === 1 ? '🏘️ Unsur Desa'
           : rank[0] === 2 ? '📋 Unsur PPG'
           : '📌 Lainnya';
-        (groups[groupKey] ||= []).push(p);
+        pushToGroup(groupKey, p);
+      });
+    } else if (musInlineLevel === 'pjp_desa') {
+      // Sama kayak modal Absensi terpisah: 4S Desa dulu → Unsur PPG Desa → tiap Kelompok
+      // (masing2 4S lalu Unsur PPG-nya), BUKAN raw kode desa/urutan data mentah.
+      const klpNamaMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k.nama]));
+      urutkanPesertaDesaMus(musInlinePeserta, klpNamaMap).forEach(p => {
+        let groupKey;
+        if (!p.kelompok_id) {
+          const i4s = EMPAT_S.indexOf(p.jabatan);
+          groupKey = i4s !== -1 ? '👑 Unsur 4S Desa' : '🏢 Unsur PPG Desa';
+        } else {
+          groupKey = '🏘️ ' + (klpNamaMap[p.kelompok_id] || 'Kelompok');
+        }
+        pushToGroup(groupKey, p);
+      });
+    } else if (musInlineLevel === 'kelompok_umum') {
+      // Sama pola: 4S Kelompok dulu → Pelaksana Pembinaan Generus → Wali KBM → lainnya
+      const rankKelompok = (p) => {
+        const i4s = EMPAT_S.indexOf(p.jabatan);
+        if (i4s !== -1) return [0, i4s];
+        const iPPG = KELOMPOK_UNSUR_URUTAN.indexOf(p.jabatan);
+        if (iPPG !== -1) return [1, iPPG];
+        return [2, 0];
+      };
+      [...musInlinePeserta].sort((a,b) => {
+        const ra = rankKelompok(a), rb = rankKelompok(b);
+        return ra[0]-rb[0] || ra[1]-rb[1] || (a.nama||'').localeCompare(b.nama||'');
+      }).forEach(p => {
+        const [g] = rankKelompok(p);
+        const groupKey = g === 0 ? '👑 Unsur 4S Kelompok' : g === 1 ? '🕌 Pelaksana Pembinaan Generus' : '📌 Lainnya (Wali KBM, dll)';
+        pushToGroup(groupKey, p);
       });
     } else {
       musInlinePeserta.forEach(p => {
@@ -12978,8 +13022,7 @@ async function renderMusyawarah() {
           const klp = (App.cache.kelompok||[]).find(k => k.id === p.kelompok_id);
           groupKey = '👥 ' + (klp?.nama || p.kelompok_id);
         }
-        if (!groups[groupKey]) groups[groupKey] = [];
-        groups[groupKey].push(p);
+        pushToGroup(groupKey, p);
       });
     }
 
@@ -13001,12 +13044,13 @@ async function renderMusyawarah() {
               <svg viewBox="0 0 24 24" fill="#fff" width="16" height="16"><path d="M17.5 14.4l-2-1c-.3-.1-.5-.1-.7.1l-.9 1.1c-.2.2-.4.2-.6.1-1.2-.6-2.2-1.3-3-2.3-.8-.9-1.3-2-1.5-3.1 0-.3 0-.5.2-.6l.7-.8c.2-.2.2-.4.1-.7l-1-2.3c-.1-.3-.3-.5-.6-.5h-.8c-.3 0-.7.1-.9.4-.8.8-1.2 1.8-1.1 2.9.2 2 1.2 3.9 2.7 5.4 1.5 1.5 3.4 2.5 5.4 2.7 1.1.1 2.1-.3 2.9-1.1.3-.3.4-.6.4-.9v-.8c0-.3-.2-.5-.3-.5z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.5.8 3.1 1.3 4.8 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3.1.8.8-3-.2-.3C4 14.8 3.5 13.4 3.5 12 3.5 7.3 7.3 3.5 12 3.5S20.5 7.3 20.5 12 16.7 20 12 20z"/></svg>
             </a>` : ''}
           </div>
-          <div style="display:flex; gap:4px; flex-shrink:0;">
+          <div style="display:flex; gap:4px; flex-shrink:0; align-items:center;">
             ${['H','I','S','A'].map(s => `
               <button onclick="MUS_setAbsInline('${p.id}','${s}')"
                 style="width:32px; height:30px; border:2px solid ${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'var(--line)'}; border-radius:6px; background:${st===s?(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)'):'transparent'}; color:${st===s?'#fff':(s==='H'?'var(--green)':s==='I'?'var(--gold)':s==='S'?'#4da6c9':'var(--rose)')}; font-weight:800; font-size:11px; cursor:pointer;">
                 ${s}
               </button>`).join('')}
+            <button onclick="MUS_keluarkanPesertaInline(this)" data-peserta-id="${escHtml(p.id)}" data-peserta-nama="${escHtml(p.nama)}" title="Keluarkan dari peserta wajib — cukup diwakili yang lain" style="width:28px; height:30px; border:1.5px solid var(--line); background:var(--white); border-radius:6px; color:var(--ink-soft); cursor:pointer; font-size:12px;">✕</button>
           </div>
         </div>`;
       });
@@ -13039,14 +13083,74 @@ async function renderMusyawarah() {
       </div>`;
     });
 
-    listEl.innerHTML = html || (musInlinePeserta.length === 0 && musInlineTamu.length === 0
+    const dikecualikanHtml = musInlineDikecualikanDetail.length ? `
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer; font-size:12px; font-weight:700; color:var(--ink-soft); padding:6px 0;">🚫 ${musInlineDikecualikanDetail.length} orang dikeluarkan dari peserta wajib (klik utk lihat/kembalikan)</summary>
+        <div style="margin-top:6px; display:flex; flex-direction:column; gap:5px;">
+          ${musInlineDikecualikanDetail.map(p => `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:#f7f7f7; border-radius:6px;">
+              <div><span style="font-size:12px; font-weight:600;">${escHtml(p.nama)}</span> <span style="font-size:11px; color:var(--ink-soft);">— ${escHtml(p.jabatan||'')}</span></div>
+              <button onclick="MUS_kembalikanPesertaInline('${escHtml(p.id)}')" style="font-size:11px; padding:3px 10px; border:1px solid var(--green); background:#fff; color:var(--green); border-radius:6px; cursor:pointer;">↩ Kembalikan</button>
+            </div>`).join('')}
+        </div>
+      </details>` : '';
+
+    listEl.innerHTML = dikecualikanHtml + (html || (musInlinePeserta.length === 0 && musInlineTamu.length === 0
       ? '<div style="font-size:13px; color:var(--ink-soft); padding:12px 0; text-align:center;">Pilih desa atau kelompok di atas terlebih dahulu untuk menampilkan peserta.</div>'
-      : '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada peserta tetap. Tambahkan di Data Pengurus.</div>');
+      : '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada peserta tetap. Tambahkan di Data Pengurus.</div>'));
   };
 
   window.MUS_setAbsInline = (pid, status) => {
     musInlineAbsensi[pid] = status;
     MUS_renderAbsensiInline();
+  };
+
+  window.MUS_keluarkanPesertaInline = async (btn) => {
+    const pesertaId = btn.dataset.pesertaId;
+    const namaPeserta = btn.dataset.pesertaNama;
+    if (!confirm(`Keluarkan "${namaPeserta}" dari daftar peserta wajib musyawarah ini?\n\nBerlaku ke musyawarah tingkat ini SETERUSNYA (bukan cuma sekali ini), sampai dikembalikan lagi lewat Konfigurasi Peserta.`)) return;
+    if (!musInlineKonfigScope) { showToast('Gagal: scope konfigurasi tidak diketahui', true); return; }
+    btn.disabled = true;
+    try {
+      musInlineExcludedIds.add(pesertaId);
+      await SB.musKonfig.upsert({
+        level_musyawarah: musInlineKonfigScope.level,
+        kelompok_id: musInlineKonfigScope.kelompok_id,
+        desa_id: musInlineKonfigScope.desa_id,
+        peserta_dikecualikan: [...musInlineExcludedIds],
+      });
+      const dikeluarkan = musInlinePeserta.find(p => p.id === pesertaId);
+      musInlinePeserta = musInlinePeserta.filter(p => p.id !== pesertaId);
+      if (dikeluarkan) musInlineDikecualikanDetail = [...musInlineDikecualikanDetail, dikeluarkan];
+      delete musInlineAbsensi[pesertaId];
+      showToast(`"${namaPeserta}" dikeluarkan dari peserta wajib ✓`);
+      MUS_renderAbsensiInline();
+    } catch(e) {
+      musInlineExcludedIds.delete(pesertaId);
+      showToast('Gagal menyimpan: ' + e.message, true);
+      btn.disabled = false;
+    }
+  };
+
+  window.MUS_kembalikanPesertaInline = async (pesertaId) => {
+    if (!musInlineKonfigScope) { showToast('Gagal: scope konfigurasi tidak diketahui', true); return; }
+    try {
+      musInlineExcludedIds.delete(pesertaId);
+      await SB.musKonfig.upsert({
+        level_musyawarah: musInlineKonfigScope.level,
+        kelompok_id: musInlineKonfigScope.kelompok_id,
+        desa_id: musInlineKonfigScope.desa_id,
+        peserta_dikecualikan: [...musInlineExcludedIds],
+      });
+      const dikembalikan = musInlineDikecualikanDetail.find(p => p.id === pesertaId);
+      musInlineDikecualikanDetail = musInlineDikecualikanDetail.filter(p => p.id !== pesertaId);
+      if (dikembalikan) musInlinePeserta = [...musInlinePeserta, dikembalikan];
+      showToast('Peserta dikembalikan ke daftar wajib ✓');
+      MUS_renderAbsensiInline();
+    } catch(e) {
+      musInlineExcludedIds.add(pesertaId);
+      showToast('Gagal menyimpan: ' + e.message, true);
+    }
   };
 
   window.MUS_setTamuAbsInline = (idx, status) => {
