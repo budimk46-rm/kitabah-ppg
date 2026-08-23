@@ -229,6 +229,7 @@ const sbPertemuan = {
     headers: {'Prefer':'return=representation'},
     body: JSON.stringify(data)
   }),
+  delete: (id) => sbFetch(`pertemuan?id=eq.${id}`, { method: 'DELETE' }),
 };
 
 // ============ JURNAL ============

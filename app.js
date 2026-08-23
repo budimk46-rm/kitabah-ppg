@@ -4553,6 +4553,7 @@ async function renderAbsensi() {
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <input type="date" id="absTglInput" value="${pertemuanList.find(p=>p.id===currentPertemuanId)?.tanggal||''}" style="padding:7px 10px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:13px;">
               <button class="btn btn-outline btn-sm" onclick="ABS_ubahTanggal()">Ubah Tanggal Pertemuan Ini</button>
+              <button class="btn btn-outline btn-sm" style="color:var(--rose); border-color:var(--rose);" onclick="ABS_hapusPertemuan()">🗑️ Hapus Pertemuan</button>
             </div>
           </div>`}
       </div>
@@ -4789,6 +4790,24 @@ async function renderAbsensi() {
       console.error(e);
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Ubah Tanggal Pertemuan Ini'; }
+  };
+
+  window.ABS_hapusPertemuan = async () => {
+    const p = pertemuanList.find(x => x.id === currentPertemuanId);
+    if (!p) return;
+    if (!confirm(`Hapus pertemuan ke-${p.pertemuan_ke||'?'} (${fmtDateShort(p.tanggal)}) beserta SEMUA data absensi & jurnalnya?\n\nIni tidak bisa dibatalkan — cocok dipakai kalau ini cuma data uji coba atau salah input.`)) return;
+    const btn = document.querySelector('[onclick="ABS_hapusPertemuan()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Menghapus...'; }
+    try {
+      await SB.pertemuan.delete(currentPertemuanId);
+      logActivity('hapus', 'Absensi', `Hapus pertemuan ke-${p.pertemuan_ke||'?'} (${fmtDateShort(p.tanggal)})`);
+      showToast('Pertemuan dihapus');
+      await loadPertemuan();
+    } catch(e) {
+      showToast('Gagal menghapus: ' + e.message, true);
+      console.error(e);
+      if (btn) { btn.disabled = false; btn.textContent = '🗑️ Hapus Pertemuan'; }
+    }
   };
 
   async function doSimpanAll(pId) {
