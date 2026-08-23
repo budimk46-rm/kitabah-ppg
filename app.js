@@ -6758,7 +6758,7 @@ async function renderGuruSekolah() {
   const pendingHtml = (isPjp || isWaliKbm) && u.kelompok_id
     ? await renderPendingSection('guru_sekolah', 'kelompok', u.kelompok_id, FORM_CONFIGS.guru_sekolah, async (data) => {
         await SB.guruSekolah.insert({
-          kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').toUpperCase(),
+          kelompok_id: u.kelompok_id, nama_lengkap: (data.nama_lengkap||'').trim(),
           gender: data.gender || null, tgl_lahir: data.tgl_lahir || null,
           status_kepegawaian: data.status_kepegawaian || null, pendidikan_terakhir: data.pendidikan_terakhir || null,
           program_studi: data.program_studi || null, kompetensi_mengajar: data.kompetensi_mengajar || null,
@@ -6862,6 +6862,7 @@ async function renderGuruSekolah() {
           <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Total ${allData.length} orang</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="GS_downloadPdf()">📄 Download PDF</button>
           ${(isPjp || isWaliKbm) && u.kelompok_id ? shareLinkButtonHtml('guru_sekolah', u.kelompok_id) : ''}
           ${canEdit ? '<button class="btn btn-green" onclick="GS_tambah()">+ Tambah Guru</button>' : ''}
         </div>
@@ -6881,6 +6882,112 @@ async function renderGuruSekolah() {
   // === HANDLERS ===
   window.GS_tambah = () => openGuruSekolahModal(null);
   window.GS_edit = (id) => openGuruSekolahModal(allData.find(d=>d.id===id));
+
+  window.GS_downloadPdf = async () => {
+    if (!allData.length) { showToast('Belum ada data untuk diunduh', true); return; }
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = resolve;
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s2.onload = resolve; s2.onerror = reject;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      }).catch(() => { showToast('Gagal memuat pustaka PDF — cek koneksi internet', true); throw new Error('pdf-lib gagal dimuat'); });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const W = 842, H = 595, ML = 30, MR = 30, MT = 40, MB = 30; // Landscape A4
+      const GREEN = rgb(0.106,0.227,0.169), GRAY = rgb(0.5,0.5,0.5), DARK = rgb(0.1,0.1,0.1);
+      let page = doc.addPage([W, H]);
+      let y = H - MT;
+
+      // cL/cP/showGrouped cuma ada di scope render() (fungsi tetangga) — dihitung ulang
+      // di sini dari allData yg SAMA, biar gak ReferenceError (pola bug yg sama kayak MT/MS).
+      const cL = allData.filter(d => d.gender === 'L').length;
+      const cP = allData.filter(d => d.gender === 'P').length;
+      const showGrouped = isAdmin || isDaerah || isDesa;
+      const DESA_NAMA_MAP_GS = await loadDesaMap();
+      const scopeLabel = isAdmin || isDaerah ? 'Daerah Sidoarjo Utara'
+        : isDesa ? (DESA_NAMA_MAP_GS[u.desa_id] || 'Desa')
+        : (kelompokMap[u.kelompok_id]?.nama || '');
+
+      function addPage() { page = doc.addPage([W, H]); y = H - MT; }
+      function checkY(need) { if (y - need < MB) addPage(); }
+
+      page.drawText('DATA GURU SEKOLAH', { x: ML, y, font: fBold, size: 15, color: GREEN }); y -= 18;
+      page.drawText(scopeLabel, { x: ML, y, font: fReg, size: 10, color: GRAY }); y -= 14;
+      page.drawText('Total: ' + allData.length + ' orang (L: ' + cL + ' · P: ' + cP + ')', { x: ML, y, font: fReg, size: 9, color: GRAY }); y -= 20;
+
+      const COLS = [
+        { key: 'no', label: 'No', w: 24, x: 0 },
+        { key: 'nama', label: 'Nama Lengkap', w: 160, x: 0 },
+        ...(showGrouped ? [{ key: 'kelompok', label: 'Kelompok', w: 90, x: 0 }] : []),
+        { key: 'gender', label: 'L/P', w: 28, x: 0 },
+        { key: 'lahir', label: 'Tgl Lahir', w: 60, x: 0 },
+        { key: 'status', label: 'Status', w: 45, x: 0 },
+        { key: 'pendidikan', label: 'Pendidikan', w: 110, x: 0 },
+        { key: 'kompetensi', label: 'Kompetensi', w: 70, x: 0 },
+        { key: 'penugasan', label: 'Penugasan Saat Ini', w: 145, x: 0 },
+      ];
+      let curX = ML;
+      COLS.forEach(c => { c.x = curX; curX += c.w; });
+
+      function drawTableHeader() {
+        checkY(20);
+        page.drawRectangle({ x: ML, y: y-14, width: curX-ML, height: 16, color: GREEN });
+        COLS.forEach(c => page.drawText(c.label, { x: c.x+3, y: y-11, font: fBold, size: 8, color: rgb(1,1,1) }));
+        y -= 16;
+      }
+      drawTableHeader();
+
+      allData.forEach((d, i) => {
+        checkY(14);
+        if (y === H - MT - 16) drawTableHeader(); // habis pindah halaman
+        const vals = {
+          no: String(i+1),
+          nama: d.nama_lengkap || '-',
+          kelompok: kelompokMap[d.kelompok_id]?.nama || '-',
+          gender: d.gender || '-',
+          lahir: d.tgl_lahir ? fmtDateShort(d.tgl_lahir) : '-',
+          status: d.status_kepegawaian || '-',
+          pendidikan: (d.pendidikan_terakhir || '-') + (d.program_studi ? ' ('+d.program_studi+')' : ''),
+          kompetensi: (d.kompetensi_mengajar || '-').split(',').filter(Boolean).join(', ') || '-',
+          penugasan: d.penugasan_saat_ini || '-',
+        };
+        COLS.forEach(c => {
+          let text = String(vals[c.key] || '-');
+          const maxChars = Math.floor(c.w / 4.2);
+          if (text.length > maxChars) text = text.slice(0, maxChars-1) + '.';
+          page.drawText(text, { x: c.x+3, y, font: c.key==='nama'?fBold:fReg, size: 7.5, color: c.key==='nama'?DARK:rgb(0.3,0.3,0.3) });
+        });
+        y -= 13;
+      });
+
+      doc.getPages().forEach((p, i) => {
+        p.drawText('Hal ' + (i+1) + '/' + doc.getPageCount(), { x: W/2-20, y: 18, font: fReg, size: 8, color: GRAY });
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const urlObj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj; a.download = 'Data_Guru_Sekolah_' + scopeLabel.replace(/\s+/g,'_') + '.pdf'; a.click();
+      URL.revokeObjectURL(urlObj);
+      showToast('PDF berhasil diunduh');
+    } catch(e) {
+      showToast('Gagal membuat PDF: ' + e.message, true);
+      console.error(e);
+    }
+  };
   window.GS_hapus = async (id) => {
     if (!confirm('Hapus data guru ini?')) return;
     try {
@@ -6935,7 +7042,7 @@ async function renderGuruSekolah() {
     </div>`;
 
     document.getElementById('gsSaveBtn').onclick = async () => {
-      const nama = document.getElementById('gsNama').value.trim().toUpperCase();
+      const nama = document.getElementById('gsNama').value.trim();
       const gender = document.getElementById('gsGender').value;
       const status = document.getElementById('gsStatus').value;
       if (!nama || !gender || !status) { showToast('Nama, Gender, dan Status Kepegawaian wajib diisi', true); return; }
