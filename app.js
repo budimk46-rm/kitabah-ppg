@@ -9423,6 +9423,7 @@ async function renderJamaahEntry() {
           ${canEdit ? `
           <button class="btn btn-outline btn-sm" onclick="JMH_downloadTemplate()">📥 Template Excel</button>
           <button class="btn btn-outline btn-sm" onclick="JMH_openImportExcel()">📊 Import Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="JMH_downloadDataExcel()">💾 Download Data (Jamaah+Simpatisan)</button>
           ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
           <button class="btn btn-outline btn-sm" onclick="SIMP_tambah()">+ Tambah Simpatisan</button>
           <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>` : ''}
@@ -9971,6 +9972,70 @@ async function renderJamaahEntry() {
       </body></html>`);
     win.document.close();
     showToast('Kartu QR siap — dibuka di tab baru ✓');
+  };
+
+  // ── Template Excel (dibuat langsung di browser, bukan file statis) ──
+  window.JMH_downloadDataExcel = async () => {
+    if (!listUrut.length && !simpatisanList.length) { showToast('Belum ada data jamaah maupun simpatisan untuk diunduh', true); return; }
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+        s.onload = res;
+        s.onerror = () => {
+          const s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.20.1/dist/xlsx.full.min.js';
+          s2.onload = res; s2.onerror = rej;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      }).catch(() => { showToast('Gagal memuat pustaka Excel — cek koneksi internet', true); throw new Error('xlsx gagal dimuat'); });
+    }
+
+    const STATUS_NIKAH_LABEL = { menikah: 'Menikah', belum_menikah: 'Belum Menikah', duda: 'Duda', janda: 'Janda' };
+
+    // Sheet 1: Data Jamaah
+    const aoaJamaah = [
+      ['DATA JAMAAH — ' + (kelompokNama || '')],
+      [`Diunduh ${fmtDateShort(new Date().toISOString().slice(0,10))} · Total: ${listUrut.length} orang`],
+      [],
+      ['No', 'Nama', 'L/P', 'Tanggal Lahir', 'Usia', 'Kategori', 'Status Pernikahan', 'Kepala Keluarga', 'No. HP', 'Keterangan'],
+      ...listUrut.map((x, i) => [
+        i+1, x.nama || '', x.jenis_kelamin || '',
+        x.tgl_lahir || '', x.tgl_lahir ? hitungUsia(x.tgl_lahir) : '',
+        kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah),
+        STATUS_NIKAH_LABEL[x.status_menikah] || '',
+        x.kepala_keluarga === true ? 'Ya' : '',
+        x.no_hp || '', x.keterangan || '',
+      ]),
+    ];
+    const wsJamaah = window.XLSX.utils.aoa_to_sheet(aoaJamaah);
+    wsJamaah['!cols'] = [{wch:5},{wch:26},{wch:6},{wch:13},{wch:6},{wch:12},{wch:16},{wch:14},{wch:16},{wch:22}];
+    wsJamaah['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:9} }, { s:{r:1,c:0}, e:{r:1,c:9} }];
+
+    // Sheet 2: Data Simpatisan
+    const simpById = new Map(simpatisanList.map(s => [s.id, s]));
+    const aoaSimpatisan = [
+      ['DATA SIMPATISAN — ' + (kelompokNama || '')],
+      [`Diunduh ${fmtDateShort(new Date().toISOString().slice(0,10))} · Total: ${simpatisanList.length} orang`],
+      [],
+      ['No', 'Nama', 'L/P', 'Tanggal Lahir', 'Usia', 'Satu Keluarga Dengan', 'Keterangan'],
+      ...simpatisanList.map((s, i) => [
+        i+1, s.nama || '', s.jenis_kelamin || '',
+        s.tgl_lahir || '', s.tgl_lahir ? hitungUsia(s.tgl_lahir) : '',
+        s.keluarga_dari_id ? (simpById.get(s.keluarga_dari_id)?.nama || '') : '',
+        s.keterangan || '',
+      ]),
+    ];
+    const wsSimpatisan = window.XLSX.utils.aoa_to_sheet(aoaSimpatisan);
+    wsSimpatisan['!cols'] = [{wch:5},{wch:26},{wch:6},{wch:13},{wch:6},{wch:22},{wch:22}];
+    wsSimpatisan['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:6} }, { s:{r:1,c:0}, e:{r:1,c:6} }];
+
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, wsJamaah, 'Data Jamaah');
+    window.XLSX.utils.book_append_sheet(wb, wsSimpatisan, 'Data Simpatisan');
+    window.XLSX.writeFile(wb, 'Data_Jamaah_Simpatisan_' + (kelompokNama||'kelompok').replace(/\s+/g,'_') + '.xlsx');
+    showToast('Data berhasil diunduh ✓');
   };
 
   // ── Template Excel (dibuat langsung di browser, bukan file statis) ──
@@ -12112,11 +12177,11 @@ async function renderPengurus() {
           ${dapukanList.map(dp => {
             const people = byDapukan[dp] || [];
             const isFull = DAPUKAN_SOLO.has(dp) && people.length >= 1;
-            return `<div style="padding:8px 10px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            return `<div class="pgr-dapukan-slot" style="padding:8px 10px; border-bottom:1px solid var(--line); display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap;">
               <div style="flex:1; min-width:150px;">
                 <div style="font-weight:700; font-size:12.5px; color:#111;">${escHtml(dp)}</div>
                 ${people.length ? people.map(p => `
-                  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px;">
+                  <div class="pgr-person-row" data-search="${escHtml((p.nama+' '+dp).toLowerCase())}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px;">
                     <span style="font-size:12.5px; color:var(--ink-soft);">${escHtml(p.nama)}${p.tgl_lahir ? ` <span style="color:var(--ink-soft);">· ${hitungUsia(p.tgl_lahir)} th</span>` : ''}</span>
                     <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                       ${waBtn(p)}
@@ -12137,7 +12202,7 @@ async function renderPengurus() {
       <div>
         <div style="font-weight:800; font-size:11.5px; color:var(--rose); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">Lainnya (data lama)</div>
         <div style="border:1px solid var(--line); border-radius:8px; overflow:hidden;">
-          ${lain.map(p => `<div style="padding:7px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          ${lain.map(p => `<div class="pgr-person-row-lain" data-search="${escHtml((p.nama+' '+(p.jabatan||'')).toLowerCase())}" style="padding:7px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px;">
             <div><span style="font-weight:700; font-size:12.5px;">${escHtml(p.nama)}</span> <span style="font-size:11px; color:var(--ink-soft);">— ${escHtml(p.jabatan||'-')}</span></div>
             ${canEdit ? `<button class="btn-icon danger" onclick="PGR_hapus('${p.id}')" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ''}
           </div>`).join('')}
@@ -12162,9 +12227,17 @@ async function renderPengurus() {
 
   html += pendingHtml;
 
+  html += `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:11px;">🔍 Cari Pengurus</label>
+        <input type="text" id="pgrSearchInput" oninput="PGR_search(this.value)" placeholder="Cari nama atau dapukan..." style="width:100%;">
+      </div>
+    </div>`;
+
   // Pengurus Daerah
   if (isAdmin || u.role === 'daerah') {
-    html += `<div class="card" style="margin-bottom:14px;">
+    html += `<div class="card pgr-scope-card" style="margin-bottom:14px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
         <div class="fw-bold color-green" style="font-size:14px;">🏛️ Pengurus Daerah</div>
         ${isAdmin ? shareLinkButtonHtml('pengurus', 'daerah') : ''}
@@ -12176,7 +12249,7 @@ async function renderPengurus() {
   // Pengurus Desa
   for (const [did, obj] of Object.entries(pengurusDesa)) {
     const canEdit = isAdmin || u.role === 'desa';
-    html += `<div class="card" style="margin-bottom:14px;">
+    html += `<div class="card pgr-scope-card" style="margin-bottom:14px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
         <div class="fw-bold color-green" style="font-size:14px;">🏘️ ${escHtml(obj.nama)}</div>
         ${u.role === 'desa' ? shareLinkButtonHtml('pengurus', 'desa_'+did) : ''}
@@ -12190,7 +12263,7 @@ async function renderPengurus() {
   for (const [kid, list] of Object.entries(pengurusKlp)) {
     const klp = allKlp.find(k => k.id === kid);
     const canEdit = isAdmin || u.role === 'pjp_kelompok' || u.role === 'kelompok';
-    html += `<div class="card" style="margin-bottom:14px;">
+    html += `<div class="card pgr-scope-card" style="margin-bottom:14px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
         <div class="fw-bold color-green" style="font-size:14px;">👥 ${escHtml(klp?.nama||kid)} <span style="font-size:11px; color:var(--ink-soft);">(${escHtml(klp?.desa?.nama||'')})</span></div>
         ${u.role === 'pjp_kelompok' && kid === u.kelompok_id ? shareLinkButtonHtml('pengurus', kid) : ''}
@@ -12215,6 +12288,32 @@ async function renderPengurus() {
     const p = allPengurusFlat.find(x => x.id === id);
     if (p) openDapukanSlotModal(p, null, null, p.jabatan);
   };
+  window.PGR_search = (val) => {
+    const q = val.trim().toLowerCase();
+    document.querySelectorAll('.pgr-scope-card').forEach(card => {
+      let anyMatchInCard = false;
+      card.querySelectorAll('.pgr-dapukan-slot').forEach(slot => {
+        const rows = slot.querySelectorAll('.pgr-person-row');
+        if (!rows.length) { slot.style.display = q ? 'none' : ''; return; } // slot "Belum diisi" — sembunyikan pas lagi nyari
+        let anyMatchInSlot = false;
+        rows.forEach(row => {
+          const match = !q || (row.dataset.search||'').includes(q);
+          row.style.display = match ? '' : 'none';
+          if (match) anyMatchInSlot = true;
+        });
+        slot.style.display = anyMatchInSlot ? '' : 'none';
+        if (anyMatchInSlot) anyMatchInCard = true;
+      });
+      // Baris "Lainnya" (data lama, di luar slot dapukan) — class terpisah biar gak perlu :not()
+      card.querySelectorAll('.pgr-person-row-lain').forEach(row => {
+        const match = !q || (row.dataset.search||'').includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) anyMatchInCard = true;
+      });
+      card.style.display = (!q || anyMatchInCard) ? '' : 'none';
+    });
+  };
+
   window.PGR_hapus = async (id) => {
     if (!confirm('Hapus pengurus ini?')) return;
     await SB.musPeserta.softDelete(id);
