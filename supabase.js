@@ -693,6 +693,21 @@ const sbJamaahKeluarga = {
   },
 };
 
+const sbSimpatisan = {
+  getByKelompok: (kelompokId) => sbFetch(`simpatisan?kelompok_id=eq.${kelompokId}&select=*&order=nama.asc`),
+  insert: (data) => sbFetch('simpatisan', {
+    method: 'POST',
+    headers: {'Prefer':'return=representation'},
+    body: JSON.stringify(data),
+  }),
+  update: (id, data) => sbFetch(`simpatisan?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {'Prefer':'return=representation'},
+    body: JSON.stringify(data),
+  }),
+  delete: (id) => sbFetch(`simpatisan?id=eq.${id}`, { method: 'DELETE' }),
+};
+
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
@@ -736,6 +751,7 @@ window.SB = {
   navLog: sbNavLog,
   jamaah: sbJamaah,
   jamaahKeluarga: sbJamaahKeluarga,
+  simpatisan: sbSimpatisan,
   subPengajian: sbSubPengajian,
   pengajianPertemuan: sbPengajianPertemuan,
   pengajianAbsensi: sbPengajianAbsensi,

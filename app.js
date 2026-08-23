@@ -9266,6 +9266,7 @@ async function renderJamaahEntry() {
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
   let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set(), kategoriDariSantriMap = new Map();
+  let simpatisanList = [];
   let searchQuery = '';
   let filterKategori = new Set();
   let filterKategoriOpen = false;
@@ -9275,6 +9276,11 @@ async function renderJamaahEntry() {
   async function refreshJamaahData() {
     list = await SB.jamaah.getByKelompok(u.kelompok_id) || [];
     santriKlp = await SB.santri.getByKelompok(u.kelompok_id) || [];
+
+    // Data Simpatisan (terpisah dari Data Jamaah) — tautan keluarganya sesama simpatisan
+    // (kolom keluarga_dari_id) sudah ikut kebawa langsung di tiap baris, gak perlu query terpisah.
+    simpatisanList = await SB.simpatisan.getByKelompok(u.kelompok_id) || [];
+
     // Kategori usia versi Data Santri (dari nama kelas asli, BUKAN hitung usia otomatis) —
     // dipakai buat nyocokin/deteksi beda sama kategori Data Jamaah.
     kategoriDariSantriMap = new Map();
@@ -9418,6 +9424,7 @@ async function renderJamaahEntry() {
           <button class="btn btn-outline btn-sm" onclick="JMH_downloadTemplate()">📥 Template Excel</button>
           <button class="btn btn-outline btn-sm" onclick="JMH_openImportExcel()">📊 Import Excel</button>
           ${shareLinkButtonHtml('jamaah', u.kelompok_id)}
+          <button class="btn btn-outline btn-sm" onclick="SIMP_tambah()">+ Tambah Simpatisan</button>
           <button class="btn btn-green" onclick="JMH_tambah()">+ Tambah Jamaah</button>` : ''}
         </div>
       </div>
@@ -9446,6 +9453,24 @@ async function renderJamaahEntry() {
         <div style="font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Jumlah KK</div>
         <div style="font-size:28px; font-weight:800; color:var(--green);">${list.filter(x => x.kepala_keluarga === true).length}</div>
         <div style="font-size:10.5px; color:var(--ink-soft); margin-top:2px;">Dari yang ditandai "Status Kepala Keluarga: Ya"</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px; padding:16px; max-width:300px;">
+        <div style="font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;">Jumlah Simpatisan</div>
+        <div style="display:flex; gap:16px; align-items:center;">
+          <div style="text-align:center; flex:1;">
+            <div style="font-size:22px; font-weight:800; color:#1a6b3a;">${simpatisanList.filter(x => x.jenis_kelamin === 'L').length}</div>
+            <div style="font-size:10px; color:var(--ink-soft);">Laki-laki</div>
+          </div>
+          <div style="text-align:center; flex:1; border-left:1px solid var(--line); border-right:1px solid var(--line);">
+            <div style="font-size:22px; font-weight:800; color:#a6483b;">${simpatisanList.filter(x => x.jenis_kelamin === 'P').length}</div>
+            <div style="font-size:10px; color:var(--ink-soft);">Perempuan</div>
+          </div>
+          <div style="text-align:center; flex:1;">
+            <div style="font-size:22px; font-weight:800; color:var(--green);">${simpatisanList.length}</div>
+            <div style="font-size:10px; color:var(--ink-soft);">Total</div>
+          </div>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:12px;">
@@ -9540,6 +9565,56 @@ async function renderJamaahEntry() {
             }).join('')}
           </tbody>
         </table></div>`)}
+      </div>
+
+      <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
+        <div style="background:var(--cream-2,#F4EFE3); padding:12px 16px; border-bottom:1px solid var(--line);">
+          <div style="font-weight:700; font-size:14px; color:var(--green);">🧑‍🤝‍🧑 Data Simpatisan (${simpatisanList.length})</div>
+          <div style="font-size:11.5px; color:var(--ink-soft); margin-top:2px;">Terpisah dari Data Jamaah — orang yang belum resmi jadi jamaah tapi sudah tercatat/dikenal kelompok</div>
+        </div>
+        ${!simpatisanList.length ? '<div style="text-align:center; padding:24px; color:var(--ink-soft); font-size:13px;">Belum ada data simpatisan.</div>' : (() => {
+          const simpById = new Map(simpatisanList.map(s => [s.id, s]));
+          const groups = {};
+          const groupOrder = [];
+          simpatisanList.forEach(s => {
+            // Kepala keluarga = orang yg ditunjuk di keluarga_dari_id (kalau ada), atau
+            // dirinya sendiri kalau dia gak nautkan diri ke simpatisan lain manapun.
+            const headId = s.keluarga_dari_id && simpById.has(s.keluarga_dari_id) ? s.keluarga_dari_id : s.id;
+            if (!groups[headId]) { groups[headId] = []; groupOrder.push(headId); }
+            groups[headId].push(s);
+          });
+          groupOrder.sort((a, b) => {
+            const namaA = simpById.get(a)?.nama || '', namaB = simpById.get(b)?.nama || '';
+            return namaA.localeCompare(namaB);
+          });
+          return groupOrder.map(headId => {
+            // Kepala keluarga tampil PALING ATAS di grupnya, sisanya urut abjad
+            const members = groups[headId].sort((a,b) => {
+              if (a.id === headId) return -1;
+              if (b.id === headId) return 1;
+              return (a.nama||'').localeCompare(b.nama||'');
+            });
+            const soloTanpaKeluarga = members.length === 1;
+            const headNama = simpById.get(headId)?.nama || '';
+            const headerLabel = soloTanpaKeluarga ? `📌 ${escHtml(headNama)} (belum tertaut keluarga)` : `👪 Keluarga ${escHtml(headNama)}`;
+            return `
+            <div style="padding:8px 16px 4px; font-size:11.5px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em; background:var(--green-soft); border-top:1px solid var(--line);">${headerLabel}</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Nama</th><th style="text-align:center;">L/P</th><th>Tgl Lahir</th>${canEdit ? '<th style="text-align:center;">Aksi</th>' : ''}</tr></thead>
+              <tbody>${members.map(s => `<tr>
+                <td style="font-weight:600;">${escHtml(s.nama)}</td>
+                <td style="text-align:center;"><span class="badge ${s.jenis_kelamin==='L'?'badge-green':'badge-rose'}">${s.jenis_kelamin||'—'}</span></td>
+                <td>${s.tgl_lahir ? fmtDateShort(s.tgl_lahir) : '—'}</td>
+                ${canEdit ? `<td style="text-align:center;">
+                  <div style="display:flex; gap:3px; justify-content:center;">
+                    <button class="btn-icon" onclick="SIMP_edit('${s.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+                    <button class="btn-icon danger" onclick="SIMP_hapus(this.dataset.id, this.dataset.nama)" data-id="${s.id}" data-nama="${escHtml(s.nama)}" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+                  </div>
+                </td>` : ''}
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+          }).join('');
+        })()}
       </div>
     `;
   }
@@ -10209,6 +10284,91 @@ async function renderJamaahEntry() {
     filterKategori.clear();
     filterKategoriOpen = true;
     render();
+  };
+
+  async function openSimpatisanModal(existing) {
+    // Tautan keluarga SESAMA SIMPATISAN — kecualikan diri sendiri (gak boleh nautkan ke diri
+    // sendiri) dan kecualikan siapapun yg SEDANG nautkan diri KE simpatisan ini (biar gak
+    // muter/circular — misal A udah jadi kepala keluarga B, B gak boleh ditunjuk balik jadi
+    // kepala keluarga A).
+    const simpatisanOptions = existing
+      ? simpatisanList.filter(s => s.id !== existing.id && s.keluarga_dari_id !== existing.id).sort((a,b) => (a.nama||'').localeCompare(b.nama||''))
+      : [...simpatisanList].sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+
+    let el = document.getElementById('simpatisanModal');
+    if (!el) { el = document.createElement('div'); el.id = 'simpatisanModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head">
+        <h3 class="modal-title">${existing ? 'Edit' : 'Tambah'} Simpatisan</h3>
+        <button class="modal-close" onclick="closeModal('simpatisanModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group"><label>Nama Lengkap *</label><input id="simpNama" value="${escHtml(existing?.nama||'')}"></div>
+        <div class="form-group"><label>Tanggal Lahir</label>${tanggalLahirDropdownHtml('simpTgl', existing?.tgl_lahir||'')}</div>
+        <div class="form-group">
+          <label>Jenis Kelamin *</label>
+          <select id="simpJk"><option value="">Pilih...</option><option value="L" ${existing?.jenis_kelamin==='L'?'selected':''}>Laki-laki</option><option value="P" ${existing?.jenis_kelamin==='P'?'selected':''}>Perempuan</option></select>
+        </div>
+        <div class="form-group">
+          <label>Satu Keluarga dengan Simpatisan Lain (opsional)</label>
+          <select id="simpKeluarga">
+            <option value="">Belum tertaut — dirinya sendiri sbg kepala keluarga</option>
+            ${simpatisanOptions.map(s => `<option value="${s.id}" ${existing?.keluarga_dari_id===s.id?'selected':''}>${escHtml(s.nama)}</option>`).join('')}
+          </select>
+          <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Ini TERPISAH dari Data Jamaah — cuma nautkan sesama data Simpatisan. Pilih salah satu simpatisan yg jadi kepala keluarganya, biar tampilan datanya bisa dikelompokkan per keluarga.</div>
+        </div>
+        <div class="form-group"><label>Keterangan (opsional)</label><input id="simpKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: tetangga, kenalan, dll"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('simpatisanModal')">Batal</button>
+        <button class="btn btn-green" id="simpSaveBtn">Simpan</button>
+      </div>
+    </div>`;
+
+    document.getElementById('simpSaveBtn').onclick = async () => {
+      const nama = document.getElementById('simpNama').value.trim();
+      const jk = document.getElementById('simpJk').value;
+      const tgl = bacaTanggalDropdown('simpTgl') || null;
+      const keluargaDariId = document.getElementById('simpKeluarga').value || null;
+      const ket = document.getElementById('simpKet').value.trim() || null;
+      if (!nama || !jk) { showToast('Nama dan Jenis Kelamin wajib diisi', true); return; }
+
+      const btn = document.getElementById('simpSaveBtn');
+      btn.disabled = true; btn.textContent = 'Menyimpan...';
+      try {
+        const data = { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, keterangan: ket, keluarga_dari_id: keluargaDariId };
+        if (existing) {
+          await SB.simpatisan.update(existing.id, data);
+          logActivity('ubah', 'Data Simpatisan', `Mengubah data simpatisan: ${nama}`);
+        } else {
+          await SB.simpatisan.insert({ ...data, kelompok_id: u.kelompok_id, dibuat_oleh: u.id });
+          logActivity('tambah', 'Data Simpatisan', `Menambah data simpatisan: ${nama}`);
+        }
+
+        showToast('Data simpatisan tersimpan ✓');
+        closeModal('simpatisanModal');
+        await refreshJamaahData();
+        render();
+      } catch(e) {
+        showToast('Gagal: ' + e.message, true);
+        btn.disabled = false; btn.textContent = 'Simpan';
+      }
+    };
+
+    openModal('simpatisanModal');
+  }
+
+  window.SIMP_tambah = () => openSimpatisanModal(null);
+  window.SIMP_edit = (id) => openSimpatisanModal(simpatisanList.find(s => s.id === id));
+  window.SIMP_hapus = async (id, nama) => {
+    if (!confirm(`Hapus data simpatisan "${nama}"?`)) return;
+    try {
+      await SB.simpatisan.delete(id);
+      logActivity('hapus', 'Data Simpatisan', `Menghapus data simpatisan: ${nama}`);
+      showToast('Data simpatisan dihapus');
+      await refreshJamaahData();
+      render();
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
   };
 
   async function openJamaahModal(existing) {
