@@ -6920,12 +6920,26 @@ async function renderGuruSekolah() {
         : isDesa ? (DESA_NAMA_MAP_GS[u.desa_id] || 'Desa')
         : (kelompokMap[u.kelompok_id]?.nama || '');
 
-      function addPage() { page = doc.addPage([W, H]); y = H - MT; }
+      // Urutkan: Desa dulu, baru Kelompok di dalamnya, baru Nama — bukan urutan mentah dari DB
+      const namaDesaDariKelompokId = (kid) => {
+        const desaId = kelompokMap[kid]?.desa_id;
+        return desaId ? (DESA_NAMA_MAP_GS[desaId] || desaId) : '';
+      };
+      const dataUrut = [...allData].sort((a, b) => {
+        const desaA = namaDesaDariKelompokId(a.kelompok_id), desaB = namaDesaDariKelompokId(b.kelompok_id);
+        if (desaA !== desaB) return desaA.localeCompare(desaB);
+        const klpA = kelompokMap[a.kelompok_id]?.nama || '', klpB = kelompokMap[b.kelompok_id]?.nama || '';
+        if (klpA !== klpB) return klpA.localeCompare(klpB);
+        return (a.nama_lengkap||'').localeCompare(b.nama_lengkap||'');
+      });
+
+      let needHeaderRedraw = false;
+      function addPage() { page = doc.addPage([W, H]); y = H - MT; needHeaderRedraw = true; }
       function checkY(need) { if (y - need < MB) addPage(); }
 
       page.drawText('DATA GURU SEKOLAH', { x: ML, y, font: fBold, size: 15, color: GREEN }); y -= 18;
-      page.drawText(scopeLabel, { x: ML, y, font: fReg, size: 10, color: GRAY }); y -= 14;
-      page.drawText('Total: ' + allData.length + ' orang (L: ' + cL + ' · P: ' + cP + ')', { x: ML, y, font: fReg, size: 9, color: GRAY }); y -= 20;
+      page.drawText(scopeLabel, { x: ML, y, font: fReg, size: 10, color: DARK }); y -= 14;
+      page.drawText('Total: ' + allData.length + ' orang (L: ' + cL + ' · P: ' + cP + ')', { x: ML, y, font: fReg, size: 9, color: DARK }); y -= 20;
 
       const COLS = [
         { key: 'no', label: 'No', w: 24, x: 0 },
@@ -6941,17 +6955,21 @@ async function renderGuruSekolah() {
       let curX = ML;
       COLS.forEach(c => { c.x = curX; curX += c.w; });
 
+      // Rect ATAS-nya persis di y saat dipanggil (gak nongol ke atas nutup teks sebelumnya),
+      // dan abis ini y dikurangi LEBIH BANYAK dari tinggi rect-nya sendiri (kasih jarak),
+      // biar baris data pertama gak ketutupan sama kotak hijau header.
       function drawTableHeader() {
-        checkY(20);
-        page.drawRectangle({ x: ML, y: y-14, width: curX-ML, height: 16, color: GREEN });
-        COLS.forEach(c => page.drawText(c.label, { x: c.x+3, y: y-11, font: fBold, size: 8, color: rgb(1,1,1) }));
-        y -= 16;
+        checkY(24);
+        page.drawRectangle({ x: ML, y: y-16, width: curX-ML, height: 16, color: GREEN });
+        COLS.forEach(c => page.drawText(c.label, { x: c.x+3, y: y-12, font: fBold, size: 8, color: rgb(1,1,1) }));
+        y -= 26; // 16 tinggi header + 10 jarak — dites hitungan manual, 20 masih ketutupan (teks naik ~7.5 dari baseline)
+        needHeaderRedraw = false;
       }
       drawTableHeader();
 
-      allData.forEach((d, i) => {
+      dataUrut.forEach((d, i) => {
         checkY(14);
-        if (y === H - MT - 16) drawTableHeader(); // habis pindah halaman
+        if (needHeaderRedraw) drawTableHeader(); // habis pindah halaman
         const vals = {
           no: String(i+1),
           nama: d.nama_lengkap || '-',
