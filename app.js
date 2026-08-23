@@ -1489,6 +1489,7 @@ const NAV_ITEMS = {
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
+    { id: 'kalender_ppg', icon: calIcon(), label: 'Kalender Kegiatan PPG' },
     { id: 'log_aktivitas', icon: logIcon(), label: 'Log Aktivitas', section: 'SISTEM' },
     { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
@@ -1512,6 +1513,7 @@ const NAV_ITEMS = {
     { id: 'monitor_mus', icon: clipboardCheckIcon(), label: 'Monitoring Musyawarah' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
     { id: 'proker', icon: briefcaseIcon(), label: 'Program Kerja PPG' },
+    { id: 'kalender_ppg', icon: calIcon(), label: 'Kalender Kegiatan PPG' },
     { id: 'user_tidak_aktif', icon: alertIcon(), label: 'User Tidak Aktif', section: 'SISTEM' },
   ],
   desa: [
@@ -1802,6 +1804,7 @@ async function renderPage(page) {
       case 'profil_saya': await renderProfilSaya(); break;
       case 'live_chat': await renderLiveChat(); break;
       case 'proker':      await renderProker(); break;
+      case 'kalender_ppg': await renderKalenderPPG(); break;
       case 'pengurus':    await renderPengurus(); break;
       case 'musyawarah':  await renderMusyawarah(); break;
       case 'rekap_desa':  await renderRekapDesa(); break;
@@ -1975,6 +1978,7 @@ function getQuickMenuItems() {
     { page: 'monitor_mus', emoji: '📋', label: 'Monitoring Musyawarah', roles: ['desa','desa_view'] },
     { page: 'rekap_daerah', emoji: '🗺️', label: 'Rekap Daerah', roles: ['admin','daerah'] },
     { page: 'proker', emoji: '💼', label: 'Program Kerja PPG', roles: ['admin','daerah'] },
+    { page: 'kalender_ppg', emoji: '📅', label: 'Kalender Kegiatan PPG', roles: ['admin','daerah'] },
     { page: 'users', emoji: '⚙️', label: 'Kelola Pengguna', roles: ['admin'] },
   ];
   return all.filter(x => x.roles.includes(u.role));
@@ -11678,6 +11682,18 @@ async function renderProker() {
   function fmtRp(n) { return 'Rp ' + (n||0).toLocaleString('id-ID'); }
 
   function render() {
+    const jumlahDraft = allProker.filter(p => (p.status||'draft') === 'draft').length;
+    const jumlahDisetujui = allProker.filter(p => p.status === 'disetujui').length;
+    const semuaSudahDisetujui = allProker.length > 0 && jumlahDraft === 0;
+    const statusBannerHtml = !allProker.length ? '' : semuaSudahDisetujui ? `
+      <div class="card" style="border:2px solid var(--green); background:var(--green-soft); margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <div style="font-size:13.5px; font-weight:700; color:var(--green);">✅ Semua ${jumlahDisetujui} program kerja tahun ${tahun} sudah disetujui dan siap dijalankan.</div>
+      </div>` : `
+      <div class="card" style="border:2px solid var(--gold); background:var(--gold-soft,#FBF3E1); margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="font-size:13.5px; color:#7a5c1e;"><b>${jumlahDraft} draft</b> program kerja belum disetujui${jumlahDisetujui?` (${jumlahDisetujui} sudah disetujui)`:''}. Laporan kegiatan baru bisa diisi setelah disetujui.</div>
+        ${isAdmin ? `<button class="btn btn-green btn-sm" onclick="PK_setujuiSemua()">✅ Setujui Semua Program Kerja ${tahun}</button>` : ''}
+      </div>`;
+
     const totalAnggaran = allProker.reduce((n,p) => n + (p.anggaran||0), 0);
     const totalRealisasi = allProker.reduce((n,p) => n + p._laporan.reduce((s,l) => s + (l.realisasi_anggaran||0), 0), 0);
     const totalProgram = allProker.length;
@@ -11764,7 +11780,8 @@ async function renderProker() {
                   📅 ${escHtml(p.bulan_mulai||'Belum ditentukan')} · 💰 ${fmtRp(p.anggaran)}
                 </div>
               </div>
-              <div style="display:flex; gap:4px; flex-shrink:0;">
+              <div style="display:flex; gap:4px; flex-shrink:0; align-items:center;">
+                <span class="badge ${(p.status||'draft')==='disetujui'?'badge-green':'badge-gray'}">${(p.status||'draft')==='disetujui'?'✅ Disetujui':'📝 Draft'}</span>
                 <span class="badge ${lapCount?'badge-green':'badge-gray'}">${lapCount} laporan</span>
                 ${isAdmin ? `
                 <button class="btn-icon" onclick="PK_editProker('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
@@ -11781,7 +11798,10 @@ async function renderProker() {
                       ${l.tanggal_kegiatan ? '📅 '+fmtDateShort(l.tanggal_kegiatan)+' · ' : ''}💰 ${fmtRp(l.realisasi_anggaran)}
                     </div>
                     ${l.deskripsi ? `<div style="font-size:12px; color:var(--ink); margin-top:4px; white-space:pre-wrap;">${escHtml(l.deskripsi)}</div>` : ''}
-                    ${l.foto_url ? `<img src="${escHtml(l.foto_url)}" style="max-width:100%; max-height:200px; border-radius:6px; margin-top:6px;">` : ''}
+                    <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+                      ${l.foto_url ? `<img src="${escHtml(l.foto_url)}" style="max-width:150px; max-height:150px; border-radius:6px;">` : ''}
+                      ${l.foto_url_2 ? `<img src="${escHtml(l.foto_url_2)}" style="max-width:150px; max-height:150px; border-radius:6px;">` : ''}
+                    </div>
                     ${isAdmin ? `<div style="margin-top:4px; display:flex; gap:4px;">
                       <button class="btn-icon" onclick="PK_editLaporan('${l.id}','${p.id}')" title="Edit laporan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
                       <button class="btn-icon danger" onclick="PK_hapusLaporan('${l.id}','${p.id}')" title="Hapus laporan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
@@ -11789,7 +11809,8 @@ async function renderProker() {
                   </div>`).join('')}
               </div>
             </details>` : ''}
-            ${isAdmin ? `<button class="btn btn-outline btn-sm" style="margin-top:6px; font-size:11px;" onclick="PK_tambahLaporan('${p.id}')">+ Tambah Laporan</button>` : ''}
+            ${isAdmin && (p.status||'draft')==='disetujui' ? `<button class="btn btn-outline btn-sm" style="margin-top:6px; font-size:11px;" onclick="PK_tambahLaporan('${p.id}')">+ Tambah Laporan</button>` : ''}
+            ${isAdmin && (p.status||'draft')!=='disetujui' ? `<div style="margin-top:6px; font-size:11px; color:var(--ink-soft); font-style:italic;">Setujui dulu program ini (lewat tombol "Setujui Semua" di atas) sebelum bisa mengisi laporan kegiatan.</div>` : ''}
           </div>`;
       }).join('');
 
@@ -11812,7 +11833,11 @@ async function renderProker() {
           <h1 class="page-title">Program Kerja PPG</h1>
           <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Tahun ${tahun} · TA ${getTahunAjaran()}</p>
         </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${allProker.length ? `<button class="btn btn-outline btn-sm" onclick="PK_bukaPresentasi()">🖥️ Mode Presentasi</button>` : ''}
+        </div>
       </div>
+      ${statusBannerHtml}
       ${neracaHtml}
       ${danaHtml}
       <div class="fw-bold color-green" style="font-size:15px; margin-bottom:12px;">📋 Program Kerja per Bidang</div>
@@ -11830,6 +11855,79 @@ async function renderProker() {
   };
 
   window.PK_tambahProker = (bidang) => openProkerModal(null, bidang);
+
+  window.PK_setujuiSemua = async () => {
+    const draftList = allProker.filter(p => (p.status||'draft') === 'draft');
+    if (!draftList.length) return;
+    if (!confirm(`Setujui SEMUA ${draftList.length} draft program kerja tahun ${tahun} untuk dijalankan?\n\nSetelah disetujui, tiap bidang bisa mulai mengisi laporan kegiatan. Program yang mau ditambah/diedit lagi sebaiknya dibereskan DULU sebelum menyetujui.`)) return;
+    try {
+      await Promise.all(draftList.map(p => SB.proker.update(p.id, { status: 'disetujui' })));
+      draftList.forEach(p => { p.status = 'disetujui'; });
+      showToast(`${draftList.length} program kerja disetujui ✓`);
+      render();
+    } catch(e) { showToast('Gagal menyetujui: ' + e.message, true); }
+  };
+
+  // === MODE PRESENTASI (layar penuh, per bidang, Next/Back) ===
+  let presentasiIdx = 0;
+  const bidangDenganProgram = BIDANG_LIST.filter(b => allProker.some(p => p.bidang === b));
+
+  function renderPresentasiSlide() {
+    const overlay = document.getElementById('pkPresentasiOverlay');
+    if (!overlay) return;
+    const bidang = bidangDenganProgram[presentasiIdx];
+    const programs = allProker.filter(p => p.bidang === bidang);
+    const totalAnggaranBidang = programs.reduce((n,p) => n + (p.anggaran||0), 0);
+
+    overlay.innerHTML = `
+      <button onclick="PK_tutupPresentasi()" style="position:fixed; top:20px; right:20px; z-index:10000; background:var(--rose); color:#fff; border:none; border-radius:10px; padding:12px 22px; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.2);">✕ Keluar</button>
+      <div style="max-width:850px; margin:0 auto; padding:50px 40px;">
+        <div style="font-size:15px; color:var(--ink-soft); font-weight:700; margin-bottom:4px;">Bidang ${presentasiIdx+1} dari ${bidangDenganProgram.length}</div>
+        <div style="font-size:38px; font-weight:800; color:var(--green); margin-bottom:6px;">${escHtml(bidang)}</div>
+        <div style="font-size:15px; color:var(--ink-soft); margin-bottom:28px;">${programs.length} program kerja · Total anggaran ${fmtRp(totalAnggaranBidang)}</div>
+
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          ${programs.map((p, i) => `
+            <div style="background:#fff; border-radius:14px; padding:20px 24px; box-shadow:0 2px 10px rgba(0,0,0,.06); border-left:5px solid ${(p.status||'draft')==='disetujui'?'var(--green)':'var(--gold)'};">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                <div style="font-size:19px; font-weight:700; color:var(--ink);">${i+1}. ${escHtml(p.nama_program)}</div>
+                <span style="font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; background:${(p.status||'draft')==='disetujui'?'var(--green-soft)':'var(--gold-soft,#FBF3E1)'}; color:${(p.status||'draft')==='disetujui'?'var(--green)':'#7a5c1e'}; white-space:nowrap;">${(p.status||'draft')==='disetujui'?'✅ Disetujui':'📝 Draft'}</span>
+              </div>
+              ${p.detail_program ? `<div style="font-size:15px; color:var(--ink-soft); margin-top:8px; white-space:pre-wrap;">${escHtml(p.detail_program)}</div>` : ''}
+              <div style="font-size:14px; color:var(--ink-soft); margin-top:10px;">📅 ${escHtml(p.bulan_mulai||'Belum ditentukan')} &nbsp;·&nbsp; 💰 ${fmtRp(p.anggaran)}</div>
+            </div>`).join('') || '<div style="color:var(--ink-soft); font-size:15px;">Belum ada program kerja di bidang ini.</div>'}
+        </div>
+      </div>
+      <div style="position:fixed; bottom:24px; left:0; right:0; display:flex; justify-content:center; gap:12px;">
+        <button onclick="PK_presentasiGeser(-1)" ${presentasiIdx===0?'disabled':''} style="padding:12px 26px; border-radius:10px; border:none; background:${presentasiIdx===0?'#ccc':'var(--green)'}; color:#fff; font-weight:700; font-size:15px; cursor:${presentasiIdx===0?'default':'pointer'};">← Back</button>
+        <button onclick="PK_presentasiGeser(1)" ${presentasiIdx===bidangDenganProgram.length-1?'disabled':''} style="padding:12px 26px; border-radius:10px; border:none; background:${presentasiIdx===bidangDenganProgram.length-1?'#ccc':'var(--green)'}; color:#fff; font-weight:700; font-size:15px; cursor:${presentasiIdx===bidangDenganProgram.length-1?'default':'pointer'};">Next →</button>
+      </div>`;
+  }
+
+  window.PK_bukaPresentasi = () => {
+    if (!bidangDenganProgram.length) { showToast('Belum ada program kerja untuk dipresentasikan', true); return; }
+    presentasiIdx = 0;
+    let overlay = document.getElementById('pkPresentasiOverlay');
+    if (!overlay) { overlay = document.createElement('div'); overlay.id = 'pkPresentasiOverlay'; document.body.appendChild(overlay); }
+    overlay.style.cssText = 'position:fixed; inset:0; background:var(--cream,#FAF6EC); z-index:9999; overflow-y:auto;';
+    renderPresentasiSlide();
+    if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {});
+  };
+  window.PK_tutupPresentasi = () => {
+    const overlay = document.getElementById('pkPresentasiOverlay');
+    if (overlay) overlay.style.display = 'none';
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  };
+  window.PK_presentasiGeser = (dir) => {
+    presentasiIdx = Math.max(0, Math.min(bidangDenganProgram.length-1, presentasiIdx+dir));
+    renderPresentasiSlide();
+  };
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      const overlay = document.getElementById('pkPresentasiOverlay');
+      if (overlay) overlay.style.display = 'none';
+    }
+  });
   window.PK_editProker = (id) => { const p = allProker.find(x=>x.id===id); if(p) openProkerModal(p, p.bidang); };
   window.PK_hapusProker = async (id) => {
     if (!confirm('Hapus program kerja ini beserta laporannya?')) return;
@@ -11969,14 +12067,12 @@ async function renderProker() {
       <div class="form-group"><label>Tanggal Kegiatan</label><input type="date" id="lpTgl" value="${p?.tanggal_kegiatan||new Date().toISOString().slice(0,10)}"></div>
       <div class="form-group"><label>Deskripsi</label><textarea id="lpDesc" rows="4" placeholder="Tempat, jam, jumlah peserta, keterangan...">${escHtml(p?.deskripsi||'')}</textarea></div>
       <div class="form-group"><label>Realisasi Anggaran (Rp)</label><input type="number" id="lpReal" value="${p?.realisasi_anggaran||0}"></div>
-      <div class="form-group"><label>Foto Kegiatan</label><input type="file" id="lpFoto" accept="image/*"><div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Foto otomatis dikompres. Opsional.</div></div>
+      <div class="form-group"><label>Foto Kegiatan 1</label><input type="file" id="lpFoto" accept="image/*"><div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Foto otomatis dikompres. Maksimal 2 foto, opsional.</div></div>
+      <div class="form-group"><label>Foto Kegiatan 2 (opsional)</label><input type="file" id="lpFoto2" accept="image/*"></div>
     `, async () => {
-      let fotoUrl = p?.foto_url || null;
-      const fileInput = document.getElementById('lpFoto');
-      if (fileInput.files.length) {
-        const file = fileInput.files[0];
-        // Auto compress: resize max 800px & compress to JPEG 60%
-        fotoUrl = await new Promise((res, rej) => {
+      // Kompres 1 file gambar: resize max 800px & kompres ke JPEG 60% — dipakai buat kedua slot foto
+      function kompresGambar(file) {
+        return new Promise((res, rej) => {
           const reader = new FileReader();
           reader.onload = () => {
             const img = new window.Image();
@@ -11991,8 +12087,7 @@ async function renderProker() {
               canvas.width = w; canvas.height = h;
               const ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, w, h);
-              const compressed = canvas.toDataURL('image/jpeg', 0.6);
-              res(compressed);
+              res(canvas.toDataURL('image/jpeg', 0.6));
             };
             img.onerror = rej;
             img.src = reader.result;
@@ -12001,13 +12096,22 @@ async function renderProker() {
           reader.readAsDataURL(file);
         });
       }
+
+      let fotoUrl = p?.foto_url || null;
+      const fileInput = document.getElementById('lpFoto');
+      if (fileInput.files.length) fotoUrl = await kompresGambar(fileInput.files[0]);
+
+      let fotoUrl2 = p?.foto_url_2 || null;
+      const fileInput2 = document.getElementById('lpFoto2');
+      if (fileInput2.files.length) fotoUrl2 = await kompresGambar(fileInput2.files[0]);
+
       const data = {
         program_kerja_id: prokerId,
         nama_kegiatan: document.getElementById('lpNama').value.trim(),
         tanggal_kegiatan: document.getElementById('lpTgl').value||null,
         deskripsi: document.getElementById('lpDesc').value.trim()||null,
         realisasi_anggaran: parseInt(document.getElementById('lpReal').value)||0,
-        foto_url: fotoUrl, dibuat_oleh: u.id,
+        foto_url: fotoUrl, foto_url_2: fotoUrl2, dibuat_oleh: u.id,
       };
       if (!data.nama_kegiatan) { showToast('Nama kegiatan wajib diisi',true); return; }
       if (p) {
@@ -12045,6 +12149,100 @@ async function renderProker() {
       setTimeout(() => PK_hitungDana(), 50);
     }
   }
+
+  render();
+}
+
+/* ===== PAGE: KALENDER KEGIATAN PPG ===== */
+async function renderKalenderPPG() {
+  const main = document.getElementById('mainContent');
+  const u = App.user;
+  const tahun = new Date().getFullYear();
+  const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+
+  let allProker = [];
+  try { allProker = await SB.proker.getAll(tahun) || []; } catch(e) { console.error(e); }
+
+  const disetujui = allProker.filter(p => p.status === 'disetujui');
+  const belumSemuaDisetujui = allProker.length > 0 && disetujui.length < allProker.length;
+
+  function fmtRp(n) { return 'Rp ' + (n||0).toLocaleString('id-ID'); }
+
+  // Pecah tiap program jadi 1 entri PER BULAN yg dicentang (satu program bisa muncul di
+  // beberapa bulan kalau dilaksanakan berkali-kali/rentang bulan), lalu urutkan Jan→Des.
+  function entriPerBulan() {
+    const entries = [];
+    disetujui.forEach(p => {
+      const bulanList = (p.bulan_mulai||'').split(',').map(s=>s.trim()).filter(Boolean);
+      if (!bulanList.length) { entries.push({ ...p, _bulanIdx: -1 }); return; }
+      bulanList.forEach(b => {
+        const idx = BULAN_NAMES.indexOf(b);
+        entries.push({ ...p, _bulanIdx: idx });
+      });
+    });
+    return entries.sort((a,b) => a._bulanIdx - b._bulanIdx || (a.bidang||'').localeCompare(b.bidang||''));
+  }
+
+  let filterMode = 'semua'; // 'semua' | 'bulan_ini' | 'bulan_depan' | angka bulan spesifik (0-11)
+
+  function render() {
+    const nowIdx = new Date().getMonth();
+    let entries = entriPerBulan();
+    if (filterMode === 'bulan_ini') entries = entries.filter(e => e._bulanIdx === nowIdx);
+    else if (filterMode === 'bulan_depan') entries = entries.filter(e => e._bulanIdx === (nowIdx+1)%12);
+    else if (typeof filterMode === 'number') entries = entries.filter(e => e._bulanIdx === filterMode);
+
+    // Kelompokkan per bulan buat tampilan (bulan tanpa kegiatan gak usah muncul headernya)
+    const grouped = {};
+    entries.forEach(e => { (grouped[e._bulanIdx] ||= []).push(e); });
+    const bulanAda = Object.keys(grouped).map(Number).sort((a,b)=>a-b);
+
+    const filterChipsHtml = `
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button class="btn btn-sm ${filterMode==='semua'?'btn-green':'btn-outline'}" onclick="KAL_setFilter('semua')">Semua</button>
+        <button class="btn btn-sm ${filterMode==='bulan_ini'?'btn-green':'btn-outline'}" onclick="KAL_setFilter('bulan_ini')">📍 Bulan Ini (${BULAN_NAMES[nowIdx]})</button>
+        <button class="btn btn-sm ${filterMode==='bulan_depan'?'btn-green':'btn-outline'}" onclick="KAL_setFilter('bulan_depan')">➡️ Bulan Depan (${BULAN_NAMES[(nowIdx+1)%12]})</button>
+        <select onchange="KAL_setFilter(this.value===''?'semua':parseInt(this.value))" style="padding:6px 10px; border-radius:8px; border:1.5px solid var(--line); font-size:12.5px;">
+          <option value="">Pilih bulan lain...</option>
+          ${BULAN_NAMES.map((b,i) => `<option value="${i}" ${filterMode===i?'selected':''}>${b}</option>`).join('')}
+        </select>
+      </div>`;
+
+    const listHtml = !bulanAda.length ? `
+      <div class="card" style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13.5px;">
+        ${disetujui.length ? 'Tidak ada kegiatan pada filter ini.' : 'Belum ada program kerja yang disetujui untuk tahun ini.'}
+      </div>` : bulanAda.map(bi => `
+      <div style="margin-bottom:18px;">
+        <div style="font-size:15px; font-weight:800; color:var(--green); margin-bottom:8px; padding-bottom:6px; border-bottom:2px solid var(--green);">${bi===-1?'Belum Ditentukan Bulannya':BULAN_NAMES[bi]+' '+tahun}</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${grouped[bi].map(p => `
+            <div class="card" style="padding:12px 16px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+              <div style="flex:1; min-width:200px;">
+                <div style="font-size:11px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:.03em;">${escHtml(p.bidang)}</div>
+                <div style="font-size:14.5px; font-weight:700; margin-top:2px;">${escHtml(p.nama_program)}</div>
+                ${p.detail_program ? `<div style="font-size:12.5px; color:var(--ink-soft); margin-top:4px;">${escHtml(p.detail_program)}</div>` : ''}
+              </div>
+              <div style="font-size:12.5px; color:var(--ink-soft); white-space:nowrap;">💰 ${fmtRp(p.anggaran)}</div>
+            </div>`).join('')}
+        </div>
+      </div>`).join('');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">📅 Kalender Kegiatan PPG</h1>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Tahun ${tahun} · ${disetujui.length} program disetujui</p>
+        </div>
+      </div>
+      ${belumSemuaDisetujui ? `<div class="card" style="border:2px solid var(--gold); background:var(--gold-soft,#FBF3E1); margin-bottom:14px; font-size:13px; color:#7a5c1e;">⚠️ Masih ada program kerja yang belum disetujui — kalender ini cuma nampilin yang SUDAH disetujui. Buka menu Program Kerja PPG untuk menyetujui sisanya.</div>` : ''}
+      ${filterChipsHtml}
+      ${listHtml}
+    `;
+  }
+
+  window.KAL_setFilter = (mode) => { filterMode = mode; render(); };
 
   render();
 }
