@@ -3580,9 +3580,11 @@ async function renderKelolaKelas() {
             ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan</button>`
             : `<button class="btn btn-outline btn-sm" style="min-width:130px; opacity:.5; cursor:not-allowed; border-color:var(--line); color:var(--ink-soft);" onclick="showToast('Menu ini khusus PJP Desa. Kalau memang perlu, minta admin tambahkan Akses Lintas Peran (Level Desa) untuk Kelola Kelas Generus di akunmu.', true)" title="Khusus PJP Desa">+ Kelas Gabungan</button>`}
           ${selectedKelasId && !selectedKelasObj?.desa_id ? `
-          <button class="btn btn-green btn-sm" style="min-width:130px;" onclick="STR_addSantri()">+ Tambah Santri</button>
+          <button class="btn btn-green btn-sm" style="min-width:130px;" onclick="STR_addSantri()">+ Tambah Santri</button>` : ''}
+          ${selectedKelasId ? `
           <button class="btn btn-outline btn-sm" style="min-width:130px;" onclick="STR_editKelas()">✏️ Edit Kelas</button>
-          <button class="btn btn-outline btn-sm" style="min-width:130px; border-color:var(--rose); color:var(--rose);" onclick="STR_deleteKelas()">🗑️ Hapus Kelas</button>
+          <button class="btn btn-outline btn-sm" style="min-width:130px; border-color:var(--rose); color:var(--rose);" onclick="STR_deleteKelas()">🗑️ Hapus Kelas</button>` : ''}
+          ${selectedKelasId && !selectedKelasObj?.desa_id ? `
           <button class="btn btn-outline btn-sm" style="min-width:130px; justify-content:center;" onclick="STR_uploadExcel()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import Excel
@@ -3833,11 +3835,15 @@ async function renderKelolaKelas() {
       : `Hapus kelas "${kls.nama_kelas}"?\nKelas ini kosong (tidak ada santri).`;
     if (!confirm(msg)) return;
     try {
-      // Pindahkan semua santri ke null dulu (tapi tetap catat asal kelompoknya,
-      // supaya tidak nyasar campur ke daftar "belum masuk kelas" kelompok lain)
+      // Pindahkan semua santri ke null dulu. Kelas GABUNGAN beranggotakan santri dari
+      // BANYAK kelompok berbeda — tiap santri UDAH punya kelompok_asal_id sendiri2 yg
+      // BENAR sejak awal, JANGAN ditimpa. Kelas biasa (bukan gabungan) tetap timpa kayak
+      // semula (jaga2 kalau kelompok_asal_id belum sempat keisi).
       if (santriCount > 0) {
         for (const s of santriList) {
-          await SB.santri.update(s.id, { kelas_id: null, kelompok_asal_id: kls.kelompok_id || selectedKelompokId });
+          const updatePayload = { kelas_id: null };
+          if (!kls.desa_id) updatePayload.kelompok_asal_id = kls.kelompok_id || selectedKelompokId;
+          await SB.santri.update(s.id, updatePayload);
         }
       }
       await SB.kelas.delete(kls.id);
