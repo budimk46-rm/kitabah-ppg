@@ -3974,7 +3974,10 @@ async function renderKelolaKelas() {
   };
   window.STR_pindahKelas = (id, nama) => {
     const currentKelas = kelasOptions.find(k => k.id === selectedKelasId);
-    const pilihan = kelasOptions.filter(k => k.id !== selectedKelasId && !k.desa_id);
+    // Kelas biasa DAN Kelas Gabungan sama2 boleh jadi tujuan — kelompok_asal_id santri
+    // gak pernah ikut disentuh pas pindah (cuma kelas_id yg diubah, lihat handler simpan
+    // di bawah), jadi aman dipindah ke gabungan manapun, tetap bisa dimonitor kelompok asalnya.
+    const pilihan = kelasOptions.filter(k => k.id !== selectedKelasId);
     let el = document.getElementById('pindahKelasModal');
     if (!el) { el = document.createElement('div'); el.id = 'pindahKelasModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
     el.innerHTML = `<div class="modal">
@@ -3985,10 +3988,11 @@ async function renderKelolaKelas() {
           <label>Pindah ke Kelas</label>
           <select id="pkTarget">
             <option value="">Pilih kelas...</option>
-            ${pilihan.map(k => `<option value="${k.id}">${escHtml(k.nama_kelas)} (${escHtml(k.jenjang)})</option>`).join('')}
+            ${pilihan.map(k => `<option value="${k.id}">${k.desa_id?'🏘️ ':''}${escHtml(k.nama_kelas)} (${escHtml(k.jenjang)})${k.desa_id?' — Gabungan':''}</option>`).join('')}
           </select>
+          <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Kelompok asal generus TIDAK berubah meski pindah ke Kelas Gabungan — tetap bisa dimonitor kelompoknya masing-masing.</div>
         </div>
-        ${!pilihan.length ? '<div style="font-size:12px; color:var(--rose);">Belum ada kelas lain di kelompok ini.</div>' : ''}
+        ${!pilihan.length ? '<div style="font-size:12px; color:var(--rose);">Belum ada kelas lain untuk dipindahkan.</div>' : ''}
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('pindahKelasModal')">Batal</button>
