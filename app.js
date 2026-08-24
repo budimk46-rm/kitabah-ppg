@@ -2149,9 +2149,9 @@ async function renderKurikulum() {
     main.innerHTML = `
       <div style="max-width:100%;">
 
-        <!-- Bar jenjang: scroll horizontal -->
-        <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:12px;
-          scrollbar-width:none; -ms-overflow-style:none;">
+        <!-- Bar jenjang: wrap 2 baris (dulu scroll horizontal — chip di kanan/Pra Nikah dst
+             gak kelihatan tanpa di-scroll dulu) -->
+        <div style="display:flex; gap:6px; flex-wrap:wrap; padding-bottom:10px; margin-bottom:12px;">
           ${jenjangBarHtml}
         </div>
 
