@@ -506,6 +506,19 @@ const sbSumberDana = {
   delete: (id) => sbFetch(`sumber_dana?id=eq.${id}`, { method:'DELETE' }),
 };
 
+const sbProkerEvaluasi = {
+  getByTahun: (tahun) => sbFetch(`proker_evaluasi?tahun=eq.${tahun}&select=*`),
+  upsert: async (data) => {
+    // Manual upsert (unique bidang+tahun) — sama pola kayak musKonfig, cari dulu baris
+    // existing-nya, PATCH kalau ada, POST kalau belum ada.
+    const existing = await sbFetch(`proker_evaluasi?bidang=eq.${encodeURIComponent(data.bidang)}&tahun=eq.${data.tahun}&select=id`);
+    if (existing?.length) {
+      return await sbFetch(`proker_evaluasi?id=eq.${existing[0].id}`, { method:'PATCH', headers:{'Prefer':'return=representation'}, body:JSON.stringify({ catatan: data.catatan, updated_by: data.updated_by, updated_at: new Date().toISOString() }) });
+    }
+    return await sbFetch('proker_evaluasi', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) });
+  },
+};
+
 // ============ SETTINGS ============
 const sbSettings = {
   get: async (key) => {
@@ -739,6 +752,7 @@ window.SB = {
   proker: sbProker,
   laporan: sbLaporan,
   sumberDana: sbSumberDana,
+  prokerEvaluasi: sbProkerEvaluasi,
   mtMs: sbMtMs,
   guruSekolah: sbGuruSekolah,
   sarpras: sbSarpras,

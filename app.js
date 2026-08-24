@@ -11661,7 +11661,12 @@ async function renderProker() {
   const main = document.getElementById('mainContent');
   const u = App.user;
   const isAdmin = u.role === 'admin' || u.role === 'daerah';
-  const tahun = new Date().getFullYear();
+  const tahunSekarang = new Date().getFullYear();
+  const tahun = App.cache.prokerTahun || tahunSekarang;
+  // Skema draft/presentasi/setujui HANYA berlaku buat tahun AKAN DATANG (draft utk tahun
+  // depan dst). Tahun berjalan/lampau dianggap SUDAH disetujui secara alami — gak ada
+  // badge status/tombol setujui sama sekali, tinggal entry+laporan seperti biasa.
+  const isDraftMode = tahun > tahunSekarang;
   const BIDANG_LIST = ['Sekretariat','Kurikulum','Tenaga Pendidik','Seni & Olahraga','Kemandirian','Keputrian','KMM Daerah','Tahfidz','Sarana dan Prasarana','Penggalang Dana','Bimbingan Konseling'];
   const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
@@ -11685,7 +11690,9 @@ async function renderProker() {
     const jumlahDraft = allProker.filter(p => (p.status||'draft') === 'draft').length;
     const jumlahDisetujui = allProker.filter(p => p.status === 'disetujui').length;
     const semuaSudahDisetujui = allProker.length > 0 && jumlahDraft === 0;
-    const statusBannerHtml = !allProker.length ? '' : semuaSudahDisetujui ? `
+    // Banner status/tombol Setujui HANYA muncul di mode draft (tahun akan datang) — tahun
+    // berjalan/lampau dianggap otomatis disetujui, gak perlu banner apapun.
+    const statusBannerHtml = !isDraftMode || !allProker.length ? '' : semuaSudahDisetujui ? `
       <div class="card" style="border:2px solid var(--green); background:var(--green-soft); margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
         <div style="font-size:13.5px; font-weight:700; color:var(--green);">✅ Semua ${jumlahDisetujui} program kerja tahun ${tahun} sudah disetujui dan siap dijalankan.</div>
       </div>` : `
@@ -11781,7 +11788,7 @@ async function renderProker() {
                 </div>
               </div>
               <div style="display:flex; gap:4px; flex-shrink:0; align-items:center;">
-                <span class="badge ${(p.status||'draft')==='disetujui'?'badge-green':'badge-gray'}">${(p.status||'draft')==='disetujui'?'✅ Disetujui':'📝 Draft'}</span>
+                ${isDraftMode ? `<span class="badge ${(p.status||'draft')==='disetujui'?'badge-green':'badge-gray'}">${(p.status||'draft')==='disetujui'?'✅ Disetujui':'📝 Draft'}</span>` : ''}
                 <span class="badge ${lapCount?'badge-green':'badge-gray'}">${lapCount} laporan</span>
                 ${isAdmin ? `
                 <button class="btn-icon" onclick="PK_editProker('${p.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
@@ -11809,8 +11816,8 @@ async function renderProker() {
                   </div>`).join('')}
               </div>
             </details>` : ''}
-            ${isAdmin && (p.status||'draft')==='disetujui' ? `<button class="btn btn-outline btn-sm" style="margin-top:6px; font-size:11px;" onclick="PK_tambahLaporan('${p.id}')">+ Tambah Laporan</button>` : ''}
-            ${isAdmin && (p.status||'draft')!=='disetujui' ? `<div style="margin-top:6px; font-size:11px; color:var(--ink-soft); font-style:italic;">Setujui dulu program ini (lewat tombol "Setujui Semua" di atas) sebelum bisa mengisi laporan kegiatan.</div>` : ''}
+            ${isAdmin && (!isDraftMode || (p.status||'draft')==='disetujui') ? `<button class="btn btn-outline btn-sm" style="margin-top:6px; font-size:11px;" onclick="PK_tambahLaporan('${p.id}')">+ Tambah Laporan</button>` : ''}
+            ${isAdmin && isDraftMode && (p.status||'draft')!=='disetujui' ? `<div style="margin-top:6px; font-size:11px; color:var(--ink-soft); font-style:italic;">Setujui dulu program ini (lewat tombol "Setujui Semua" di atas) sebelum bisa mengisi laporan kegiatan.</div>` : ''}
           </div>`;
       }).join('');
 
@@ -11831,11 +11838,21 @@ async function renderProker() {
       <div class="page-header">
         <div>
           <h1 class="page-title">Program Kerja PPG</h1>
-          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Tahun ${tahun} · TA ${getTahunAjaran()}</p>
+          <p style="font-size:14px; font-weight:600; color:#111; margin:4px 0 0;">Tahun ${tahun} · TA ${getTahunAjaran()} ${isDraftMode ? '<span style="color:var(--gold); font-weight:800;">· 📝 MODE DRAFT</span>' : ''}</p>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          ${allProker.length ? `<button class="btn btn-outline btn-sm" onclick="PK_bukaPresentasi()">🖥️ Mode Presentasi</button>` : ''}
+          ${isDraftMode && allProker.length ? `<button class="btn btn-outline btn-sm" onclick="PK_bukaPresentasi()">🖥️ Presentasi Draft</button>` : ''}
+          ${!isDraftMode && allProker.length ? `<button class="btn btn-outline btn-sm" onclick="PK_bukaEvaluasi()">📊 Mode Evaluasi Tahunan</button>` : ''}
         </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button class="btn btn-sm ${tahun===tahunSekarang-1?'btn-green':'btn-outline'}" onclick="PK_gantiTahun(${tahunSekarang-1})">${tahunSekarang-1} (lampau)</button>
+        <button class="btn btn-sm ${tahun===tahunSekarang?'btn-green':'btn-outline'}" onclick="PK_gantiTahun(${tahunSekarang})">${tahunSekarang} (Tahun Berjalan)</button>
+        <button class="btn btn-sm ${tahun===tahunSekarang+1?'btn-green':'btn-outline'}" onclick="PK_gantiTahun(${tahunSekarang+1})">📝 Draft ${tahunSekarang+1}</button>
+        <select onchange="PK_gantiTahun(parseInt(this.value))" style="padding:6px 10px; border-radius:8px; border:1.5px solid var(--line); font-size:12.5px;">
+          <option value="">Tahun lain...</option>
+          ${Array.from({length:6}, (_,i) => tahunSekarang-2+i).map(t => `<option value="${t}" ${tahun===t?'selected':''}>${t}</option>`).join('')}
+        </select>
       </div>
       ${statusBannerHtml}
       ${neracaHtml}
@@ -11855,6 +11872,12 @@ async function renderProker() {
   };
 
   window.PK_tambahProker = (bidang) => openProkerModal(null, bidang);
+
+  window.PK_gantiTahun = (thn) => {
+    if (!thn || isNaN(thn)) return;
+    App.cache.prokerTahun = thn;
+    renderProker();
+  };
 
   window.PK_setujuiSemua = async () => {
     const draftList = allProker.filter(p => (p.status||'draft') === 'draft');
@@ -11926,8 +11949,101 @@ async function renderProker() {
     if (!document.fullscreenElement) {
       const overlay = document.getElementById('pkPresentasiOverlay');
       if (overlay) overlay.style.display = 'none';
+      const overlayEval = document.getElementById('pkEvaluasiOverlay');
+      if (overlayEval) overlayEval.style.display = 'none';
     }
   });
+
+  // === MODE EVALUASI TAHUNAN (layar penuh, per bidang, review laporan REALISASI +
+  // notulensi catatan evaluasi rich-text — 1 catatan tersimpan per bidang per tahun) ===
+  let evaluasiIdx = 0;
+  let evaluasiCatatanMap = {}; // bidang -> catatan HTML (di-load sekali di awal)
+  async function renderEvaluasiSlide() {
+    const overlay = document.getElementById('pkEvaluasiOverlay');
+    if (!overlay) return;
+    const bidang = bidangDenganProgram[evaluasiIdx];
+    const programs = allProker.filter(p => p.bidang === bidang);
+    const totalRealisasiBidang = programs.reduce((n,p) => n + p._laporan.reduce((s,l) => s + (l.realisasi_anggaran||0), 0), 0);
+    const rteId = 'pkEvalNotulensi';
+
+    overlay.innerHTML = `
+      <button onclick="PK_tutupEvaluasi()" style="position:fixed; top:20px; right:20px; z-index:10000; background:var(--rose); color:#fff; border:none; border-radius:10px; padding:12px 22px; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.2);">✕ Keluar</button>
+      <div style="max-width:850px; margin:0 auto; padding:50px 40px 100px;">
+        <div style="font-size:15px; color:var(--ink-soft); font-weight:700; margin-bottom:4px;">Evaluasi Bidang ${evaluasiIdx+1} dari ${bidangDenganProgram.length} · Tahun ${tahun}</div>
+        <div style="font-size:38px; font-weight:800; color:var(--green); margin-bottom:6px;">${escHtml(bidang)}</div>
+        <div style="font-size:15px; color:var(--ink-soft); margin-bottom:24px;">${programs.length} program · Realisasi anggaran: ${fmtRp(totalRealisasiBidang)}</div>
+
+        <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:24px;">
+          ${programs.map(p => `
+            <div style="background:#fff; border-radius:14px; padding:18px 22px; box-shadow:0 2px 10px rgba(0,0,0,.06);">
+              <div style="font-size:17px; font-weight:700; color:var(--ink);">${escHtml(p.nama_program)}</div>
+              ${!p._laporan.length ? `<div style="font-size:13px; color:var(--ink-soft); font-style:italic; margin-top:6px;">Belum ada laporan realisasi.</div>` : p._laporan.map(l => `
+                <div style="background:var(--green-soft); border-radius:8px; padding:10px 14px; margin-top:8px;">
+                  <div style="font-weight:600; font-size:13.5px;">${escHtml(l.nama_kegiatan)}</div>
+                  <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${l.tanggal_kegiatan?'📅 '+fmtDateShort(l.tanggal_kegiatan)+' · ':''}💰 ${fmtRp(l.realisasi_anggaran)}</div>
+                  ${l.deskripsi ? `<div style="font-size:13px; color:var(--ink); margin-top:4px; white-space:pre-wrap;">${escHtml(l.deskripsi)}</div>` : ''}
+                  <div style="display:flex; gap:6px; margin-top:6px;">
+                    ${l.foto_url ? `<img src="${escHtml(l.foto_url)}" style="max-width:120px; max-height:120px; border-radius:6px;">` : ''}
+                    ${l.foto_url_2 ? `<img src="${escHtml(l.foto_url_2)}" style="max-width:120px; max-height:120px; border-radius:6px;">` : ''}
+                  </div>
+                </div>`).join('')}
+            </div>`).join('') || '<div style="color:var(--ink-soft); font-size:15px;">Belum ada program kerja di bidang ini.</div>'}
+        </div>
+
+        <div style="font-size:18px; font-weight:800; color:var(--green); margin-bottom:10px;">📝 Catatan Evaluasi — ${escHtml(bidang)}</div>
+        ${richTextEditorHtml(rteId, contentToDisplayHtml(evaluasiCatatanMap[bidang]||''))}
+        <div style="margin-top:10px; display:flex; align-items:center; gap:10px;">
+          <button onclick="PK_simpanCatatanEvaluasi()" class="btn btn-green">💾 Simpan Catatan</button>
+          <span id="pkEvalSaveStatus" style="font-size:12.5px; color:var(--ink-soft);"></span>
+        </div>
+      </div>
+      <div style="position:fixed; bottom:24px; left:0; right:0; display:flex; justify-content:center; gap:12px;">
+        <button onclick="PK_evaluasiGeser(-1)" ${evaluasiIdx===0?'disabled':''} style="padding:12px 26px; border-radius:10px; border:none; background:${evaluasiIdx===0?'#ccc':'var(--green)'}; color:#fff; font-weight:700; font-size:15px; cursor:${evaluasiIdx===0?'default':'pointer'};">← Back</button>
+        <button onclick="PK_evaluasiGeser(1)" ${evaluasiIdx===bidangDenganProgram.length-1?'disabled':''} style="padding:12px 26px; border-radius:10px; border:none; background:${evaluasiIdx===bidangDenganProgram.length-1?'#ccc':'var(--green)'}; color:#fff; font-weight:700; font-size:15px; cursor:${evaluasiIdx===bidangDenganProgram.length-1?'default':'pointer'};">Next →</button>
+      </div>`;
+  }
+
+  async function simpanCatatanBidangSaatIni(diam) {
+    const bidang = bidangDenganProgram[evaluasiIdx];
+    const html = RTE_getHtml('pkEvalNotulensi');
+    evaluasiCatatanMap[bidang] = html;
+    try {
+      await SB.prokerEvaluasi.upsert({ bidang, tahun, catatan: html, updated_by: u.id });
+      if (!diam) showToast('Catatan evaluasi tersimpan ✓');
+    } catch(e) { if (!diam) showToast('Gagal menyimpan catatan: ' + e.message, true); }
+  }
+
+  window.PK_bukaEvaluasi = async () => {
+    if (!bidangDenganProgram.length) { showToast('Belum ada program kerja untuk dievaluasi', true); return; }
+    evaluasiIdx = 0;
+    try {
+      const rows = await SB.prokerEvaluasi.getByTahun(tahun);
+      evaluasiCatatanMap = Object.fromEntries((rows||[]).map(r => [r.bidang, r.catatan]));
+    } catch(e) { evaluasiCatatanMap = {}; }
+    let overlay = document.getElementById('pkEvaluasiOverlay');
+    if (!overlay) { overlay = document.createElement('div'); overlay.id = 'pkEvaluasiOverlay'; document.body.appendChild(overlay); }
+    overlay.style.cssText = 'position:fixed; inset:0; background:var(--cream,#FAF6EC); z-index:9999; overflow-y:auto;';
+    await renderEvaluasiSlide();
+    if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {});
+  };
+  window.PK_tutupEvaluasi = async () => {
+    await simpanCatatanBidangSaatIni(true); // simpan diam2 sebelum keluar, biar gak ilang
+    const overlay = document.getElementById('pkEvaluasiOverlay');
+    if (overlay) overlay.style.display = 'none';
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  };
+  window.PK_evaluasiGeser = async (dir) => {
+    await simpanCatatanBidangSaatIni(true); // auto-simpan catatan bidang saat ini sebelum pindah
+    evaluasiIdx = Math.max(0, Math.min(bidangDenganProgram.length-1, evaluasiIdx+dir));
+    await renderEvaluasiSlide();
+  };
+  window.PK_simpanCatatanEvaluasi = async () => {
+    const statusEl = document.getElementById('pkEvalSaveStatus');
+    if (statusEl) statusEl.textContent = 'Menyimpan...';
+    await simpanCatatanBidangSaatIni(false);
+    if (statusEl) statusEl.textContent = 'Tersimpan ✓';
+  };
+
   window.PK_editProker = (id) => { const p = allProker.find(x=>x.id===id); if(p) openProkerModal(p, p.bidang); };
   window.PK_hapusProker = async (id) => {
     if (!confirm('Hapus program kerja ini beserta laporannya?')) return;
@@ -12050,6 +12166,10 @@ async function renderProker() {
         anggaran: parseInt(document.getElementById('pkAnggaran').value)||0,
         tahun, tahun_ajaran: getTahunAjaran(), dibuat_oleh: u.id,
       };
+      // Status cuma di-set pas BIKIN BARU (jangan ikut ketimpa pas EDIT program yg udah
+      // ada, biar approval yg udah dikasih gak ke-reset balik). Di luar mode draft (tahun
+      // berjalan/lampau) langsung 'disetujui' — gak perlu approval manual sama sekali.
+      if (!p) data.status = isDraftMode ? 'draft' : 'disetujui';
       if (!data.nama_program) { showToast('Nama program wajib diisi',true); return; }
       if (p) { await SB.proker.update(p.id, data); Object.assign(p, data); }
       else { const r = await SB.proker.insert(data); if(r?.[0]){r[0]._laporan=[];allProker.push(r[0]);} }
