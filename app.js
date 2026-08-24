@@ -3352,7 +3352,7 @@ async function renderKelolaKelas() {
   const isAdminForm = u.role === 'admin';
   const isDesaForm = u.role === 'desa' || u.role === 'desa_view';
   const showPicker = isAdminForm || isDesaForm;
-  const canEdit = isAdminForm || u.role === 'pjp_kelompok' || u.role === 'guru';
+  const canEdit = isAdminForm || u.role === 'pjp_kelompok' || u.role === 'guru' || u.role === 'wali_kbm';
 
   let selectedKelompokId = u.kelompok_id || null;
   let kelasGabunganDesa = [];
