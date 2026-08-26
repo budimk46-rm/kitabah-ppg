@@ -1058,6 +1058,12 @@ const JABATAN_CONFIG = {
   ],
 };
 
+// Nilai jabatan (val) yg butuh milih Desa di wizard registrasi — SATU SUMBER doang, dipakai
+// di WIZ_next1 & WIZ_back (dulu di-hardcode DUPLIKAT di 2 tempat, jabatan baru "Pengurus Muda
+// Mudi Desa" pas ditambah cuma keupdate di 1 tempat & bikin bug "user daftar tanpa desa").
+const JABATAN_NEEDS_DESA = ['desa','desa_ulil_amri','pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_mm','pjp_desa_bk',
+  'kelompok','pjp_kelompok','wali_kbm','guru'];
+
 // Role mapping ke database (harus sesuai constraint: admin/daerah/desa/desa_view/pjp_kelompok/wali_kbm/guru/kelompok)
 const JABATAN_ROLE = {
   daerah:           'daerah',
@@ -1158,8 +1164,7 @@ document.addEventListener('change', e => {
 window.WIZ_next1 = () => {
   if (!WIZ_STATE.jabatan) return;
   // Semua jabatan level desa dan kelompok butuh pilih desa
-  const needsDesa = ['desa','pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
-    'kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+  const needsDesa = JABATAN_NEEDS_DESA.includes(WIZ_STATE.jabatan);
   const needsKelompok = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
 
   if (needsDesa) {
@@ -1265,8 +1270,7 @@ window.WIZ_back = (fromStep) => {
     WIZ_updateProgress(1);
   } else if (fromStep === 3) {
     // Kembali ke step 2 kalau ada, atau step 1
-    const needsDesa = ['desa','pjp_desa_kbm','pjp_desa_sarpras','pjp_desa_bk',
-      'kelompok','pjp_kelompok','wali_kbm','guru'].includes(WIZ_STATE.jabatan);
+    const needsDesa = JABATAN_NEEDS_DESA.includes(WIZ_STATE.jabatan);
     if (needsDesa) {
       document.getElementById('wizStep2').style.display = 'block';
       WIZ_updateProgress(2);
@@ -4732,16 +4736,27 @@ async function renderAbsensi() {
     const kelompokId = activeKelompokId || myKelompokId || null;
 
     try {
-      const [links, jamaahKlp] = await Promise.all([
-        SB.jamaahKeluarga.getBySantriIds(santriList.map(s => s.id)),
+      const santriIds = santriList.map(s => s.id);
+      const [links, jamaahKlp, simpatisanKlp] = await Promise.all([
+        SB.jamaahKeluarga.getBySantriIds(santriIds),
         kelompokId ? SB.jamaah.getByKelompok(kelompokId) : Promise.resolve([]),
+        kelompokId ? SB.simpatisan.getByKelompok(kelompokId) : Promise.resolve([]),
       ]);
       const jamaahById = new Map((jamaahKlp||[]).map(j => [j.id, j]));
+      const simpatisanById = new Map((simpatisanKlp||[]).map(s => [s.id, s]));
       const parentBySantriId = new Map();
       (links||[]).forEach(l => {
         if (l.santri_id) {
           const ortu = jamaahById.get(l.jamaah_id);
           if (ortu) parentBySantriId.set(l.santri_id, ortu);
+        }
+      });
+      // Fallback: kalau santri belum punya ortu di Data Jamaah, cek wali dari Simpatisan
+      // (kasus ortu tercatat sbg Simpatisan, bukan Jamaah — sebelumnya gak bisa tertaut).
+      santriList.forEach(s => {
+        if (!parentBySantriId.has(s.id) && s.simpatisan_wali_id) {
+          const wali = simpatisanById.get(s.simpatisan_wali_id);
+          if (wali) parentBySantriId.set(s.id, wali);
         }
       });
 
@@ -9321,6 +9336,7 @@ async function renderJamaahEntry() {
       const virtualRow = {
         id: 'virtual_santri_' + s.id, nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir,
         santri_id: s.id, status_menikah: null, keterangan: null, no_hp: null, _virtual: true,
+        simpatisan_wali_id: s.simpatisan_wali_id || null,
       };
       list.push(virtualRow);
       byId.set(virtualRow.id, virtualRow);
@@ -9552,6 +9568,9 @@ async function renderJamaahEntry() {
                   ${childLinkMap.has(x.id) ? `<div style="margin-top:2px; font-size:10.5px;">
                     🔗 Anak dari <b>${escHtml(childLinkMap.get(x.id).parentNama)}</b>
                     ${canEdit ? ` · <a href="#" onclick="JMH_lepasTautan('${childLinkMap.get(x.id).linkId}','${escHtml(x.nama)}'); return false;" style="color:var(--rose);">Lepas Tautan</a>` : ''}
+                  </div>` : ''}
+                  ${x.simpatisan_wali_id ? `<div style="margin-top:2px; font-size:10.5px; color:var(--green);">
+                    📞 Wali (Simpatisan): <b>${escHtml(simpatisanList.find(s => s.id === x.simpatisan_wali_id)?.nama || '-')}</b>
                   </div>` : ''}
                   ${dupSantriMap.has(x.id) ? `<div style="margin-top:2px; font-size:10.5px; color:var(--rose); font-weight:700;">
                     ⚠️ Mirip data Santri yang sudah ada
@@ -10374,6 +10393,13 @@ async function renderJamaahEntry() {
       ? simpatisanList.filter(s => s.id !== existing.id && s.keluarga_dari_id !== existing.id).sort((a,b) => (a.nama||'').localeCompare(b.nama||''))
       : [...simpatisanList].sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
 
+    // Santri yg bisa ditandai sbg "anak" dari simpatisan ini — buat kasus ortu tercatat
+    // sbg Simpatisan tapi anaknya udah ada di Data Jamaah/Santri. Santri yg SUDAH punya
+    // wali simpatisan LAIN dikecualikan; yg udah tertaut simpatisan INI SENDIRI (edit) tetap
+    // muncul tercentang.
+    const santriOptions = santriKlp.filter(s => !s.simpatisan_wali_id || s.simpatisan_wali_id === existing?.id).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+    const linkedSantriIds = new Set(existing ? santriKlp.filter(s => s.simpatisan_wali_id === existing.id).map(s => s.id) : []);
+
     let el = document.getElementById('simpatisanModal');
     if (!el) { el = document.createElement('div'); el.id = 'simpatisanModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
     el.innerHTML = `<div class="modal">
@@ -10388,6 +10414,7 @@ async function renderJamaahEntry() {
           <label>Jenis Kelamin *</label>
           <select id="simpJk"><option value="">Pilih...</option><option value="L" ${existing?.jenis_kelamin==='L'?'selected':''}>Laki-laki</option><option value="P" ${existing?.jenis_kelamin==='P'?'selected':''}>Perempuan</option></select>
         </div>
+        <div class="form-group"><label>No. HP (opsional)</label><input id="simpNoHp" value="${escHtml(existing?.no_hp||'')}" placeholder="08xxxxxxxxxx" inputmode="tel"><div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Dipakai buat kirim notifikasi WA kehadiran KBM kalau simpatisan ini ditandai sbg wali santri di bawah.</div></div>
         <div class="form-group">
           <label>Satu Keluarga dengan Simpatisan Lain (opsional)</label>
           <select id="simpKeluarga">
@@ -10395,6 +10422,17 @@ async function renderJamaahEntry() {
             ${simpatisanOptions.map(s => `<option value="${s.id}" ${existing?.keluarga_dari_id===s.id?'selected':''}>${escHtml(s.nama)}</option>`).join('')}
           </select>
           <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Ini TERPISAH dari Data Jamaah — cuma nautkan sesama data Simpatisan. Pilih salah satu simpatisan yg jadi kepala keluarganya, biar tampilan datanya bisa dikelompokkan per keluarga.</div>
+        </div>
+        <div class="form-group">
+          <label>Wali dari Santri (opsional)</label>
+          <div style="max-height:180px; overflow-y:auto; border:1.5px solid var(--line); border-radius:var(--radius-sm); padding:8px 10px;">
+            ${santriOptions.length ? santriOptions.map(s => `
+              <label style="display:flex; align-items:center; gap:8px; padding:4px 0; cursor:pointer; font-weight:400; text-transform:none;">
+                <input type="checkbox" class="simpAnakSantri" value="${s.id}" ${linkedSantriIds.has(s.id)?'checked':''} style="width:16px; height:16px; margin:0;">
+                <span style="font-size:13px;">${escHtml(s.nama)}${s.simpatisan_wali_id && s.simpatisan_wali_id!==existing?.id ? ' <span style="color:var(--ink-soft); font-size:11px;">(sudah ada wali lain)</span>' : ''}</span>
+              </label>`).join('') : '<div style="font-size:12px; color:var(--ink-soft);">Belum ada data santri di kelompok ini.</div>'}
+          </div>
+          <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">Centang santri yg orang tua/walinya adalah simpatisan ini — biar notifikasi WA kehadiran KBM-nya bisa terkirim ke nomor di atas.</div>
         </div>
         <div class="form-group"><label>Keterangan (opsional)</label><input id="simpKet" value="${escHtml(existing?.keterangan||'')}" placeholder="Misal: tetangga, kenalan, dll"></div>
       </div>
@@ -10408,6 +10446,7 @@ async function renderJamaahEntry() {
       const nama = document.getElementById('simpNama').value.trim();
       const jk = document.getElementById('simpJk').value;
       const tgl = bacaTanggalDropdown('simpTgl') || null;
+      const noHp = document.getElementById('simpNoHp').value.trim() || null;
       const keluargaDariId = document.getElementById('simpKeluarga').value || null;
       const ket = document.getElementById('simpKet').value.trim() || null;
       if (!nama || !jk) { showToast('Nama dan Jenis Kelamin wajib diisi', true); return; }
@@ -10415,14 +10454,26 @@ async function renderJamaahEntry() {
       const btn = document.getElementById('simpSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
       try {
-        const data = { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, keterangan: ket, keluarga_dari_id: keluargaDariId };
+        const data = { nama: toTitleCase(nama), jenis_kelamin: jk, tgl_lahir: tgl, no_hp: noHp, keterangan: ket, keluarga_dari_id: keluargaDariId };
+        let simpatisanId = existing?.id;
         if (existing) {
           await SB.simpatisan.update(existing.id, data);
           logActivity('ubah', 'Data Simpatisan', `Mengubah data simpatisan: ${nama}`);
         } else {
-          await SB.simpatisan.insert({ ...data, kelompok_id: u.kelompok_id, dibuat_oleh: u.id });
+          const res = await SB.simpatisan.insert({ ...data, kelompok_id: u.kelompok_id, dibuat_oleh: u.id });
+          simpatisanId = res?.[0]?.id;
           logActivity('tambah', 'Data Simpatisan', `Menambah data simpatisan: ${nama}`);
         }
+
+        // Tautan wali-santri: lepas dulu SEMUA santri yg SEBELUMNYA tertaut ke simpatisan
+        // ini (kalau ada yg di-uncheck), baru pasang ulang sesuai centangan SEKARANG.
+        const checkedSantriIds = new Set(Array.from(document.querySelectorAll('.simpAnakSantri:checked')).map(c => c.value));
+        const pelepasan = santriKlp.filter(s => s.simpatisan_wali_id === simpatisanId && !checkedSantriIds.has(s.id));
+        const pemasangan = santriKlp.filter(s => checkedSantriIds.has(s.id) && s.simpatisan_wali_id !== simpatisanId);
+        await Promise.all([
+          ...pelepasan.map(s => SB.santri.update(s.id, { simpatisan_wali_id: null })),
+          ...pemasangan.map(s => SB.santri.update(s.id, { simpatisan_wali_id: simpatisanId })),
+        ]);
 
         showToast('Data simpatisan tersimpan ✓');
         closeModal('simpatisanModal');
@@ -10636,7 +10687,10 @@ async function renderJamaahRekap() {
   // kelompok (& Penerobosan Pusat) — BUKAN nge-fetch mentahan terus hitung ulang sendiri di
   // sini. Jadi rekap Desa/Daerah ini DIJAMIN sama persis angkanya sama yang dilihat PJP
   // Kelompok masing-masing, gak akan pernah beda lagi krn sumbernya emang satu.
-  const semuaKelompokUntukSeDaerah = (isDesa) ? (App.cache.kelompok || []) : kelompokScope;
+  // Dulu Desa ikut narik SEMUA kelompok se-daerah (buat kartu "Total Se-Daerah" yg SEKARANG
+  // udah dibuang krn bikin bingung — lihat totalSeDaerahHtml di bawah) — sekarang Desa cukup
+  // narik kelompokScope-nya sendiri aja (lebih cepat, gak ada lagi yg butuh data daerah penuh).
+  const semuaKelompokUntukSeDaerah = kelompokScope;
   const hasilPerKelompok = await Promise.all(semuaKelompokUntukSeDaerah.map(async k => {
     const { counts } = await hitungJamaahPerKategoriKelompok(k.id);
     return { kelompok: k, counts };
@@ -10687,11 +10741,12 @@ async function renderJamaahRekap() {
     if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
   };
 
-  // Total se-daerah — selalu dari SEMUA kelompok (bukan cuma scope si viewer), supaya Desa
-  // pun tetap bisa lihat gambaran besar seluruh daerah.
+  // Total se-daerah — HANYA buat Admin/Daerah (kartu ini bikin Desa ngira SELURUH halaman
+  // se-daerah, padahal tabel rincian di bawah udah bener per-desa dari awal — jadi biar gak
+  // ambigu, buang aja kartu ini spesifik buat viewer Desa).
   const countsSeDaerah = jumlahkanCounts([...countsByKelompokId.values()]);
   const cSeDaerah = statsFromCounts(countsSeDaerah);
-  const totalSeDaerahHtml = `<div class="card" style="margin-bottom:14px; text-align:center; padding:18px;">
+  const totalSeDaerahHtml = isDesa ? '' : `<div class="card" style="margin-bottom:14px; text-align:center; padding:18px;">
     <div style="font-size:11.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">Total Jamaah Se-Daerah</div>
     <div style="font-size:30px; font-weight:800; color:var(--green); margin-bottom:6px;">${cSeDaerah.total}</div>
     <div style="font-size:13px; color:#000;">L: <b style="color:#000;">${cSeDaerah.L}</b> &nbsp;·&nbsp; P: <b style="color:#000;">${cSeDaerah.P}</b></div>
