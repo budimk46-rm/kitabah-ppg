@@ -9226,6 +9226,41 @@ async function hitungJamaahPerKategoriKelompok(kelompokId) {
   return { counts, total };
 }
 
+// Sama persis logikanya kayak hitungJamaahPerKategoriKelompok (dedup santri yg udah py baris
+// jamaah asli, kategori dari kelas kalau ada) — TAPI ngembaliin daftar ORANGnya, bukan cuma
+// angka. Dipake buat fitur "lihat nama" read-only (mis. level Desa liat isi tiap kelompok).
+async function ambilNamaJamaahKelompok(kelompokId) {
+  const [jamaahList, santriAsli, santriBelumMasukKelas] = await Promise.all([
+    SB.jamaah.getByKelompok(kelompokId) || [],
+    SB.santri.getByKelompok(kelompokId) || [],
+    SB.santri.getUnassigned(kelompokId) || [],
+  ]);
+  const semuaSantri = [...(santriAsli||[]), ...(santriBelumMasukKelas||[])];
+  const kategoriDariSantri = new Map();
+  semuaSantri.forEach(s => {
+    const kat = kategoriDariNamaKelas(s.kelas?.nama_kelas);
+    if (kat) kategoriDariSantri.set(s.id, kat);
+  });
+
+  const orang = [];
+  const santriIdSudahAdaJamaah = new Set();
+
+  (jamaahList||[]).forEach(x => {
+    const katUsia = kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah);
+    const katSantri = x.santri_id ? kategoriDariSantri.get(x.santri_id) : null;
+    const kat = katSantri || katUsia;
+    if (x.santri_id) santriIdSudahAdaJamaah.add(x.santri_id);
+    orang.push({ nama: x.nama, jenis_kelamin: x.jenis_kelamin, tgl_lahir: x.tgl_lahir, kategori: kat, status_menikah: x.status_menikah });
+  });
+
+  semuaSantri.forEach(s => {
+    if (santriIdSudahAdaJamaah.has(s.id)) return;
+    const kat = kategoriDariSantri.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
+    orang.push({ nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir, kategori: kat, status_menikah: null });
+  });
+
+  return orang;
+}
 
 function jamaahKategoriTableHtml(list, santriKategoriMap) {
   const counts = {};
@@ -10719,6 +10754,7 @@ async function renderJamaahRekap() {
         <td style="padding:6px 10px; text-align:center; font-size:12px; font-weight:700;">${c.total}</td>
         <td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--gold); font-weight:700;">${c.lansiaL}</td>
         <td style="padding:6px 10px; text-align:center; font-size:12px; color:var(--gold); font-weight:700;">${c.lansiaP}</td>
+        <td style="padding:6px 10px; text-align:center;"><button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" onclick="JMH_lihatNamaKelompok('${k.id}','${escHtml(k.nama)}')">👁️ Lihat Nama</button></td>
       </tr>`;
     }).join('');
     return `<div id="${idPrefix}" style="display:none; margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow:hidden;">
@@ -10730,11 +10766,46 @@ async function renderJamaahRekap() {
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Total</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Istimewa L</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Istimewa P</th>
+          <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">Detail</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
   }
+
+  window.JMH_lihatNamaKelompok = async (kelompokId, namaKelompok) => {
+    let el = document.getElementById('jmhLihatNamaModal');
+    if (!el) { el = document.createElement('div'); el.id = 'jmhLihatNamaModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal modal-lg">
+      <div class="modal-head"><h3 class="modal-title">👁️ Data Jamaah — ${escHtml(namaKelompok)}</h3><button class="modal-close" onclick="closeModal('jmhLihatNamaModal')">✕</button></div>
+      <div class="modal-body"><div style="text-align:center; padding:20px;"><div class="spinner dark"></div></div></div>
+    </div>`;
+    openModal('jmhLihatNamaModal');
+    try {
+      const orang = await ambilNamaJamaahKelompok(kelompokId);
+      const grouped = {};
+      orang.forEach(o => { (grouped[o.kategori] ||= []).push(o); });
+      const bodyHtml = !orang.length ? '<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah di kelompok ini.</div>' : `
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">Total: ${orang.length} orang · Tampilan lihat-saja (tidak bisa diedit dari sini)</div>
+        ${KATEGORI_JAMAAH_ORDER.filter(k => grouped[k]?.length).map(kat => `
+          <div style="margin-bottom:14px;">
+            <div style="font-size:12.5px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em; padding-bottom:4px; border-bottom:1.5px solid var(--green); margin-bottom:6px;">${escHtml(kat)} (${grouped[kat].length})</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Nama</th><th style="text-align:center;">L/P</th><th>Tgl Lahir</th></tr></thead>
+              <tbody>${grouped[kat].sort((a,b)=>(a.nama||'').localeCompare(b.nama||'')).map(o => `<tr>
+                <td style="font-weight:600;">${escHtml(o.nama)}</td>
+                <td style="text-align:center;"><span class="badge ${o.jenis_kelamin==='L'?'badge-green':'badge-rose'}">${o.jenis_kelamin||'—'}</span></td>
+                <td>${o.tgl_lahir ? fmtDateShort(o.tgl_lahir) : '—'}</td>
+              </tr>`).join('')}</tbody>
+            </table></div>
+          </div>`).join('')}`;
+      const bodyEl = el.querySelector('.modal-body');
+      if (bodyEl) bodyEl.innerHTML = bodyHtml;
+    } catch(e) {
+      const bodyEl = el.querySelector('.modal-body');
+      if (bodyEl) bodyEl.innerHTML = `<div style="color:var(--rose); padding:20px; text-align:center;">Gagal memuat: ${escHtml(e.message)}</div>`;
+    }
+  };
 
   window.JMH_toggleDetail = (id) => {
     const el = document.getElementById(id);
