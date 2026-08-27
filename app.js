@@ -3580,6 +3580,7 @@ async function renderKelolaKelas() {
         ${(selectedKelompokId || !showPicker || isDesaForm) ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);">
           ${selectedKelompokId ? `<button class="btn btn-gold btn-sm" style="min-width:130px;" onclick="STR_addKelas()">+ Kelas</button>` : ''}
+          ${selectedKelompokId ? `<button class="btn btn-outline btn-sm" style="min-width:130px;" onclick="STR_cekNamaGanda()">🔍 Cek Nama Ganda</button>` : ''}
           ${u.role === 'desa' || isAdminForm
             ? `<button class="btn btn-outline btn-sm" style="border-color:var(--green); min-width:130px;" onclick="STR_addKelasGabungan()">+ Kelas Gabungan</button>`
             : `<button class="btn btn-outline btn-sm" style="min-width:130px; opacity:.5; cursor:not-allowed; border-color:var(--line); color:var(--ink-soft);" onclick="showToast('Menu ini khusus PJP Desa. Kalau memang perlu, minta admin tambahkan Akses Lintas Peran (Level Desa) untuk Kelola Kelas Generus di akunmu.', true)" title="Khusus PJP Desa">+ Kelas Gabungan</button>`}
@@ -3830,6 +3831,69 @@ async function renderKelolaKelas() {
   window.STR_addKelas = () => openAddKelasModal(selectedKelompokId, async () => {
     await loadKelas(selectedKelompokId);
   });
+
+  window.STR_cekNamaGanda = async () => {
+    let el = document.getElementById('cekGandaModal');
+    if (!el) { el = document.createElement('div'); el.id = 'cekGandaModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal">
+      <div class="modal-head"><h3 class="modal-title">🔍 Cek Nama Ganda</h3><button class="modal-close" onclick="closeModal('cekGandaModal')">✕</button></div>
+      <div class="modal-body"><div style="text-align:center; padding:20px;"><div class="spinner dark"></div></div></div>
+    </div>`;
+    openModal('cekGandaModal');
+    try {
+      // Gabungkan santri yg SUDAH di kelas manapun + yg BELUM masuk kelas sama sekali —
+      // biar deteksi duplikat kena SEMUA kemungkinan (mis. 1 baris kepencet masuk kelas,
+      // baris lain nyangkut di "belum masuk kelas").
+      const [assigned, unassigned] = await Promise.all([
+        SB.santri.getByKelompok(selectedKelompokId),
+        SB.santri.getUnassigned(selectedKelompokId),
+      ]);
+      const semua = [...(assigned||[]), ...(unassigned||[])];
+      const groups = {};
+      semua.forEach(s => {
+        const key = (s.nama||'').trim().toLowerCase();
+        if (!key) return;
+        (groups[key] ||= []).push(s);
+      });
+      const duplikat = Object.values(groups).filter(g => g.length > 1).sort((a,b) => (a[0].nama||'').localeCompare(b[0].nama||''));
+
+      const bodyEl = el.querySelector('.modal-body');
+      if (!duplikat.length) {
+        bodyEl.innerHTML = `<div style="text-align:center; padding:24px; color:var(--green); font-size:13.5px;">✅ Tidak ada nama ganda ditemukan di kelompok ini.</div>`;
+        return;
+      }
+      bodyEl.innerHTML = `
+        <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">Ditemukan ${duplikat.length} nama yang muncul lebih dari 1 kali. Cek satu-satu — kalau memang orang yang sama tercatat dobel, hapus salah satu (biasanya yang "Belum masuk kelas").</div>
+        ${duplikat.map(g => `
+          <div style="border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:10px;">
+            <div style="font-weight:700; font-size:13.5px; margin-bottom:6px;">${escHtml(g[0].nama)} <span style="font-weight:400; color:var(--ink-soft); font-size:11.5px;">(${g.length}x)</span></div>
+            ${g.map(s => `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); gap:8px;">
+                <div style="font-size:12px; color:var(--ink-soft);">
+                  ${s.kelas?.nama_kelas ? '📚 ' + escHtml(s.kelas.nama_kelas) : '⚠️ Belum masuk kelas'}
+                  ${s.tgl_lahir ? ' · ' + fmtDateShort(s.tgl_lahir) : ''}
+                </div>
+                <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px; color:var(--rose); border-color:var(--rose);" onclick="STR_hapusPermanenGanda('${s.id}','${escHtml(s.nama)}')">🗑️ Hapus Permanen</button>
+              </div>`).join('')}
+          </div>`).join('')}`;
+    } catch(e) {
+      const bodyEl = el.querySelector('.modal-body');
+      if (bodyEl) bodyEl.innerHTML = `<div style="color:var(--rose); padding:20px; text-align:center;">Gagal memuat: ${escHtml(e.message)}</div>`;
+    }
+  };
+
+  window.STR_hapusPermanenGanda = async (id, nama) => {
+    if (!confirm(`⚠️ HAPUS PERMANEN "${nama}"?\n\nData generus ini akan dihapus TOTAL dari sistem, termasuk riwayat absensinya, dan TIDAK BISA DIKEMBALIKAN.\n\nYakin mau hapus?`)) return;
+    try {
+      await SB.santri.delete(id);
+      App.cache.allSantri = null;
+      logActivity('hapus', 'Santri', `Hapus permanen data generus duplikat "${nama}"`);
+      showToast(`${nama} dihapus permanen ✓`);
+      closeModal('cekGandaModal');
+      await loadKelas(selectedKelompokId);
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, true); }
+  };
+
   window.STR_deleteKelas = async () => {
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (!kls) return;
