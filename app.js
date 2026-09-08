@@ -188,7 +188,8 @@ function escHtml(s) {
 // Overlay "Layar Penuh" per kelas — dipakai bersama oleh SEMUA level Rekap KBM
 // (Kelompok/Desa/Daerah), biar gak ditulis ulang 3x. Data yg diterima:
 // { nama, kelompokNama, desaNama(opsional), santri, pctHadir, pctMateri,
-//   materiCapai, materiTarget, daftarMateri:[{topik,selesai}] }
+//   materiCapai, materiTarget, daftarMateri:[{topik,selesai}],
+//   santriStats(opsional, baru ada di level Kelompok):[{nama,h,i,s,a,pct,totalPertemuan}] }
 function showFullscreenKelas(k) {
   let el = document.getElementById('rekapFullscreenOverlay');
   if (!el) { el = document.createElement('div'); el.id = 'rekapFullscreenOverlay'; document.body.appendChild(el); }
@@ -227,6 +228,40 @@ function showFullscreenKelas(k) {
             </div>
           </div>`).join('') : '<div style="padding:20px 0; color:var(--ink-soft); font-size:16px;">Belum ada materi terjadwal bulan ini.</div>'}
       </div>
+
+      ${k.santriStats && k.santriStats.length ? `
+      <div style="font-size:20px; font-weight:800; color:var(--green); margin:32px 0 14px;">👥 Detail Per Santri</div>
+      <div style="background:#fff; border-radius:16px; padding:8px 24px; box-shadow:0 2px 10px rgba(0,0,0,.06); overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--line);">
+              <th style="text-align:left; padding:12px 8px; font-size:13px; font-weight:800; text-transform:uppercase; color:#fff;">#</th>
+              <th style="text-align:left; padding:12px 8px; font-size:13px; font-weight:800; text-transform:uppercase; color:#fff;">Nama</th>
+              <th style="text-align:center; padding:12px 8px; font-size:13px; font-weight:800; color:#4ade80;">H</th>
+              <th style="text-align:center; padding:12px 8px; font-size:13px; font-weight:800; color:#fbbf24;">I</th>
+              <th style="text-align:center; padding:12px 8px; font-size:13px; font-weight:800; color:#67e8f9;">S</th>
+              <th style="text-align:center; padding:12px 8px; font-size:13px; font-weight:800; color:#f87171;">A</th>
+              <th style="text-align:center; padding:12px 8px; font-size:13px; font-weight:800; color:#fff;">Ptm</th>
+              <th style="text-align:center; padding:12px 8px; font-size:13px; font-weight:800; color:#fff;">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${k.santriStats.map((s, i) => {
+              const pctColor = s.pct === null ? 'var(--ink-soft)' : s.pct >= 80 ? 'var(--green)' : s.pct >= 50 ? '#e6a817' : 'var(--rose)';
+              return `<tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:12px 8px; font-size:14px; color:var(--ink-soft);">${i+1}</td>
+                <td style="padding:12px 8px; font-size:17px; font-weight:700; color:var(--ink);">${escHtml(s.nama)}</td>
+                <td style="text-align:center; padding:12px 8px; font-size:17px; font-weight:700; color:var(--green);">${s.h}</td>
+                <td style="text-align:center; padding:12px 8px; font-size:17px; font-weight:700; color:#e6a817;">${s.i}</td>
+                <td style="text-align:center; padding:12px 8px; font-size:17px; font-weight:700; color:#17a2b8;">${s.s}</td>
+                <td style="text-align:center; padding:12px 8px; font-size:17px; font-weight:700; color:var(--rose);">${s.a}</td>
+                <td style="text-align:center; padding:12px 8px; font-size:14px; color:var(--ink-soft);">${s.totalPertemuan}</td>
+                <td style="text-align:center; padding:12px 8px;"><span style="font-size:18px; font-weight:800; color:${pctColor};">${s.pct!==null?s.pct+'%':'—'}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
     </div>`;
   el.style.display = 'block';
   if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
@@ -1618,7 +1653,8 @@ const NAV_ITEMS = {
     { id: 'raport_caberawit', icon: raportIcon(), label: 'Raport Caberawit' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'DATA & KELOLA' },
     { id: 'pengurus', icon: contactIcon(), label: 'Data Pengurus' },
-    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport', section: 'REKAP & LAPORAN' },
+    { id: 'rekap', icon: chartIcon(), label: 'Rekap KBM', section: 'REKAP & LAPORAN' },
+    { id: 'rekap_raport', icon: chartIcon(), label: 'Rekap Raport' },
     { id: 'musyawarah', icon: meetIcon(), label: 'Musyawarah' },
     { id: 'settings', icon: cogIcon(), label: 'Pengaturan' },
   ],
@@ -10821,8 +10857,8 @@ async function renderJamaahRekap() {
         <td style="padding:6px 10px; text-align:center;"><button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" onclick="JMH_lihatNamaKelompok('${k.id}','${escHtml(k.nama)}')">👁️ Lihat Nama</button></td>
       </tr>`;
     }).join('');
-    return `<div id="${idPrefix}" style="display:none; margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow:hidden;">
-      <table style="width:100%; border-collapse:collapse;">
+    return `<div id="${idPrefix}" style="display:none; margin-top:10px; border:1px solid var(--line); border-radius:8px; overflow-x:auto;">
+      <table style="width:100%; min-width:520px; border-collapse:collapse;">
         <thead><tr style="background:var(--green);">
           <th style="padding:6px 10px; text-align:left; font-size:10.5px; color:#fff;">Kelompok</th>
           <th style="padding:6px 10px; text-align:center; font-size:10.5px; color:#fff;">L</th>
@@ -12983,23 +13019,36 @@ async function renderPengurus() {
 
 /* ===== PAGE: MUSYAWARAH ===== */
 const MUSYAWARAH_LEVEL = {
-  guru_generus: { label: 'Musyawarah Guru Generus', icon: '👨‍🏫', warna: 'badge-green', roles: ['pjp_kelompok','wali_kbm','guru','kelompok','admin'] },
-  unsur_5:      { label: 'Musyawarah 5 Unsur Kelompok', icon: '🤝', warna: 'badge-gold', roles: ['pjp_kelompok','kelompok','admin'] },
-  kelompok_umum:{ label: 'Musyawarah Kelompok', icon: '🕌', warna: 'badge-green', roles: ['pjp_kelompok','kelompok','admin'] },
-  pjp_desa:     { label: 'Musyawarah PJP Desa', icon: '🏘️', warna: 'badge-rose', roles: ['desa','desa_view','pjp_kelompok','admin'] },
-  ppg_daerah:   { label: 'Musyawarah PPG Daerah', icon: '🏛️', warna: 'badge-gray', roles: ['daerah','desa','desa_view','admin'] },
+  guru_generus:   { label: 'Musyawarah Guru Generus', icon: '👨‍🏫', warna: 'badge-green', roles: ['pjp_kelompok','wali_kbm','guru','kelompok','admin'] },
+  unsur_5:        { label: 'Musyawarah 5 Unsur Kelompok', icon: '🤝', warna: 'badge-gold', roles: ['pjp_kelompok','kelompok','admin'] },
+  kelompok_umum:  { label: 'Musyawarah Kelompok', icon: '🕌', warna: 'badge-green', roles: ['pjp_kelompok','kelompok','admin'] },
+  pjp_desa:       { label: 'Musyawarah PJP Desa', icon: '🏘️', warna: 'badge-rose', roles: ['desa','desa_view','pjp_kelompok','admin'] },
+  musyawarah_desa:{ label: 'Musyawarah Desa', icon: '📜', warna: 'badge-gold', roles: ['desa','desa_view','pjp_kelompok','daerah','admin'] },
+  ppg_daerah:     { label: 'Musyawarah PPG Daerah', icon: '🏛️', warna: 'badge-gray', roles: ['daerah','desa','desa_view','admin'] },
 };
+
+// Level yang peserta-nya gabungan 2 sumber (pengurus Desa + perwakilan tiap Kelompok di
+// desa itu) — dipakai di banyak tempat (load peserta, grouping tampilan, konfigurasi dapukan
+// wajib) supaya "Musyawarah Desa" otomatis ikut pola yang sama persis dengan "PJP Desa",
+// tanpa nulis ulang logikanya.
+const MUSYAWARAH_DESA_GABUNGAN = ['pjp_desa', 'musyawarah_desa'];
+
+// Level yang formulir notulensinya pakai format "umum" (Hasil Musyawarah — diskusi/keputusan
+// bebas), bukan format "standar" (Pencapaian Materi/Kurikulum — dipakai guru_generus/unsur_5/
+// pjp_desa/ppg_daerah). Musyawarah Desa dibuat sama seperti Musyawarah Kelompok: general
+// assembly, bukan rapat teknis kurikulum.
+const MUSYAWARAH_FORMAT_UMUM = ['kelompok_umum', 'musyawarah_desa'];
 
 // Level yang bisa DILIHAT per role (level saya dan di atas saya)
 const MUSYAWARAH_VISIBLE = {
   guru:         ['guru_generus'],
   wali_kbm:     ['guru_generus'],
   kelompok:     ['guru_generus','unsur_5','kelompok_umum'],
-  pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum','pjp_desa'],
-  desa:         ['guru_generus','unsur_5','pjp_desa'],
-  desa_view:    ['guru_generus','unsur_5','pjp_desa'], // Pengelola Desa — sama kayak 'desa', tapi read-only (lihat MUSYAWARAH_CREATE)
-  daerah:       ['guru_generus','unsur_5','pjp_desa','ppg_daerah'],
-  admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','ppg_daerah'],
+  pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum','pjp_desa','musyawarah_desa'],
+  desa:         ['guru_generus','unsur_5','pjp_desa','musyawarah_desa'],
+  desa_view:    ['guru_generus','unsur_5','pjp_desa','musyawarah_desa'], // Pengelola Desa — sama kayak 'desa', tapi read-only (lihat MUSYAWARAH_CREATE)
+  daerah:       ['guru_generus','unsur_5','pjp_desa','musyawarah_desa','ppg_daerah'],
+  admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','musyawarah_desa','ppg_daerah'],
 };
 
 // Level yang bisa DIBUAT per role
@@ -13008,10 +13057,10 @@ const MUSYAWARAH_CREATE = {
   wali_kbm:     ['guru_generus'],
   kelompok:     ['guru_generus','unsur_5','kelompok_umum'],
   pjp_kelompok: ['guru_generus','unsur_5','kelompok_umum'],
-  desa:         ['pjp_desa'],
+  desa:         ['pjp_desa','musyawarah_desa'],
   desa_view:    [], // Pengelola Desa — read-only, gak bisa bikin notulensi baru
   daerah:       ['ppg_daerah'],
-  admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','ppg_daerah'],
+  admin:        ['guru_generus','unsur_5','kelompok_umum','pjp_desa','musyawarah_desa','ppg_daerah'],
 };
 
 async function renderMusyawarah() {
@@ -13045,11 +13094,11 @@ async function renderMusyawarah() {
       if (!App.cache.kelompok) App.cache.kelompok = await SB.kelompok.getAll();
       const myKlp = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id);
       const myDesaId = myKlp?.desa_id || u.desa_id;
-      // Hanya PJP Desa dari desa sendiri
+      // Hanya PJP Desa / Musyawarah Desa dari desa sendiri
       let desaMus = [];
       if (myDesaId) {
-        const allDesaMus = await SB.musyawarah.getByLevel('pjp_desa') || [];
-        desaMus = allDesaMus.filter(m => m.desa_id === myDesaId);
+        const desaLevelResults = await Promise.all(MUSYAWARAH_DESA_GABUNGAN.map(lv => SB.musyawarah.getByLevel(lv)));
+        desaMus = desaLevelResults.filter(Boolean).flat().filter(m => m.desa_id === myDesaId);
       }
       const daerahMus = await SB.musyawarah.getByLevel('ppg_daerah') || [];
       allMusyawarah = [...klpMus, ...desaMus, ...daerahMus];
@@ -13074,12 +13123,10 @@ async function renderMusyawarah() {
   if (bulanLalu) filterBulanSet.add(bulanLalu);
   let showAllBulan = false;
 
-  // Auto-detect default level musyawarah berdasar role
-  let defaultLevel = '';
-  if (role === 'daerah') defaultLevel = 'ppg_daerah';
-  else if (role === 'desa' || role === 'desa_view') defaultLevel = 'pjp_desa';
-  else if (role === 'admin') defaultLevel = '';  // admin pilih sendiri
-  // kelompok level → pilih antara guru_generus atau unsur_5
+  // Auto-detect default level musyawarah: kalau role ini cuma bisa BIKIN 1 jenis musyawarah,
+  // langsung pakai itu (gak perlu pilih). Kalau lebih dari 1 (mis. Desa sekarang bisa PJP Desa
+  // ATAU Musyawarah Desa; Admin bisa semua), tampilkan pilihan (dropdown/kartu) dulu.
+  let defaultLevel = createLevels.length === 1 ? createLevels[0] : '';
 
   function renderPage() {
     const taFilter = getTahunAjaran(); // misal "2026/2027"
@@ -13260,7 +13307,7 @@ async function renderMusyawarah() {
           </div>` : ''}
         </div>
         <div style="display:grid; gap:8px;">
-          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">${m.level==='kelompok_umum'?'Hasil Musyawarah':'Pencapaian Materi'}</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.pencapaian)}</div></div>` : ''}
+          ${m.pencapaian ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--green); margin-bottom:3px;">${MUSYAWARAH_FORMAT_UMUM.includes(m.level)?'Hasil Musyawarah':'Pencapaian Materi'}</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.pencapaian)}</div></div>` : ''}
           ${m.kendala ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--rose); margin-bottom:3px;">Kendala</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.kendala)}</div></div>` : ''}
           ${m.solusi ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--gold); margin-bottom:3px;">Solusi</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.solusi)}</div></div>` : ''}
           ${m.tindak_lanjut ? `<div><div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:3px;">Tindak Lanjut</div><div style="font-size:13px; color:var(--ink);">${contentToDisplayHtml(m.tindak_lanjut)}</div></div>` : ''}
@@ -13487,7 +13534,7 @@ async function renderMusyawarah() {
             ${rekapContent}
           </div>`;
 
-      } else if (level === 'pjp_desa' && u.desa_id) {
+      } else if (MUSYAWARAH_DESA_GABUNGAN.includes(level) && u.desa_id) {
         // Level desa: rekap per kelompok dengan kehadiran + materi
         const klpDesa = (App.cache.kelompok||[]).filter(k => k.desa_id === u.desa_id);
         if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
@@ -13540,8 +13587,8 @@ async function renderMusyawarah() {
             ${desaHtml}
           </div>`;
 
-      } else if (level === 'pjp_desa' && !u.desa_id) {
-        // Admin pilih PJP Desa — perlu pilih desa dulu
+      } else if (MUSYAWARAH_DESA_GABUNGAN.includes(level) && !u.desa_id) {
+        // Admin pilih PJP Desa / Musyawarah Desa — perlu pilih desa dulu
         const DESA_LIST = [
           {id:'D1',nama:'Desa Barat 1'},{id:'D2',nama:'Desa Barat 2'},
           {id:'D3',nama:'Desa Tengah 1'},{id:'D4',nama:'Desa Tengah 2'},
@@ -13805,7 +13852,7 @@ async function renderMusyawarah() {
           allPeserta = [...allPeserta, ...(dp1||[]), ...(dp2||[])];
         }
 
-      } else if (level === 'pjp_desa') {
+      } else if (MUSYAWARAH_DESA_GABUNGAN.includes(level)) {
         if (effectiveDesaId) {
           const desaNama = DESA_NAMA_MAP[effectiveDesaId] || effectiveDesaId;
           let p1 = await SB.musPeserta.getByDesa(effectiveDesaId) || [];
@@ -13833,7 +13880,14 @@ async function renderMusyawarah() {
 
     // Filter berdasarkan konfigurasi dapukan wajib
     let pesertaSetelahDapukan;
-    if (dapukanWajib.length > 0) {
+    if (dapukanWajib.length > 0 && MUSYAWARAH_DESA_GABUNGAN.includes(level)) {
+      // PJP Desa / Musyawarah Desa: dapukan di checklist Konfigurasi adalah nama jabatan
+      // PERSIS dari Data Pengurus (bukan kategori umum), jadi cocokkan EXACT — sama seperti
+      // yg dipakai di modal Absensi notulensi yg sudah ada. Kalau dipaksa "contains" kayak
+      // di bawah, dapukan lain yg kebetulan satu kata (mis. "Ketua" nyangkut ke "Wakil Ketua")
+      // ikut kebawa padahal tidak dicentang.
+      pesertaSetelahDapukan = allPeserta.filter(p => dapukanWajib.includes((p.jabatan||'').trim()));
+    } else if (dapukanWajib.length > 0) {
       pesertaSetelahDapukan = allPeserta.filter(p => {
         const pDap = (p.jabatan||'').toLowerCase().trim();
         return dapukanWajib.some(d => {
@@ -13842,6 +13896,11 @@ async function renderMusyawarah() {
           return pDap === dLow || pDap.includes(dLow) || dLow.includes(pDap);
         });
       });
+    } else if (level === 'musyawarah_desa') {
+      // Musyawarah Desa: belum dikonfigurasi dapukan wajibnya = belum ditentukan siapa yg wajib
+      // hadir → kosongkan dulu (BEDA dari level lain di bawah yg fallback nampilin semua),
+      // supaya tidak salah nampilin peserta sebelum admin desa sempat atur Konfigurasi Peserta.
+      pesertaSetelahDapukan = [];
     } else {
       // Belum dikonfigurasi — tampilkan semua
       pesertaSetelahDapukan = allPeserta;
@@ -13856,7 +13915,7 @@ async function renderMusyawarah() {
     notulensiArea.style.display = 'block';
     const notulensiStandar = document.getElementById('musNotulensiStandar');
     const notulensiKelompokUmum = document.getElementById('musNotulensiKelompokUmum');
-    if (level === 'kelompok_umum') {
+    if (MUSYAWARAH_FORMAT_UMUM.includes(level)) {
       notulensiStandar.style.display = 'none';
       notulensiKelompokUmum.style.display = 'block';
     } else {
@@ -13904,7 +13963,7 @@ async function renderMusyawarah() {
           : '📌 Lainnya';
         pushToGroup(groupKey, p);
       });
-    } else if (musInlineLevel === 'pjp_desa') {
+    } else if (MUSYAWARAH_DESA_GABUNGAN.includes(musInlineLevel)) {
       // Sama kayak modal Absensi terpisah: 4S Desa dulu → Unsur PPG Desa → tiap Kelompok
       // (masing2 4S lalu Unsur PPG-nya), BUKAN raw kode desa/urutan data mentah.
       const klpNamaMap = Object.fromEntries((App.cache.kelompok||[]).map(k => [k.id, k.nama]));
@@ -14120,7 +14179,7 @@ async function renderMusyawarah() {
     const data = {
       level, tanggal, bulan,
       tahun: new Date(tanggal).getFullYear(),
-      pencapaian: level === 'kelompok_umum'
+      pencapaian: MUSYAWARAH_FORMAT_UMUM.includes(level)
         ? (RTE_getHtml('musHasilInline') || null)
         : (RTE_getHtml('musPencapaianInline') || null),
       kendala: RTE_getHtml('musKendalaInline') || null,
@@ -14295,7 +14354,7 @@ async function renderMusyawarah() {
       }
 
       const sections = [
-        [m.level === 'kelompok_umum' ? 'HASIL MUSYAWARAH' : 'PENCAPAIAN MATERI', m.pencapaian],
+        [MUSYAWARAH_FORMAT_UMUM.includes(m.level) ? 'HASIL MUSYAWARAH' : 'PENCAPAIAN MATERI', m.pencapaian],
         ['KENDALA', m.kendala],
         ['SOLUSI', m.solusi],
         ['TINDAK LANJUT', m.tindak_lanjut],
@@ -14384,7 +14443,7 @@ function openMusyawarahModal(existing, createLevels, u, onSaved) {
         <label>Peserta Hadir</label>
         <textarea id="musPeserta" rows="3" placeholder="Nama-nama peserta yang hadir, jabatan, dll...">${escHtml(m?.peserta||'')}</textarea>
       </div>
-      ${m?.level === 'kelompok_umum' ? `
+      ${MUSYAWARAH_FORMAT_UMUM.includes(m?.level) ? `
       <div class="form-group">
         <label>Hasil Musyawarah</label>
         ${richTextEditorHtml('musPencapaian', contentToDisplayHtml(m?.pencapaian))}
@@ -14588,7 +14647,7 @@ async function openMusAbsensiModal(musId, level, u) {
       pesertaDikecualikanDetail = gabunganDaerahMentah.filter(p => excludedIdsAktif.has(p.id));
       const gabunganDaerah = gabunganDaerahMentah.filter(p => !excludedIdsAktif.has(p.id));
       pesertaTetap = urutkanPesertaDaerah(gabunganDaerah);
-    } else if (level === 'pjp_desa') {
+    } else if (MUSYAWARAH_DESA_GABUNGAN.includes(level)) {
       // User punya desa_id = D1, tapi peserta disimpan dengan desa_id = "Desa Barat 1"
       const desaId = u.desa_id || '';
       const desaNama = DESA_NAMA_MAP[desaId] || desaId;
@@ -14610,14 +14669,16 @@ async function openMusAbsensiModal(musId, level, u) {
       // Filter sesuai dapukan yg dicentang di Konfigurasi Peserta Musyawarah — SEBELUMNYA
       // gak pernah diterapkan sama sekali di sini, makanya SEMUA pengurus desa+kelompok
       // ikut kehitung "wajib hadir" walau konfigurasinya udah diatur.
-      const konfigRes = await SB.musKonfig.get('pjp_desa', null, desaId);
+      const konfigRes = await SB.musKonfig.get(level, null, desaId);
       musKonfigIdAktif = konfigRes?.[0]?.id || null;
-      konfigScopeAktif = { level: 'pjp_desa', kelompok_id: null, desa_id: desaId };
+      konfigScopeAktif = { level, kelompok_id: null, desa_id: desaId };
       excludedIdsAktif = new Set(konfigRes?.[0]?.peserta_dikecualikan || []);
       const dapukanWajibDesa = konfigRes?.[0]?.dapukan_wajib || [];
       const pesertaDesaSetelahDapukan = dapukanWajibDesa.length
         ? semuaPesertaDesa.filter(p => dapukanWajibDesa.includes(p.jabatan))
-        : semuaPesertaDesa; // belum dikonfigurasi sama sekali — tampilkan semua dulu
+        // pjp_desa: belum dikonfigurasi -> tampilkan semua dulu (perilaku lama).
+        // musyawarah_desa: belum dikonfigurasi -> kosongkan dulu (lihat catatan di MUS_loadAbsensiInline).
+        : (level === 'musyawarah_desa' ? [] : semuaPesertaDesa);
       pesertaDikecualikanDetail = pesertaDesaSetelahDapukan.filter(p => excludedIdsAktif.has(p.id));
       let pesertaTerfilterDesa = pesertaDesaSetelahDapukan.filter(p => !excludedIdsAktif.has(p.id));
       // Rapikan urutan tampil: 4S Desa → Unsur PPG Desa → tiap Kelompok (4S lalu Unsur PPG
@@ -14669,7 +14730,7 @@ async function openMusAbsensiModal(musId, level, u) {
     // Label header section buat peserta level pjp_desa (4S Desa / Unsur PPG Desa / per Kelompok)
     // — biar urutannya BENERAN kelihatan rapi terbagi, bukan cuma urutan tersembunyi doang.
     function labelHeaderPeserta(p) {
-      if (level !== 'pjp_desa') return null;
+      if (!MUSYAWARAH_DESA_GABUNGAN.includes(level)) return null;
       const i4s = EMPAT_S.indexOf(p.jabatan);
       if (!p.kelompok_id) {
         return i4s !== -1 ? '👑 Unsur 4S Desa' : '🏢 Unsur PPG Desa';
@@ -15128,6 +15189,9 @@ async function renderSettings() {
         ${['desa','admin'].includes(u.role) ? `
         <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('pjp_desa')">
           🏘️ Konfig Mus. PJP Desa
+        </button>
+        <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('musyawarah_desa')">
+          📜 Konfig Mus. Desa
         </button>` : ''}
         ${u.role === 'admin' ? `
         <button style="padding:8px; border:1.5px solid var(--line); border-radius:8px; background:var(--white); cursor:pointer; font-size:12px; font-weight:600; color:var(--green); text-align:left;" onclick="SET_konfig('ppg_daerah')">
@@ -15355,7 +15419,7 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         seenDesa.add(p.id);
         allPesertaForKonfig.push(p);
       });
-    } else if (levelMus === 'pjp_desa') {
+    } else if (MUSYAWARAH_DESA_GABUNGAN.includes(levelMus)) {
       // Hanya desa sendiri + kelompok di desa sendiri
       const myDesaId = desaId || u.desa_id;
       if (myDesaId) {
@@ -15413,9 +15477,9 @@ async function openKonfigMusyawarahModal(levelMus, u) {
         </label>`).join('');
     }
 
-    // Level PJP Desa: dipecah 2 bagian (Level Desa & Level Kelompok) biar user Desa bisa
-    // pilih bebas dari dapukan level manapun yg wajib ikut musyawarah PJP Desa.
-    const bodyChecklist = levelMus === 'pjp_desa' ? `
+    // Level PJP Desa / Musyawarah Desa: dipecah 2 bagian (Level Desa & Level Kelompok) biar
+    // user Desa bisa pilih bebas dari dapukan level manapun yg wajib ikut musyawarah ini.
+    const bodyChecklist = MUSYAWARAH_DESA_GABUNGAN.includes(levelMus) ? `
       <div style="margin-bottom:10px;">
         <div style="font-size:12.5px; font-weight:700; color:var(--green); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em;">📍 Dapukan Level Desa</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
@@ -16257,6 +16321,7 @@ async function renderRekap() {
         nama: namaKelas, kelompokNama: lastKelompokNama || myKlpObj?.nama || '',
         santri: ks.totalSantri, pctHadir: ks.pctHadir, pctMateri: ks.pctMateri,
         materiCapai: ks.materiTercapai.length, materiTarget: ks.materiTarget.length, daftarMateri,
+        santriStats: ks.santriStats,
       };
 
       return `<div class="card" style="margin-bottom:16px;">
