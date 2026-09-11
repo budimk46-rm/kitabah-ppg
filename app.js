@@ -216,17 +216,25 @@ function showFullscreenKelas(k) {
         </div>
       </div>
 
-      <div style="font-size:20px; font-weight:800; color:var(--green); margin-bottom:14px;">📋 Daftar Materi Bulan Ini</div>
+      <div style="font-size:20px; font-weight:800; color:var(--green); margin-bottom:4px;">📋 Daftar Materi Bulan Ini</div>
+      ${ringkasanMateriHtml(k.daftarMateri).replace('font-size:10.5px', 'font-size:14px').replace('margin-top:3px', 'margin-bottom:14px')}
       <div style="background:#fff; border-radius:16px; padding:10px 24px; box-shadow:0 2px 10px rgba(0,0,0,.06);">
-        ${k.daftarMateri.length ? k.daftarMateri.map(m => `
+        ${k.daftarMateri.length ? k.daftarMateri.map(m => {
+          const status = m.status || (m.selesai ? 'tuntas' : 'belum');
+          const ICON = { tuntas: '✅', belum_tuntas: '◐', belum: '⬜' };
+          const COLOR = { tuntas: 'var(--ink)', belum_tuntas: '#c9930f', belum: 'var(--ink-soft)' };
+          const c = COLOR[status];
+          return `
           <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-bottom:1px solid var(--line);">
-            <span style="font-size:22px; flex-shrink:0;">${m.selesai?'✅':'⬜'}</span>
+            <span style="font-size:22px; flex-shrink:0;">${ICON[status]}</span>
             <div>
-              <div style="font-size:19px; font-weight:700; color:${m.selesai?'var(--ink)':'var(--ink-soft)'};">${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
-              ${m.subTitle ? `<div style="font-size:17px; font-weight:600; color:${m.selesai?'var(--ink)':'var(--ink-soft)'}; margin-top:2px;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
+              <div style="font-size:19px; font-weight:700; color:${c};">${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
+              ${m.subTitle ? `<div style="font-size:17px; font-weight:600; color:${c}; margin-top:2px;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
               ${m.poinTitle ? `<div style="font-size:15px; color:var(--ink-soft); margin-top:2px;">${escHtml(m.poinTitle)}</div>` : ''}
+              ${status==='belum_tuntas' ? `<div style="font-size:13px; color:#c9930f; font-style:italic; margin-top:2px;">Belum tuntas, lanjut lagi</div>` : ''}
             </div>
-          </div>`).join('') : '<div style="padding:20px 0; color:var(--ink-soft); font-size:16px;">Belum ada materi terjadwal bulan ini.</div>'}
+          </div>`;
+        }).join('') : '<div style="padding:20px 0; color:var(--ink-soft); font-size:16px;">Belum ada materi terjadwal bulan ini.</div>'}
       </div>
 
       ${k.santriStats && k.santriStats.length ? `
@@ -279,13 +287,43 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // Tampilan kompak 1 item materi (bab/sub/poin) — dipakai di daftar toggle "Detail Materi"
-// di ketiga level Rekap KBM (beda dari showFullscreenKelas yg lebih besar/lega buat presentasi)
+// di ketiga level Rekap KBM (beda dari showFullscreenKelas yg lebih besar/lega buat presentasi).
+// m.status: 'tuntas' | 'belum_tuntas' | 'belum' — kalau tidak diisi (kode lama), fallback ke
+// m.selesai (boolean) supaya pemanggil yang belum diupdate tetap jalan.
 function materiItemCompactHtml(m) {
-  const c = m.selesai ? 'var(--green)' : 'var(--ink-soft)';
+  const status = m.status || (m.selesai ? 'tuntas' : 'belum');
+  const ICON = { tuntas: '✅', belum_tuntas: '◐', belum: '⬜' };
+  const COLOR = { tuntas: 'var(--green)', belum_tuntas: '#c9930f', belum: 'var(--ink-soft)' };
+  const c = COLOR[status];
   return `<div style="padding:4px 0; border-bottom:1px solid var(--line);">
-    <div style="color:${c}; font-weight:700;">${m.selesai?'✅':'⬜'} ${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
+    <div style="color:${c}; font-weight:700;">${ICON[status]} ${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
     ${m.subTitle ? `<div style="color:${c}; margin-left:20px; font-weight:600;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
     ${m.poinTitle ? `<div style="color:var(--ink-soft); margin-left:20px;">${escHtml(m.poinTitle)}</div>` : ''}
+    ${status === 'belum_tuntas' ? `<div style="color:#c9930f; margin-left:20px; font-size:11px; font-style:italic;">Belum tuntas, lanjut lagi</div>` : ''}
+  </div>`;
+}
+
+// Bangun status 3-arah materi dari progressSet (Tuntas) + belumTuntasSet (Belum Tuntas) —
+// dipakai di ketiga level Rekap KBM supaya "0% padahal sudah dibahas" kelihatan bedanya:
+// Tuntas (sudah selesai) vs Belum Tuntas (sudah dibahas, masih lanjut) vs Belum Dibahas sama sekali.
+function materiStatus3Arah(materiId, bulan, progressSet, belumTuntasSet) {
+  const key = materiId + '|' + bulan;
+  if (progressSet.has(key)) return 'tuntas';
+  if (belumTuntasSet && belumTuntasSet.has(key)) return 'belum_tuntas';
+  return 'belum';
+}
+
+// Ringkasan hitungan 3-arah dari sebuah array item materi (yg masing2 punya .status) —
+// dipakai buat badge ringkasan di header "Progress Materi" di ketiga level Rekap KBM.
+function ringkasanMateriHtml(daftarMateri) {
+  const tuntas = daftarMateri.filter(m => m.status === 'tuntas').length;
+  const belumTuntas = daftarMateri.filter(m => m.status === 'belum_tuntas').length;
+  const belum = daftarMateri.length - tuntas - belumTuntas;
+  if (!daftarMateri.length) return '';
+  return `<div style="display:flex; gap:8px; flex-wrap:wrap; font-size:10.5px; margin-top:3px;">
+    <span style="color:var(--green); font-weight:700;">✅ ${tuntas} Tuntas</span>
+    <span style="color:#c9930f; font-weight:700;">◐ ${belumTuntas} Belum Tuntas</span>
+    <span style="color:var(--ink-soft); font-weight:700;">⬜ ${belum} Belum Dibahas</span>
   </div>`;
 }
 
@@ -16128,14 +16166,21 @@ async function renderRekap() {
   const myKlpObj = (App.cache.kelompok||[]).find(k => k.id === myKelompokId);
   let kelasGabungan = [];
   let progDataGabungan = [];
+  let klpDesaFirstId = null;
   if (myKlpObj?.desa_id) {
     kelasGabungan = (await SB.kelas.getByDesa(myKlpObj.desa_id)) || [];
     // Load progress untuk kelas gabungan (kelompok_id = kelompok pertama di desa)
     const klpDesaFirst = (App.cache.kelompok||[]).find(k => k.desa_id === myKlpObj.desa_id);
     if (klpDesaFirst) {
+      klpDesaFirstId = klpDesaFirst.id;
       progDataGabungan = await SB.progress.getByKelompok(klpDesaFirst.id, getTahunAjaran()) || [];
     }
   }
+
+  // Materi yang pernah dipilih guru tapi masih "Belum Tuntas" (belum masuk progress/Tuntas) —
+  // biar bisa dibedakan dari yang memang belum pernah dibahas sama sekali.
+  const jurnalMateriRaw = await SB.jurnal.getMateriByKelompokIds([myKelompokId, klpDesaFirstId].filter(Boolean));
+  const belumTuntasSet = new Set(jurnalMateriRaw.filter(r => r.status === 'belum_tuntas').map(r => r.materi_id + '|' + r.bulan_target));
 
   const kelasList = sortKelas([...kelasListRaw, ...kelasGabungan]);
 
@@ -16316,7 +16361,7 @@ async function renderRekap() {
       }).join('');
 
       const kUid = 'kk_' + ks.kelas.id;
-      const daftarMateri = ks.materiTarget.map(m => ({ bab: m.bab, babTitle: m.bab_title, sub: m.sub, subTitle: m.sub_title, poin: m.poin, poinTitle: m.poin_title, selesai: progressSet.has(m.id+'|'+selectedBulan) }));
+      const daftarMateri = ks.materiTarget.map(m => ({ bab: m.bab, babTitle: m.bab_title, sub: m.sub, subTitle: m.sub_title, poin: m.poin, poinTitle: m.poin_title, status: materiStatus3Arah(m.id, selectedBulan, progressSet, belumTuntasSet) }));
       window._rekapKelasData[kUid] = {
         nama: namaKelas, kelompokNama: lastKelompokNama || myKlpObj?.nama || '',
         santri: ks.totalSantri, pctHadir: ks.pctHadir, pctMateri: ks.pctMateri,
@@ -16355,6 +16400,7 @@ async function renderRekap() {
             <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Progress Materi</div>
             ${progressBar(ks.pctMateri)}
             ${ks.materiTarget.length > 0 ? `<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">${ks.materiTercapai.length} dari ${ks.materiTarget.length} materi</div>` : '<div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Tidak ada target bulan ini</div>'}
+            ${ringkasanMateriHtml(daftarMateri)}
           </div>
         </div>
 
@@ -16804,16 +16850,27 @@ async function renderRekapDesa() {
   const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
   let selectedBulan = nowMonth;
 
-  // Tahap 1: satu kali fetch KELAS + PROGRESS untuk semua kelompok se-desa sekaligus
+  // Tahap 1: satu kali fetch KELAS + PROGRESS + MATERI BELUM TUNTAS untuk semua kelompok se-desa sekaligus
   const desaKlpIds = kelompokDesa.map(k => k.id);
-  const [kelasRawDesa, progressRawDesa] = await Promise.all([
+  const [kelasRawDesa, progressRawDesa, jurnalMateriRawDesa] = await Promise.all([
     SB.kelas.getByKelompokIds(desaKlpIds),
     SB.progress.getByKelompokIds(desaKlpIds, getTahunAjaran()),
+    SB.jurnal.getMateriByKelompokIds(desaKlpIds),
   ]);
   const kelasByKlpDesa = {};
   kelasRawDesa.forEach(k => { (kelasByKlpDesa[k.kelompok_id] ||= []).push(k); });
   const progressByKlpDesa = {};
   progressRawDesa.forEach(p => { (progressByKlpDesa[p.kelompok_id] ||= []).push(p); });
+  // Materi "Belum Tuntas" per kelompok — via kelas_id hasil join, dicocokkan ke kelompok_id
+  const kelasKelompokMapDesa = {};
+  kelasRawDesa.forEach(k => { kelasKelompokMapDesa[k.id] = k.kelompok_id; });
+  const belumTuntasByKlpDesa = {};
+  jurnalMateriRawDesa.filter(r => r.status === 'belum_tuntas').forEach(r => {
+    const kelasId = r.jurnal?.pertemuan?.kelas_id;
+    const kelompokId = kelasKelompokMapDesa[kelasId];
+    if (!kelompokId) return;
+    (belumTuntasByKlpDesa[kelompokId] ||= new Set()).add(r.materi_id + '|' + r.bulan_target);
+  });
 
   // Tahap 2: satu kali fetch PERTEMUAN + SANTRI untuk semua kelas se-desa sekaligus
   const desaKelasIds = kelasRawDesa.map(k => k.id);
@@ -16836,24 +16893,25 @@ async function renderRekapDesa() {
     const kelasList = sortKelas(kelasByKlpDesa[klp.id] || []);
     const progData = progressByKlpDesa[klp.id] || [];
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+    const belumTuntasSet = belumTuntasByKlpDesa[klp.id] || new Set();
     const kelasMeta = kelasList.map(k => ({
       k,
       pertemuanList: pertemuanByKelasDesa[k.id] || [],
       santriKelas: santriByKelasDesa[k.id] || [],
     }));
-    return { klp, kelasList, kelasMeta, progressSet };
+    return { klp, kelasList, kelasMeta, progressSet, belumTuntasSet };
   });
 
   // Susun kelompokData dari data yang sudah ada di memori
   const kelompokData = {};
-  kelompokMeta.forEach(({ klp, kelasList, kelasMeta, progressSet }) => {
+  kelompokMeta.forEach(({ klp, kelasList, kelasMeta, progressSet, belumTuntasSet }) => {
     const kelasData = {};
     kelasMeta.forEach(({ k, pertemuanList, santriKelas }) => {
       const absensiAll = {};
       pertemuanList.forEach(p => { absensiAll[p.id] = absensiByPertemuanDesa[p.id] || []; });
       kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
     });
-    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet, belumTuntasSet };
   });
 
   // Load kelas gabungan desa
@@ -16919,8 +16977,8 @@ async function renderRekapDesa() {
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
       const kMT = materiKelas.length;
-      const daftarMateri = materiKelas.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, selesai: d.progressSet.has(r.id+'|'+bulan) }));
-      const kMC = daftarMateri.filter(x => x.selesai).length;
+      const daftarMateri = materiKelas.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, status: materiStatus3Arah(r.id, bulan, d.progressSet, d.belumTuntasSet) }));
+      const kMC = daftarMateri.filter(x => x.status === 'tuntas').length;
       materiTarget += kMT;
       materiTercapai += kMC;
       perKelas.push({
@@ -17027,9 +17085,10 @@ async function renderRekapDesa() {
         </tr>
         <tr style="background:var(--green-soft);">
           <td colspan="5" style="padding:0 10px 6px 26px;">
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" onclick="RD_toggleMateriList(this)">📋 Detail Materi (${k.materiCapai}/${k.materiTarget})</button>
               <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" data-kuid="${kUid}" onclick="RD_fullscreenKelas(this)">⛶ Layar Penuh</button>
+              ${ringkasanMateriHtml(k.daftarMateri)}
             </div>
             <div class="rda_materi_list" style="display:none; font-size:11px; padding:6px 10px; background:#fff; border:1px solid var(--line); border-radius:6px; margin-top:4px;">
               ${k.daftarMateri.length ? k.daftarMateri.map(materiItemCompactHtml).join('') : '<span style="color:var(--ink-soft);">Belum ada materi terjadwal bulan ini.</span>'}
@@ -17427,16 +17486,27 @@ async function renderRekapDaerah() {
 
   const allSantri = App.cache.allSantri || (App.cache.allSantri = await SB.santri.getAll());
 
-  // Tahap 1: satu kali fetch KELAS + PROGRESS untuk SEMUA 31 kelompok sekaligus
+  // Tahap 1: satu kali fetch KELAS + PROGRESS + MATERI BELUM TUNTAS untuk SEMUA 31 kelompok sekaligus
   const allKlpIds = kelompokList.map(k => k.id);
-  const [allKelasRaw, allProgressRaw] = await Promise.all([
+  const [allKelasRaw, allProgressRaw, allJurnalMateriRaw] = await Promise.all([
     SB.kelas.getByKelompokIds(allKlpIds),
     SB.progress.getByKelompokIds(allKlpIds, getTahunAjaran()),
+    SB.jurnal.getMateriByKelompokIds(allKlpIds),
   ]);
   const kelasByKlp = {};
   allKelasRaw.forEach(k => { (kelasByKlp[k.kelompok_id] ||= []).push(k); });
   const progressByKlp = {};
   allProgressRaw.forEach(p => { (progressByKlp[p.kelompok_id] ||= []).push(p); });
+  // Materi "Belum Tuntas" per kelompok — via kelas_id hasil join, dicocokkan ke kelompok_id
+  const kelasKelompokMap = {};
+  allKelasRaw.forEach(k => { kelasKelompokMap[k.id] = k.kelompok_id; });
+  const belumTuntasByKlp = {};
+  allJurnalMateriRaw.filter(r => r.status === 'belum_tuntas').forEach(r => {
+    const kelasId = r.jurnal?.pertemuan?.kelas_id;
+    const kelompokId = kelasKelompokMap[kelasId];
+    if (!kelompokId) return;
+    (belumTuntasByKlp[kelompokId] ||= new Set()).add(r.materi_id + '|' + r.bulan_target);
+  });
 
   // Tahap 2: satu kali fetch PERTEMUAN + SANTRI untuk SEMUA kelas se-daerah sekaligus
   const allKelasIds = allKelasRaw.map(k => k.id);
@@ -17459,23 +17529,24 @@ async function renderRekapDaerah() {
     const kelasList = sortKelas(kelasByKlp[klp.id] || []);
     const progData = progressByKlp[klp.id] || [];
     const progressSet = new Set(progData.map(p => p.materi_id + '|' + p.bulan));
+    const belumTuntasSet = belumTuntasByKlp[klp.id] || new Set();
     const kelasMeta = kelasList.map(k => ({
       k,
       pertemuanList: pertemuanByKelas[k.id] || [],
       santriKelas: santriByKelas[k.id] || [],
     }));
-    return { klp, kelasList, kelasMeta, progressSet };
+    return { klp, kelasList, kelasMeta, progressSet, belumTuntasSet };
   });
 
   const kelompokData = {};
-  kelompokMeta.forEach(({ klp, kelasList, kelasMeta, progressSet }) => {
+  kelompokMeta.forEach(({ klp, kelasList, kelasMeta, progressSet, belumTuntasSet }) => {
     const kelasData = {};
     kelasMeta.forEach(({ k, pertemuanList, santriKelas }) => {
       const absensiAll = {};
       pertemuanList.forEach(p => { absensiAll[p.id] = absensiByPertemuanDaerah[p.id] || []; });
       kelasData[k.id] = { kelas: k, pertemuanList, santriKelas, absensiAll };
     });
-    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet };
+    kelompokData[klp.id] = { kelompok: klp, kelasList, kelasData, progressSet, belumTuntasSet };
   });
 
   const TINGKATAN_LIST = ['caberawit','pra_remaja','remaja','pra_nikah'];
@@ -17505,8 +17576,8 @@ async function renderRekapDaerah() {
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
       const kMateriTarget = mk.length;
-      const daftarMateri = mk.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, selesai: d.progressSet.has(r.id+'|'+bulan) }));
-      const kMateriCapai = daftarMateri.filter(x => x.selesai).length;
+      const daftarMateri = mk.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, status: materiStatus3Arah(r.id, bulan, d.progressSet, d.belumTuntasSet) }));
+      const kMateriCapai = daftarMateri.filter(x => x.status === 'tuntas').length;
       materiTarget += kMateriTarget;
       materiTercapai += kMateriCapai;
       perKelas.push({
@@ -17615,9 +17686,10 @@ async function renderRekapDaerah() {
           </tr>
           <tr class="kd_row" style="display:none;">
             <td colspan="5" style="padding:0 10px 6px 26px;">
-              <div style="display:flex; gap:8px; margin-bottom:4px;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">
                 <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" onclick="event.stopPropagation(); RDA_toggleMateriList(this)">📋 Detail Materi (${k.materiCapai}/${k.materiTarget})</button>
                 <button class="btn btn-outline btn-sm" style="font-size:10.5px; padding:3px 8px;" data-kuid="${kUid}" onclick="event.stopPropagation(); RDA_fullscreenKelas(this)">⛶ Layar Penuh</button>
+                ${ringkasanMateriHtml(k.daftarMateri)}
               </div>
               <div class="rda_materi_list" style="display:none; font-size:11px; padding:6px 10px; background:#fff; border:1px solid var(--line); border-radius:6px; margin-bottom:4px;">
                 ${k.daftarMateri.length ? k.daftarMateri.map(materiItemCompactHtml).join('') : '<span style="color:var(--ink-soft);">Belum ada materi terjadwal bulan ini.</span>'}

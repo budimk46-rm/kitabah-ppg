@@ -251,6 +251,15 @@ const sbJurnal = {
     });
   },
   deleteMateri: (jurnalId) => sbFetch(`jurnal_materi?jurnal_id=eq.${jurnalId}`, { method: 'DELETE' }),
+  // Ambil SEMUA materi yang pernah dipilih guru (status apa saja) untuk BANYAK kelompok
+  // sekaligus, lewat join jurnal_materi -> jurnal -> pertemuan -> kelas (biar tau kelas_id-nya,
+  // tanpa perlu daftar ID pertemuan yang bisa ribuan/kepanjangan buat 1 URL). Dipakai Rekap KBM
+  // buat bedain "Tuntas" vs "Belum Tuntas" vs "Belum Dibahas" — bukan cuma progress (Tuntas) doang.
+  getMateriByKelompokIds: (kelompokIds) => {
+    const ids = [...new Set(kelompokIds)].filter(Boolean);
+    if (!ids.length) return Promise.resolve([]);
+    return sbFetch(`jurnal_materi?select=materi_id,status,bulan_target,jurnal!inner(pertemuan!inner(kelas_id,kelas!inner(kelompok_id)))&jurnal.pertemuan.kelas.kelompok_id=in.(${ids.join(',')})`);
+  },
 };
 
 // ============ ABSENSI ============
