@@ -7401,6 +7401,27 @@ const PENGAJIAN_ELIGIBLE_KAT = ['Pra Remaja','Remaja','Pra Nikah','Dewasa','Isti
 const PENGAJIAN_STATUS_LABEL = { H:'Hadir', S:'Sakit', I:'Izin', A:'Alpa' };
 const PENGAJIAN_STATUS_COLOR = { H:'#1a6b3a', S:'#a67c00', I:'#1a5ba6', A:'#a6483b' };
 function pengajianJenisLabel(j) { return j==='sub' ? 'Sub Pengajian' : j==='ibu_ibu' ? 'Ibu-Ibu Kelompok' : 'Kelompok'; }
+// Rekap H/S/I/A yang otomatis kehitung ulang tiap kali status diklik (render() dipanggil ulang
+// dari PGJ_setStatus) — biar pas klik nama terakhir, jumlahnya udah kelihatan, tinggal Simpan.
+function pengajianRingkasanHtml(jamaahList, absensiMap) {
+  const total = jamaahList.length;
+  let h=0, s=0, i=0, a=0;
+  jamaahList.forEach(x => {
+    const st = absensiMap[x.id];
+    if (st==='H') h++; else if (st==='S') s++; else if (st==='I') i++; else if (st==='A') a++;
+  });
+  const belum = total - (h+s+i+a);
+  return `<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:9px 12px; background:var(--cream-2); border-radius:8px; font-size:12.5px;">
+    <span style="font-weight:700; color:var(--ink-soft); text-transform:uppercase; font-size:10px; letter-spacing:.03em;">Rekap Sementara</span>
+    <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.H};">H ${h}</span>
+    <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.S};">S ${s}</span>
+    <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.I};">I ${i}</span>
+    <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.A};">A ${a}</span>
+    ${belum > 0
+      ? `<span style="font-weight:700; color:var(--ink-soft);">· Belum diisi ${belum}</span>`
+      : `<span style="font-weight:700; color:var(--green);">· Semua sudah diisi ✓</span>`}
+  </div>`;
+}
 // Bp./Ibu untuk yang sudah menikah, Sdra./Sdri. untuk yang belum — dipakai di tampilan Absensi Pengajian
 function gelarNama(x) {
   const menikah = ['menikah','duda','janda'].includes(x.status_menikah);
@@ -7699,7 +7720,7 @@ async function renderAbsensiPengajian() {
 
         <div class="card">
           ${!currentPertemuanId ? '<div style="text-align:center; padding:30px; color:var(--ink-soft); font-size:13px;">Pilih pertemuan di atas, atau buat pertemuan baru.</div>' : `
-            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
               <div>
                 <div class="fw-bold" style="font-size:14px;">Pertemuan Ke-${p?.pertemuan_ke||'?'} ${jenis==='sub'?'· '+escHtml(subNama):''}</div>
                 <div style="font-size:12px; color:var(--ink-soft);">${jamaahEligible.length} orang · Terisi ${Object.keys(absensiMap).length}/${jamaahEligible.length}</div>
@@ -7710,6 +7731,7 @@ async function renderAbsensiPengajian() {
                 <button class="btn btn-outline btn-sm" style="color:var(--rose); border-color:var(--rose);" onclick="PGJ_hapusPertemuan(this.dataset.ptmke)" data-ptmke="${p?.pertemuan_ke||'?'}">🗑️ Hapus Pertemuan</button>
               </div>` : ''}
             </div>
+            ${pengajianRingkasanHtml(jamaahEligible, absensiMap)}
             <div class="form-group" style="margin-bottom:12px; max-width:220px;">
               <label style="font-size:11px;">📅 Tanggal Pertemuan</label>
               <input type="date" id="pgjTglInput" value="${p?.tanggal||''}" ${!canEdit?'disabled':''} style="border:1.5px solid var(--line); border-radius:var(--radius-sm); padding:9px 12px; font-size:13px; background:var(--white);">
@@ -7733,7 +7755,9 @@ async function renderAbsensiPengajian() {
                 </td>
               </tr>`).join('')}</tbody>
             </table></div>
-            ${canEdit ? `<button class="btn btn-green" style="width:100%; margin-top:14px; padding:10px;" id="pgjSaveBtn" onclick="PGJ_simpan()">💾 Simpan Semua Perubahan</button>` : ''}
+            ${canEdit ? `
+            <div style="margin-top:14px;">${pengajianRingkasanHtml(jamaahEligible, absensiMap)}</div>
+            <button class="btn btn-green" style="width:100%; margin-top:8px; padding:10px;" id="pgjSaveBtn" onclick="PGJ_simpan()">💾 Simpan Semua Perubahan</button>` : ''}
             `}
           `}
         </div>`)}
