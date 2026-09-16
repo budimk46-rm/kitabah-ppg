@@ -10709,10 +10709,13 @@ async function renderJamaahEntry() {
       linkedSantriIds = new Set(links.filter(l => l.santri_id).map(l => l.santri_id));
       linkedJamaahIds = new Set(links.filter(l => l.anak_jamaah_id).map(l => l.anak_jamaah_id));
     }
-    // Anak yang masih di Data Jamaah (belum jadi Santri) — termasuk Bayi <4th sekalipun.
+    // Anak yang masih di Data Jamaah (belum jadi Santri) — termasuk Bayi <4th sekalipun, sampai
+    // Pra Nikah (19th+ belum menikah — masih lazim tinggal & tertaut sbg anak di rumah ortu,
+    // sebelumnya kelewat dari daftar ini sehingga anak Pra Nikah yg belum jadi Santri gak pernah
+    // muncul buat ditautkan, kelihatan kayak berdiri sendiri/jadi kepala keluarga sendiri).
     // Yang SUDAH tertaut ke ortu LAIN gak ditawarkan lagi di sini (biar gak dobel-tautan) —
     // tapi kalau tertaut ke ortu yang SEDANG diedit ini, tetap ditampilkan (buat uncheck=lepas tautan).
-    const ANAK_KATEGORI = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja'];
+    const ANAK_KATEGORI = ['Bayi','PAUD/TK','Caberawit','Pra Remaja','Remaja','Pra Nikah'];
     const jamaahAnakCandidates = existing
       ? list.filter(x => x.id !== existing.id && !x.santri_id && ANAK_KATEGORI.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah))
           && !(globalLinkedAnakJamaahIds.has(x.id) && !linkedJamaahIds.has(x.id)))
