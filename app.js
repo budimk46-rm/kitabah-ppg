@@ -185,6 +185,27 @@ function escHtml(s) {
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Toggle lihat/sembunyikan kata sandi — dipakai di SEMUA field password (login, daftar akun,
+// ganti password, reset password oleh admin). Pakai bareng CSS .pwd-wrap/.pwd-eye-btn di index.html.
+// pwdToggleHtml(inputId) ditaruh PERSIS setelah <input type=password id="inputId" ...>, dan
+// input-nya butuh style="padding-right:38px" biar gak ketutupan tombolnya.
+function pwdEyeSvg(shown) {
+  return shown
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a21.77 21.77 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 8 11 8a21.77 21.77 0 01-2.16 3.19M14.12 14.12a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+function pwdToggleHtml(inputId) {
+  return `<button type="button" class="pwd-eye-btn" tabindex="-1" aria-label="Tampilkan kata sandi" onclick="PWD_toggle('${inputId}',this)">${pwdEyeSvg(false)}</button>`;
+}
+window.PWD_toggle = (inputId, btn) => {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const willShow = input.type === 'password';
+  input.type = willShow ? 'text' : 'password';
+  btn.innerHTML = pwdEyeSvg(willShow);
+  btn.setAttribute('aria-label', willShow ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi');
+};
+
 // Overlay "Layar Penuh" per kelas — dipakai bersama oleh SEMUA level Rekap KBM
 // (Kelompok/Desa/Daerah), biar gak ditulis ulang 3x. Data yg diterima:
 // { nama, kelompokNama, desaNama(opsional), santri, pctHadir, pctMateri,
@@ -1403,7 +1424,10 @@ function WIZ_resetWizard() {
     </div>
     <div class="field">
       <label>Kata Sandi</label>
-      <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password">
+      <div class="pwd-wrap">
+        <input type="password" id="regPass" placeholder="Min. 6 karakter" autocomplete="new-password" style="padding-right:38px;">
+        ${pwdToggleHtml('regPass')}
+      </div>
     </div>
     <div class="field">
       <label>No. HP / WhatsApp</label>
@@ -2779,8 +2803,8 @@ async function renderUsers() {
       <div class="modal-head"><h3 class="modal-title">Reset Password — ${escHtml(nama)}</h3><button class="modal-close" onclick="closeModal('resetPwModal')">✕</button></div>
       <div class="modal-body">
         <div style="font-size:12px; color:var(--ink-soft); margin-bottom:10px;">Password baru langsung aktif. Infokan ke user yang bersangkutan.</div>
-        <div class="form-group"><label>Password Baru</label><input type="password" id="rpNew" placeholder="minimal 6 karakter"></div>
-        <div class="form-group"><label>Konfirmasi Password Baru</label><input type="password" id="rpConfirm"></div>
+        <div class="form-group"><label>Password Baru</label><div class="pwd-wrap"><input type="password" id="rpNew" placeholder="minimal 6 karakter" style="padding-right:38px;">${pwdToggleHtml('rpNew')}</div></div>
+        <div class="form-group"><label>Konfirmasi Password Baru</label><div class="pwd-wrap"><input type="password" id="rpConfirm" style="padding-right:38px;">${pwdToggleHtml('rpConfirm')}</div></div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('resetPwModal')">Batal</button>
@@ -15212,15 +15236,24 @@ async function renderSettings() {
       <div class="fw-bold" style="color:var(--green); font-size:15px; margin-bottom:8px;">🔑 Ganti Password</div>
       <div class="form-group" style="max-width:360px; margin-bottom:10px;">
         <label>Password Lama</label>
-        <input type="password" id="pwOld" autocomplete="current-password">
+        <div class="pwd-wrap">
+          <input type="password" id="pwOld" autocomplete="current-password" style="padding-right:38px;">
+          ${pwdToggleHtml('pwOld')}
+        </div>
       </div>
       <div class="form-group" style="max-width:360px; margin-bottom:10px;">
         <label>Password Baru</label>
-        <input type="password" id="pwNew" autocomplete="new-password" placeholder="minimal 6 karakter">
+        <div class="pwd-wrap">
+          <input type="password" id="pwNew" autocomplete="new-password" placeholder="minimal 6 karakter" style="padding-right:38px;">
+          ${pwdToggleHtml('pwNew')}
+        </div>
       </div>
       <div class="form-group" style="max-width:360px; margin-bottom:14px;">
         <label>Konfirmasi Password Baru</label>
-        <input type="password" id="pwConfirm" autocomplete="new-password">
+        <div class="pwd-wrap">
+          <input type="password" id="pwConfirm" autocomplete="new-password" style="padding-right:38px;">
+          ${pwdToggleHtml('pwConfirm')}
+        </div>
       </div>
       <button class="btn btn-green" id="pwSaveBtn" onclick="SET_gantiPassword()">Simpan Password Baru</button>
     </div>
