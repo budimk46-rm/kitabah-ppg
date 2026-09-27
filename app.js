@@ -141,6 +141,7 @@ const App = {
   session: null,
   currentPage: 'dashboard',
   chatUnread: false,
+  chatUnreadCount: 0,
   chatUnreadInterval: null,
   onlineHeartbeatInterval: null,
   aksesRefreshInterval: null,
@@ -177,6 +178,7 @@ function clearSession() {
   if (App.chatUnreadInterval) { clearInterval(App.chatUnreadInterval); App.chatUnreadInterval = null; }
   if (App.onlineHeartbeatInterval) { clearInterval(App.onlineHeartbeatInterval); App.onlineHeartbeatInterval = null; }
   if (App.aksesRefreshInterval) { clearInterval(App.aksesRefreshInterval); App.aksesRefreshInterval = null; }
+  if (typeof updateAppBadge === 'function') updateAppBadge(0); // bersihkan badge ikon HP saat logout
 }
 
 /* ===== UTILITIES ===== */
@@ -563,20 +565,39 @@ function startChatUnreadWatcher() {
 }
 async function checkChatUnread() {
   try {
-    const res = await SB.chat.getLatestTimestamp();
-    const latest = res?.[0]?.created_at;
-    if (!latest) return;
     const lastSeen = localStorage.getItem('kitabah_chat_lastseen');
-    const isUnread = !lastSeen || new Date(latest) > new Date(lastSeen);
-    if (isUnread !== App.chatUnread) {
-      App.chatUnread = isUnread;
+    // Belum pernah buka Live Chat sama sekali — hitung dari awal waktu (epoch), bukan skip,
+    // supaya user baru tetap lihat berapa banyak pesan yang menunggu sejak dia gabung.
+    const sinceIso = lastSeen || '1970-01-01T00:00:00.000Z';
+    const rows = await SB.chat.getIdsSince(sinceIso) || [];
+    const count = rows.filter(r => r.user_id !== App.user?.id).length;
+    if (count !== App.chatUnreadCount) {
+      App.chatUnreadCount = count;
+      App.chatUnread = count > 0;
       if (document.getElementById('sidebarNav')) renderNav();
     }
+    updateAppBadge(count);
   } catch(e) { /* diam-diam gagal, coba lagi di cek berikutnya */ }
 }
 function markChatAsRead() {
   localStorage.setItem('kitabah_chat_lastseen', new Date().toISOString());
-  if (App.chatUnread) { App.chatUnread = false; renderNav(); }
+  if (App.chatUnread || App.chatUnreadCount) {
+    App.chatUnread = false;
+    App.chatUnreadCount = 0;
+    renderNav();
+  }
+  updateAppBadge(0);
+}
+// Badge angka di ICON aplikasi (home screen HP) — cuma jalan kalau aplikasi sudah "diinstall"
+// (Add to Home Screen) DAN browser-nya dukung Badging API (Chrome/Edge Android & desktop, Safari
+// iOS 16.4+). Kalau gak didukung, diamkan saja — gak ganggu apa-apa, fallback-nya cuma badge
+// angka di sidebar Live Chat yang tetap selalu jalan di manapun.
+function updateAppBadge(count) {
+  if (!('setAppBadge' in navigator)) return;
+  try {
+    if (count > 0) navigator.setAppBadge(count).catch(() => {});
+    else navigator.clearAppBadge && navigator.clearAppBadge().catch(() => {});
+  } catch(e) {}
 }
 
 async function loadPendingWaBtn(username, namaLengkap) {
@@ -1798,8 +1819,8 @@ function renderNav() {
       html += `<div class="nav-section-title">${escHtml(item.section)}</div>`;
       lastSection = item.section;
     }
-    const badge = (item.id === 'live_chat' && App.chatUnread)
-      ? '<span style="width:8px; height:8px; border-radius:50%; background:var(--rose); display:inline-block; margin-left:6px;"></span>' : '';
+    const badge = (item.id === 'live_chat' && App.chatUnreadCount > 0)
+      ? `<span class="nav-badge">${App.chatUnreadCount > 99 ? '99+' : App.chatUnreadCount}</span>` : '';
     html += `<div class="nav-item" data-page="${item.id}" onclick="navigate('${item.id}')">
       ${item.icon} <span>${escHtml(item.label)}</span>${badge}
     </div>`;
