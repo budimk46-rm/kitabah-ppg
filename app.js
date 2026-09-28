@@ -7736,6 +7736,7 @@ async function renderAbsensiPengajian() {
             <select id="pgjTahun" onchange="PGJ_gantiPeriode()">${[tahun-1,tahun,tahun+1].map(t=>`<option value="${t}" ${t===tahun?'selected':''}>${t}</option>`).join('')}</select>
           </div>
           ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<div class="form-group" style="margin:0;"><label style="font-size:11px; visibility:hidden;">.</label><button class="btn btn-green" style="padding:10px 16px; font-size:13.5px; height:auto;" onclick="PGJ_buatBaru()">+ Pertemuan Baru</button></div>` : ''}
+          ${canEdit && !(jenis==='sub' && !selectedSubId) ? `<div class="form-group" style="margin:0;"><label style="font-size:11px; visibility:hidden;">.</label><button class="btn btn-outline" style="padding:10px 16px; font-size:13.5px; height:auto;" onclick="PGJ_importPresensi()">📅 Import Rekap Presensi</button></div>` : ''}
           ` : `
           <div class="form-group" style="margin:0;"><label style="font-size:11px;">Kuartal</label>
             <select id="pgjRekapBulan" onchange="PGJ_gantiRekapPeriode()">
@@ -7883,6 +7884,14 @@ async function renderAbsensiPengajian() {
       if (newId) { await loadDetail(newId); riwayatOpen = false; }
       render();
     } catch(e) { showToast('Gagal membuat pertemuan: ' + e.message, true); }
+  };
+  window.PGJ_importPresensi = () => {
+    openImportPengajianPresensiModal(u.kelompok_id, jenis, jenis==='sub'?selectedSubId:null, async () => {
+      await loadEligibleJamaah();
+      await loadPertemuanList();
+      if (currentPertemuanId) await loadDetail(currentPertemuanId);
+      render();
+    });
   };
   window.PGJ_kelolaPeserta = async () => {
     let el = document.getElementById('pgjPesertaModal');
@@ -18751,6 +18760,64 @@ function nameSimilarity(a, b) {
   return matched / Math.max(ta.length, tb.length);
 }
 
+// Parser bersama format "Rekap Presensi" (tanggal per kolom, isi H/I/S/A per baris nama) —
+// dipakai baik oleh Import Rekap Presensi di Kelola Kelas Generus (KBM/kurikulum) MAUPUN
+// di Absensi Pengajian, supaya logikanya cuma ditulis 1x. Melempar Error kalau formatnya
+// tidak dikenali (biar pemanggil tinggal tangkap di try/catch masing-masing).
+function parseRekapPresensiWorkbook(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+  const getCell = (r, c) => ws[window.XLSX.utils.encode_cell({ r, c })];
+  const cellText = (r, c) => String(getCell(r,c)?.v ?? '').trim();
+
+  // Cari baris header ("No" + "Nama") — jumlah baris metadata di atasnya bisa beda-beda
+  let headerRow = -1;
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    if (cellText(r,0).toLowerCase() === 'no' && cellText(r,1).toLowerCase() === 'nama') { headerRow = r; break; }
+  }
+  if (headerRow === -1) throw new Error('Format tidak dikenali: tidak ketemu baris header "No"/"Nama".');
+
+  // Baris tanggal ada TEPAT di bawah baris header (kolom C dst)
+  const dateRow = headerRow + 1;
+  function parseTglCell(cell) {
+    if (!cell) return null;
+    if (cell.t === 'd' && cell.v instanceof Date) {
+      const d = cell.v;
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    }
+    const s = String(cell.v ?? '').trim();
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+    if (cell.t === 'n' && typeof cell.v === 'number' && window.XLSX.SSF) {
+      const d = window.XLSX.SSF.parse_date_code(cell.v);
+      if (d) return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');
+    }
+    return null;
+  }
+  const dateCols = []; // [{col, iso}]
+  for (let c = 2; c <= range.e.c; c++) {
+    const iso = parseTglCell(getCell(dateRow, c));
+    if (!iso) break; // berhenti begitu ketemu kolom non-tanggal (mis. mulai kolom "H")
+    dateCols.push({ col: c, iso });
+  }
+  if (!dateCols.length) throw new Error('Tidak ketemu kolom tanggal di baris setelah header.');
+
+  const rows = [];
+  for (let r = dateRow + 1; r <= range.e.r; r++) {
+    const nama = cellText(r, 1);
+    if (!nama) continue;
+    const statuses = {};
+    dateCols.forEach(({col, iso}) => {
+      const raw = cellText(r, col).toUpperCase();
+      const st = raw.charAt(0);
+      if (['H','I','S','A'].includes(st)) statuses[iso] = st;
+    });
+    rows.push({ nama, statuses });
+  }
+  if (!rows.length) throw new Error('Tidak ada baris data yang terbaca.');
+  return { dateCols, rows };
+}
+
 async function openImportPresensiModal(kelompokId, onDone) {
   if (!window.XLSX) {
     await new Promise((res, rej) => {
@@ -18827,57 +18894,8 @@ async function openImportPresensiModal(kelompokId, onDone) {
     try {
       const buf = await file.arrayBuffer();
       const wb = window.XLSX.read(buf, { type:'array', cellDates:true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-
-      const getCell = (r, c) => ws[window.XLSX.utils.encode_cell({ r, c })];
-      const cellText = (r, c) => String(getCell(r,c)?.v ?? '').trim();
-
-      // Cari baris header ("No" + "Nama") — jumlah baris metadata di atasnya bisa beda-beda
-      let headerRow = -1;
-      for (let r = range.s.r; r <= range.e.r; r++) {
-        if (cellText(r,0).toLowerCase() === 'no' && cellText(r,1).toLowerCase() === 'nama') { headerRow = r; break; }
-      }
-      if (headerRow === -1) { showToast('Format tidak dikenali: tidak ketemu baris header "No"/"Nama".', true); return; }
-
-      // Baris tanggal ada TEPAT di bawah baris header (kolom C dst)
-      const dateRow = headerRow + 1;
-      function parseTglCell(cell) {
-        if (!cell) return null;
-        if (cell.t === 'd' && cell.v instanceof Date) {
-          const d = cell.v;
-          return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-        }
-        const s = String(cell.v ?? '').trim();
-        const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-        if (m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-        if (cell.t === 'n' && typeof cell.v === 'number' && window.XLSX.SSF) {
-          const d = window.XLSX.SSF.parse_date_code(cell.v);
-          if (d) return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');
-        }
-        return null;
-      }
-      const dateCols = []; // [{col, iso}]
-      for (let c = 2; c <= range.e.c; c++) {
-        const iso = parseTglCell(getCell(dateRow, c));
-        if (!iso) break; // berhenti begitu ketemu kolom non-tanggal (mis. mulai kolom "H")
-        dateCols.push({ col: c, iso });
-      }
-      if (!dateCols.length) { showToast('Tidak ketemu kolom tanggal di baris setelah header.', true); return; }
-
-      parsedRows = [];
-      for (let r = dateRow + 1; r <= range.e.r; r++) {
-        const nama = cellText(r, 1);
-        if (!nama) continue;
-        const statuses = {};
-        dateCols.forEach(({col, iso}) => {
-          const raw = cellText(r, col).toUpperCase();
-          const st = raw.charAt(0);
-          if (['H','I','S','A'].includes(st)) statuses[iso] = st;
-        });
-        parsedRows.push({ nama, statuses });
-      }
-      if (!parsedRows.length) { showToast('Tidak ada baris data santri yang terbaca.', true); return; }
+      const { dateCols, rows } = parseRekapPresensiWorkbook(wb);
+      parsedRows = rows;
 
       // Cocokkan tiap nama ke santri kelompok ini (skor kemiripan tertinggi)
       parsedRows.forEach(row => {
@@ -18997,6 +19015,239 @@ async function openImportPresensiModal(kelompokId, onDone) {
   };
 
   openModal('importPresensiModal');
+}
+
+// Kumpulan calon peserta buat dicocokkan nama saat import — PERSIS replikasi kriteria
+// eligibility yg dipakai renderAbsensiPengajian (loadEligibleJamaah), TANPA terapkan
+// tambah/keluarkan manual (override), krn utk pencocokan import kita mau kolam nama
+// paling luas yg masuk akal, bukan cuma daftar "yg lagi diharapkan hadir saat ini".
+async function pengajianCandidatePool(kelompokId, jenis, subId) {
+  const allJamaah = await SB.jamaah.getByKelompok(kelompokId) || [];
+  let base;
+  if (jenis === 'ibu_ibu') {
+    base = allJamaah.filter(x => x.jenis_kelamin === 'P' && ['menikah','janda'].includes(x.status_menikah));
+  } else {
+    base = allJamaah.filter(x => PENGAJIAN_ELIGIBLE_KAT.includes(kategoriUsiaJamaah(x.tgl_lahir, x.status_menikah)));
+    // Santri yg belum pernah "Jadikan Santri jadi Jamaah" tetap ditawarkan sbg baris virtual —
+    // sama seperti di halaman aslinya — supaya anak yg baru masuk lewat Kelola Kelas Generus
+    // tetap kena-cocokkan kalau namanya ada di rekap presensi lama.
+    const [santriKelompok, santriBelumMasukKelas] = await Promise.all([
+      SB.santri.getByKelompok(kelompokId) || [],
+      SB.santri.getUnassigned(kelompokId) || [],
+    ]);
+    const semuaSantriKelompok = [...(santriKelompok||[]), ...(santriBelumMasukKelas||[])];
+    const santriIdSudahAdaJamaah = new Set(allJamaah.filter(x => x.santri_id).map(x => x.santri_id));
+    semuaSantriKelompok.forEach(s => {
+      if (santriIdSudahAdaJamaah.has(s.id)) return;
+      const kat = kategoriUsiaJamaah(s.tgl_lahir, null);
+      if (!PENGAJIAN_ELIGIBLE_KAT.includes(kat)) return;
+      base.push({ id:'virtual_santri_'+s.id, nama:s.nama, jenis_kelamin:s.jenis_kel, tgl_lahir:s.tgl_lahir, santri_id:s.id, status_menikah:null, _virtual:true });
+    });
+    // Sub Pengajian: cuma jamaah yg SUDAH ditandai masuk sub ini di Data Jamaah (baris virtual
+    // otomatis gugur di sini krn belum pny sub_pengajian_id — sama seperti perilaku halaman asli).
+    if (jenis === 'sub') base = base.filter(x => x.sub_pengajian_id === subId);
+  }
+  return base;
+}
+
+async function openImportPengajianPresensiModal(kelompokId, jenis, subId, onDone) {
+  if (!window.XLSX) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  const jamaahPool = await pengajianCandidatePool(kelompokId, jenis, subId);
+  const jamaahById = new Map(jamaahPool.map(x => [x.id, x]));
+  const labelJenis = pengajianJenisLabel(jenis);
+
+  let el = document.getElementById('importPengajianModal');
+  if (!el) { el = document.createElement('div'); el.id = 'importPengajianModal'; el.className = 'modal-overlay'; document.body.appendChild(el); }
+
+  el.innerHTML = `<div class="modal modal-full" style="max-width:1000px; height:auto; max-height:92vh;">
+    <div class="modal-head">
+      <h3 class="modal-title">Import Rekap Presensi — ${escHtml(labelJenis)}</h3>
+      <button class="modal-close" onclick="closeModal('importPengajianModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--green-soft); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:16px; font-size:13px; color:var(--green);">
+        <b>Untuk apa ini?</b> Import riwayat kehadiran ${escHtml(labelJenis)} dari file rekap presensi manual
+        (tanggal per kolom, isi H/I/S/A). Nama dicocokkan otomatis ke Data Jamaah yang memenuhi kriteria ${escHtml(labelJenis)}.
+      </div>
+      <div id="pgjImpDropZone"
+        style="border:2px dashed var(--line); border-radius:var(--radius); padding:32px; text-align:center; cursor:pointer;"
+        onclick="document.getElementById('pgjImpFileInput').click()"
+        ondragover="event.preventDefault(); this.style.borderColor='var(--green)'; this.style.background='var(--green-soft)';"
+        ondragleave="this.style.borderColor='var(--line)'; this.style.background='';"
+        ondrop="event.preventDefault(); this.style.borderColor='var(--line)'; this.style.background=''; const f=event.dataTransfer.files[0]; if(f) handlePengajianPresensiFile(f);">
+        <div style="font-size:32px; margin-bottom:8px;">📅</div>
+        <div style="font-weight:700; color:var(--green); margin-bottom:4px;">Klik atau drag file Excel rekap presensi di sini</div>
+        <div style="font-size:12px; color:var(--ink-soft);">Format: .xlsx — kolom Nama diikuti kolom tanggal-tanggal pertemuan</div>
+        <input type="file" id="pgjImpFileInput" accept=".xlsx,.xls" style="display:none" onchange="handlePengajianPresensiFile(this.files[0])">
+      </div>
+      <div id="pgjImpPreview" style="margin-top:16px; display:none;">
+        <div id="pgjImpStats" style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:8px;">
+          Cek pasangan nama di bawah — kalau tebakan sistem salah, ganti manual lewat dropdown-nya. Pilih "— Lewati —" untuk baris yang tidak mau diimport.
+        </div>
+        <div id="pgjImpTable" style="max-height:min(50vh, 420px); overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius-sm);"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('importPengajianModal')">Batal</button>
+      <button class="btn btn-green" id="pgjImpSaveBtn" style="display:none;" onclick="doImportPengajianPresensiSave()">Import Sekarang</button>
+    </div>
+  </div>`;
+
+  let parsedRows = [];
+
+  function jamaahOptionsHtml(selectedId) {
+    let html = '<option value="">— Lewati (jangan import) —</option>';
+    html += [...jamaahPool].sort((a,b)=>(a.nama||'').localeCompare(b.nama||'')).map(x =>
+      `<option value="${x.id}" ${x.id===selectedId?'selected':''}>${escHtml(x.nama)}${x._virtual?' (belum di Data Jamaah)':''}</option>`
+    ).join('');
+    return html;
+  }
+
+  window.handlePengajianPresensiFile = async (file) => {
+    if (!file) return;
+    document.getElementById('pgjImpPreview').style.display = 'none';
+    document.getElementById('pgjImpSaveBtn').style.display = 'none';
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = window.XLSX.read(buf, { type:'array', cellDates:true });
+      const { dateCols, rows } = parseRekapPresensiWorkbook(wb);
+      parsedRows = rows;
+
+      parsedRows.forEach(row => {
+        let best = null, bestScore = 0;
+        jamaahPool.forEach(x => {
+          const score = nameSimilarity(row.nama, x.nama);
+          if (score > bestScore) { bestScore = score; best = x; }
+        });
+        row._matchId = bestScore >= 0.55 ? best?.id : '';
+        row._matchScore = bestScore;
+      });
+
+      const totalTanggal = dateCols.length;
+      const cocokPersis = parsedRows.filter(r => r._matchScore >= 0.98).length;
+      const cocokMirip = parsedRows.filter(r => r._matchScore >= 0.55 && r._matchScore < 0.98).length;
+      const tidakKetemu = parsedRows.filter(r => r._matchScore < 0.55).length;
+
+      document.getElementById('pgjImpStats').innerHTML = `
+        <span class="badge badge-gray">${parsedRows.length} nama · ${totalTanggal} tanggal pertemuan</span>
+        <span class="badge badge-green">${cocokPersis} nama cocok persis</span>
+        ${cocokMirip ? `<span class="badge badge-gold">${cocokMirip} mirip — cek dulu</span>` : ''}
+        ${tidakKetemu ? `<span class="badge badge-rose">${tidakKetemu} tidak ketemu</span>` : ''}
+        ${!jamaahPool.length ? `<span class="badge badge-rose">Belum ada calon peserta ${escHtml(labelJenis)} di Data Jamaah</span>` : ''}
+      `;
+
+      document.getElementById('pgjImpTable').innerHTML = `
+        <table style="width:100%; font-size:12.5px; border-collapse:collapse;">
+          <thead><tr style="background:var(--green); color:#fff; position:sticky; top:0;">
+            <th style="padding:8px; text-align:left;">Nama di Excel</th>
+            <th style="padding:8px; text-align:left;">Dicocokkan ke Jamaah</th>
+            <th style="padding:8px; text-align:center;">Tanggal Terisi</th>
+          </tr></thead>
+          <tbody>${parsedRows.map((r, idx) => {
+            const jumlahTerisi = Object.keys(r.statuses).length;
+            const statusIcon = r._matchScore >= 0.98 ? '✅' : r._matchScore >= 0.55 ? '⚠️' : '❌';
+            return `<tr style="border-bottom:1px solid var(--line);">
+              <td style="padding:7px 8px; font-weight:600;">${statusIcon} ${escHtml(r.nama)}</td>
+              <td style="padding:7px 8px;">
+                <select id="pgjImpMatch_${idx}" style="width:100%; padding:6px 8px; border:1.5px solid var(--line); border-radius:6px; font-size:12.5px;">
+                  ${jamaahOptionsHtml(r._matchId)}
+                </select>
+              </td>
+              <td style="padding:7px 8px; text-align:center; color:var(--ink-soft);">${jumlahTerisi}/${totalTanggal}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+
+      document.getElementById('pgjImpPreview').style.display = 'block';
+      document.getElementById('pgjImpSaveBtn').style.display = 'flex';
+    } catch(e) { showToast('Gagal membaca file: ' + e.message, true); console.error(e); }
+  };
+
+  window.doImportPengajianPresensiSave = async () => {
+    const btn = document.getElementById('pgjImpSaveBtn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      const selections = parsedRows.map((r, idx) => {
+        const sel = document.getElementById('pgjImpMatch_'+idx);
+        const jamaahId = sel ? sel.value : '';
+        if (!jamaahId || !jamaahById.has(jamaahId)) return null;
+        return { statuses: r.statuses, jamaah: jamaahById.get(jamaahId) };
+      }).filter(Boolean);
+
+      if (!selections.length) { showToast('Tidak ada baris yang dipilih untuk diimport', true); btn.disabled=false; btn.textContent='Import Sekarang'; return; }
+
+      // Baris "virtual" (santri yg belum py baris Jamaah asli) wajib dibikinkan baris Jamaah
+      // dulu SEBELUM bisa dicatat kehadirannya — pengajian_absensi.jamaah_id itu FK ke jamaah asli.
+      const finalRows = [];
+      for (const sel of selections) {
+        let x = sel.jamaah;
+        if (x._virtual) {
+          const res = await SB.jamaah.insert({
+            kelompok_id: kelompokId, nama: x.nama, jenis_kelamin: x.jenis_kelamin,
+            tgl_lahir: x.tgl_lahir, santri_id: x.santri_id, aktif: true,
+          });
+          const newRow = res?.[0];
+          if (!newRow) continue;
+          x = newRow;
+        }
+        finalRows.push({ statuses: sel.statuses, jamaah_id: x.id });
+      }
+
+      // Satu scope pertemuan aja (kelompok+jenis+sub) — beda dari import KBM yg perlu dipecah
+      // per kelas, di sini semua peserta ikut pertemuan yg SAMA.
+      const existing = await SB.pengajianPertemuan.getByKelompok(kelompokId, jenis, subId) || [];
+      const byDate = {};
+      existing.forEach(p => { byDate[p.tanggal] = p.id; });
+      let maxKe = existing.reduce((m,p) => Math.max(m, p.pertemuan_ke||0), 0);
+      let pertemuanDibuat = 0, pertemuanDipakaiUlang = 0;
+
+      const semuaTanggal = [...new Set(finalRows.flatMap(r => Object.keys(r.statuses)))].sort();
+      for (const iso of semuaTanggal) {
+        if (byDate[iso]) { pertemuanDipakaiUlang++; continue; }
+        const d = new Date(iso+'T00:00:00');
+        maxKe++;
+        const payload = {
+          kelompok_id: kelompokId, jenis, tanggal: iso,
+          bulan: d.toLocaleDateString('id-ID', {month:'long'}),
+          tahun: d.getFullYear(), pertemuan_ke: maxKe, created_by: App.user.id,
+        };
+        if (jenis === 'sub') payload.sub_pengajian_id = subId;
+        const created = await SB.pengajianPertemuan.insert(payload);
+        byDate[iso] = created?.[0]?.id;
+        pertemuanDibuat++;
+      }
+
+      const absensiRows = [];
+      finalRows.forEach(r => {
+        Object.entries(r.statuses).forEach(([iso, status]) => {
+          const pid = byDate[iso];
+          if (!pid) return;
+          absensiRows.push({ pertemuan_id: pid, jamaah_id: r.jamaah_id, status });
+        });
+      });
+      for (let i = 0; i < absensiRows.length; i += 200) {
+        await SB.pengajianAbsensi.upsertBulk(absensiRows.slice(i, i+200));
+      }
+
+      showToast(`Import selesai — ${finalRows.length} jamaah, ${pertemuanDibuat} pertemuan baru (${pertemuanDipakaiUlang} pakai yg sudah ada), ${absensiRows.length} data absensi tersimpan ✓`);
+      closeModal('importPengajianModal');
+      onDone();
+    } catch(e) {
+      showToast('Gagal import: ' + e.message, true);
+      btn.disabled = false; btn.textContent = 'Import Sekarang';
+    }
+  };
+
+  openModal('importPengajianModal');
 }
 
 /* ===== SVG ICONS ===== */
