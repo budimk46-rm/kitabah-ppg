@@ -1941,20 +1941,119 @@ async function renderPage(page) {
 }
 
 /* ===== PAGE: DASHBOARD ===== */
+// Ringkasan KBM (generus, kehadiran, progress materi, pertemuan bulan ini) dipakai Dashboard
+// di 3 tingkat (Kelompok/Desa/Daerah) — tinggal beda scope kelompokIds-nya. Versi RINGAN dari
+// logika Rekap KBM/Rekap Desa/Rekap Daerah: cuma hitung TOTAL agregat, bukan rincian per-kelas,
+// supaya query-nya sedikit & dashboard tetap cepat dimuat.
+async function hitungRingkasanKbm(kelompokIds) {
+  const kosong = { totalGenerus:0, pctHadir:null, pctMateri:null, totalPertemuan:0, kelompokKosongIds:[] };
+  if (!kelompokIds || !kelompokIds.length) return kosong;
+
+  const [kelasRaw, allSantri, materiAll, progressRaw] = await Promise.all([
+    SB.kelas.getByKelompokIds(kelompokIds),
+    App.cache.allSantri || (App.cache.allSantri = await SB.santri.getAll()),
+    App.cache.materi || (App.cache.materi = await SB.materi.getAll()),
+    SB.progress.getByKelompokIds(kelompokIds, getTahunAjaran()),
+  ]);
+  if (!kelasRaw.length) return kosong;
+
+  const kelasIds = kelasRaw.map(k => k.id);
+  const pertemuanRaw = await SB.pertemuan.getByKelasIds(kelasIds, getTahunAjaran());
+  const bulanIni = currentMonthName();
+  const pertemuanBulanIni = pertemuanRaw.filter(p => p.bulan === bulanIni);
+  const pertemuanIds = pertemuanBulanIni.map(p => p.id);
+  const absensiRaw = pertemuanIds.length ? await SB.absensi.getByPertemuanIds(pertemuanIds) : [];
+
+  const kelasById = Object.fromEntries(kelasRaw.map(k => [k.id, k]));
+  const santriByKelas = {};
+  (allSantri||[]).forEach(s => { if (s.kelas_id && kelasById[s.kelas_id]) (santriByKelas[s.kelas_id] ||= []).push(s); });
+  const absensiByPertemuan = {};
+  absensiRaw.forEach(a => { (absensiByPertemuan[a.pertemuan_id] ||= []).push(a); });
+  const progressSet = new Set((progressRaw||[]).map(p => p.materi_id + '|' + p.bulan));
+  const kelompokAdaPertemuan = new Set(pertemuanBulanIni.map(p => kelasById[p.kelas_id]?.kelompok_id).filter(Boolean));
+
+  let totalH = 0, totalSlot = 0, materiTarget = 0, materiTercapai = 0;
+  const col = bulanIni.toLowerCase();
+  kelasRaw.forEach(k => {
+    const santriKelas = santriByKelas[k.id] || [];
+    pertemuanBulanIni.filter(p => p.kelas_id === k.id).forEach(p => {
+      const absen = absensiByPertemuan[p.id] || [];
+      santriKelas.forEach(s => {
+        const st = absen.find(a => a.santri_id === s.id)?.status || 'A';
+        if (st === 'H') totalH++;
+        totalSlot++;
+      });
+    });
+    const mk = (materiAll||[]).filter(r => r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim());
+    materiTarget += mk.length;
+    materiTercapai += mk.filter(r => progressSet.has(r.id + '|' + bulanIni)).length;
+  });
+
+  const santriListScope = kelasRaw.flatMap(k => santriByKelas[k.id] || []);
+  const totalGenerus = santriListScope.length;
+  const kelompokKosongIds = kelompokIds.filter(kid => !kelompokAdaPertemuan.has(kid));
+
+  return {
+    totalGenerus,
+    pctHadir: totalSlot > 0 ? Math.round(totalH/totalSlot*100) : null,
+    pctMateri: materiTarget > 0 ? Math.round(materiTercapai/materiTarget*100) : null,
+    totalPertemuan: pertemuanBulanIni.length,
+    kelompokKosongIds,
+    santriListScope,
+  };
+}
+
+function pctCardColor(pct) {
+  if (pct === null) return 'var(--ink-soft)';
+  return pct >= 80 ? 'var(--green)' : pct >= 50 ? '#e6a817' : 'var(--rose)';
+}
+
 async function renderDashboard() {
   const u = App.user;
   const main = document.getElementById('mainContent');
 
+  const KELOMPOK_TIER = ['kelompok', 'pjp_kelompok', 'wali_kbm', 'guru'];
+  const DESA_TIER = ['desa', 'desa_view'];
+  const isAdmin = u.role === 'admin';
+  const isDaerahTier = isAdmin || u.role === 'daerah';
+  const isDesaTier = DESA_TIER.includes(u.role);
+  const isKelompokTier = KELOMPOK_TIER.includes(u.role);
+
   // Load data sesuai role
   let stats = {};
-  if (u.role === 'admin') {
+  let kbm = null;
+  let kelompokKosongNama = [];
+  let naikLevelList = [];
+
+  if (isAdmin) {
     const [allUsers, allKelompok] = await Promise.all([SB.anggota.getAll(), SB.kelompok.getAll()]);
+    App.cache.kelompok = allKelompok;
     const pending = allUsers.filter(x => x.status === 'pending');
-    stats = {
-      totalUser: allUsers.length,
-      pending: pending.length,
-      kelompok: allKelompok.length,
-    };
+    stats = { totalUser: allUsers.length, pending: pending.length, kelompok: allKelompok.length };
+  }
+
+  if (isDaerahTier) {
+    const allKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
+    if (!isAdmin) stats.kelompok = allKelompok.length;
+    kbm = await hitungRingkasanKbm(allKelompok.map(k => k.id));
+    if (kbm.kelompokKosongIds.length) {
+      const nameMap = Object.fromEntries(allKelompok.map(k => [k.id, k.nama]));
+      kelompokKosongNama = kbm.kelompokKosongIds.map(id => nameMap[id] || id);
+    }
+  } else if (isDesaTier) {
+    const allKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
+    const myKelompok = allKelompok.filter(k => k.desa_id === u.desa_id);
+    stats.kelompok = myKelompok.length;
+    kbm = await hitungRingkasanKbm(myKelompok.map(k => k.id));
+    if (kbm.kelompokKosongIds.length) {
+      const nameMap = Object.fromEntries(myKelompok.map(k => [k.id, k.nama]));
+      kelompokKosongNama = kbm.kelompokKosongIds.map(id => nameMap[id] || id);
+    }
+  } else if (isKelompokTier && u.kelompok_id) {
+    kbm = await hitungRingkasanKbm([u.kelompok_id]);
+    naikLevelList = (kbm.santriListScope || [])
+      .map(s => ({ nama: s.nama, label: hitungNaikLevel(s.tgl_lahir) }))
+      .filter(x => x.label);
   }
 
   const greeting = () => {
@@ -1965,9 +2064,30 @@ async function renderDashboard() {
     return 'Selamat Malam';
   };
 
+  const kbmGridHtml = (kbmData) => `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-num">${kbmData.totalGenerus}</div>
+        <div class="stat-label">Total Generus</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">${kbmData.totalPertemuan}</div>
+        <div class="stat-label">Pertemuan Bulan Ini</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:${pctCardColor(kbmData.pctHadir)};">${kbmData.pctHadir === null ? '—' : kbmData.pctHadir + '%'}</div>
+        <div class="stat-label">Kehadiran Bulan Ini</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:${pctCardColor(kbmData.pctMateri)};">${kbmData.pctMateri === null ? '—' : kbmData.pctMateri + '%'}</div>
+        <div class="stat-label">Materi Tuntas Bulan Ini</div>
+      </div>
+    </div>
+  `;
+
   let statsHtml = '';
-  if (u.role === 'admin') {
-    statsHtml = `
+  if (isAdmin) {
+    statsHtml += `
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-num">${stats.totalUser}</div>
@@ -1978,12 +2098,8 @@ async function renderDashboard() {
           <div class="stat-label">Menunggu Approve</div>
         </div>
         <div class="stat-card">
-          <div class="stat-num">31</div>
+          <div class="stat-num">${stats.kelompok}</div>
           <div class="stat-label">Total Kelompok</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">1.552</div>
-          <div class="stat-label">Item Materi</div>
         </div>
       </div>
       ${stats.pending > 0 ? `
@@ -1996,6 +2112,26 @@ async function renderDashboard() {
             <button class="btn btn-gold btn-sm" onclick="navigate('users')">Lihat →</button>
           </div>
         </div>` : ''}
+    `;
+  }
+
+  if (kbm) statsHtml += kbmGridHtml(kbm);
+
+  if ((isDaerahTier || isDesaTier) && kelompokKosongNama.length) {
+    statsHtml += `
+      <div class="card" style="border-left:4px solid var(--rose); background:var(--rose-soft);">
+        <div class="fw-bold" style="color:var(--green);">⚠️ ${kelompokKosongNama.length} kelompok belum ada pertemuan bulan ${escHtml(currentMonthName())}</div>
+        <div class="text-sm color-soft" style="margin-top:4px;">${escHtml(kelompokKosongNama.slice(0, 8).join(', '))}${kelompokKosongNama.length > 8 ? ` dan ${kelompokKosongNama.length - 8} lainnya` : ''}</div>
+      </div>
+    `;
+  }
+
+  if (isKelompokTier && naikLevelList.length) {
+    statsHtml += `
+      <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft);">
+        <div class="fw-bold" style="color:var(--green);">🎓 ${naikLevelList.length} generus akan naik tingkatan tahun ajaran depan</div>
+        <div class="text-sm color-soft" style="margin-top:4px;">${naikLevelList.slice(0, 8).map(x => escHtml(x.nama) + ' (' + escHtml(x.label) + ')').join(', ')}${naikLevelList.length > 8 ? ` dan ${naikLevelList.length - 8} lainnya` : ''}</div>
+      </div>
     `;
   }
 
