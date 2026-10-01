@@ -2880,6 +2880,11 @@ async function renderUsers() {
       const body = document.getElementById('aksesBodyWrap');
       if (!body) return;
       body.innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
+          <span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; background:var(--cream-2); color:var(--ink-soft); font-size:12px; font-weight:600;" title="Otomatis aktif untuk semua user, tidak perlu/tidak bisa dicabut">🔒 Dashboard</span>
+          <span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:20px; background:var(--cream-2); color:var(--ink-soft); font-size:12px; font-weight:600;" title="Otomatis aktif untuk semua user, tidak perlu/tidak bisa dicabut">🔒 Pengaturan</span>
+        </div>
+        <div style="font-size:11px; color:var(--ink-soft); margin-bottom:12px;">↑ Selalu otomatis aktif untuk semua user (termasuk ganti password sendiri) — tidak perlu diatur di sini.</div>
         <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px;">Sudah Punya Akses</div>
         ${grantedHtml}
         <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--ink-soft); margin:10px 0 6px;">Belum Punya Akses — klik untuk tambah</div>
@@ -3072,6 +3077,64 @@ async function renderSantri() {
     </tr>`;
   }
 
+  // Baris nama per santri (dikelompokkan per kelas) — disembunyikan default, muncul pas
+  // baris kelompoknya diklik. Dipakai Admin/Desa buat lihat detail nama tanpa harus pindah
+  // ke Kelola Kelas Generus atau "pinjam" identitas kelompok.
+  function detailNamaHtml(santriKlp, uid) {
+    if (!santriKlp.length) {
+      return `<tr class="sd_detail_${uid}" style="display:none;"><td colspan="6" style="padding:6px 10px 6px 24px; font-size:12px; color:var(--ink-soft); font-style:italic; background:#fff;">Belum ada santri di kelompok ini</td></tr>`;
+    }
+    const byKelas = {};
+    santriKlp.forEach(s => {
+      const kn = s.kelas?.nama_kelas || s.kelas?.jenjang || 'Belum Masuk Kelas';
+      (byKelas[kn] ||= []).push(s);
+    });
+    let html = '';
+    Object.entries(byKelas).forEach(([kelasNama, list]) => {
+      html += `<tr class="sd_detail_${uid}" style="display:none; background:#fff;">
+        <td colspan="6" style="padding:6px 10px 3px 24px; font-size:11px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em;">${escHtml(kelasNama)} <span style="color:var(--ink-soft); font-weight:600;">(${list.length})</span></td>
+      </tr>`;
+      list.sort((a,b)=>(a.nama||'').localeCompare(b.nama||'')).forEach((s, idx) => {
+        html += `<tr class="sd_detail_${uid}" style="display:none; background:#fff;">
+          <td colspan="5" style="padding:3px 10px 3px 36px; font-size:12px;">
+            ${idx+1}. ${escHtml(s.nama)}
+            <span style="color:${s.jenis_kel==='L'?'#1a6b3a':'#a6483b'}; font-weight:600; margin-left:4px;">(${s.jenis_kel||'-'})</span>
+            ${s.tgl_lahir ? `<span style="color:var(--ink-soft); font-size:11px; margin-left:4px;">${hitungUsia(s.tgl_lahir)} thn</span>` : ''}
+          </td>
+          <td style="background:#fff;"></td>
+        </tr>`;
+      });
+    });
+    return html;
+  }
+
+  // Baris kelompok yang bisa diklik buat expand/collapse daftar nama di bawahnya.
+  function klpRowWithDetail(nama, stats, santriKlp) {
+    const grand = TINGKATAN_LIST.reduce((n,t) => n + (stats[t].L||0) + (stats[t].P||0), 0);
+    const uid = 'u' + Math.random().toString(36).slice(2, 9);
+    let row = `<tr style="background:var(--white); cursor:pointer;" onclick="SD_toggleKelompok('${uid}', this)">
+      <td style="padding-left:20px; padding:8px 10px; font-size:12px;"><span class="sd-arrow-${uid}" style="display:inline-block; transition:transform .2s; color:var(--ink-soft); font-size:10px;">▶</span> ${escHtml(nama)}</td>
+      ${TINGKATAN_LIST.map(t => `
+        <td style="text-align:center; padding:6px 4px; font-size:12px;">
+          <span style="color:#1a6b3a;">${stats[t].L||0}L</span>
+          <span style="color:#a6483b; margin-left:3px;">${stats[t].P||0}P</span>
+        </td>`).join('')}
+      <td style="text-align:center; padding:6px 8px; font-weight:800; font-size:13px;">${grand}</td>
+    </tr>`;
+    row += detailNamaHtml(santriKlp, uid);
+    return row;
+  }
+  window.SD_toggleKelompok = (uid, rowEl) => {
+    const arrow = rowEl.querySelector('.sd-arrow-' + uid);
+    let opening = false;
+    document.querySelectorAll('.sd_detail_' + uid).forEach(el => {
+      const show = el.style.display === 'none';
+      el.style.display = show ? 'table-row' : 'none';
+      opening = show;
+    });
+    if (arrow) arrow.style.transform = opening ? 'rotate(90deg)' : 'rotate(0deg)';
+  };
+
   // Group kelompok per desa
   const desaMap = {};
   filteredKelompok.forEach(k => {
@@ -3121,7 +3184,7 @@ async function renderSantri() {
       klpList.forEach(k => {
         const santriKlp = santriFiltered.filter(s => (s.kelas?.kelompok_id || s.kelompok_asal_id) === k.id);
         const statsKlp = hitungStats(santriKlp);
-        tabelBody += statRow(k.nama, statsKlp, false, true);
+        tabelBody += klpRowWithDetail(k.nama, statsKlp, santriKlp);
       });
     });
   } else if (isDesa) {
@@ -3131,7 +3194,7 @@ async function renderSantri() {
       klpList.forEach(k => {
         const santriKlp = santriFiltered.filter(s => (s.kelas?.kelompok_id || s.kelompok_asal_id) === k.id);
         const statsKlp = hitungStats(santriKlp);
-        tabelBody += statRow(k.nama, statsKlp, false, true);
+        tabelBody += klpRowWithDetail(k.nama, statsKlp, santriKlp);
       });
     });
   } else {
@@ -3309,7 +3372,10 @@ async function renderSantri() {
         </button>
       </div>
       ${tabelFull}
-      <div style="margin-top:8px; font-size:11px; color:var(--ink-soft);">L = Laki-laki · P = Perempuan · Tingkatan dihitung dari usia per 1 Juli ${new Date().getFullYear()}</div>
+      <div style="margin-top:8px; font-size:11px; color:var(--ink-soft);">
+        L = Laki-laki · P = Perempuan · Tingkatan dihitung dari usia per 1 Juli ${new Date().getFullYear()}
+        ${(isAdmin || isDesa) ? ' · Klik baris nama kelompok untuk lihat daftar nama per kelas' : ''}
+      </div>
     </div>
   `;
 
