@@ -468,6 +468,12 @@ function fmtDateShort(d) {
 function currentMonthName() {
   return new Date().toLocaleDateString('id-ID', {month:'long'});
 }
+const BULAN_URUT_KALENDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+function previousMonthName(bulan) {
+  const idx = BULAN_URUT_KALENDER.indexOf(bulan);
+  if (idx === -1) return bulan;
+  return BULAN_URUT_KALENDER[(idx + 11) % 12];
+}
 function currentSemester() {
   const m = new Date().getMonth() + 1; // 1-12
   return (m >= 7 || m <= 6) ? (m >= 7 ? '1' : '2') : '1';
@@ -1941,26 +1947,52 @@ async function renderPage(page) {
 }
 
 /* ===== PAGE: DASHBOARD ===== */
+// Anjuran minimal pertemuan per bulan (dasar 4 minggu/bulan — konservatif supaya
+// tidak menghukum bulan pendek): Caberawit 5x/minggu, tingkatan lain 3x/minggu.
+// Dipakai utk "Kepatuhan Frekuensi" — supaya kelompok yg JARANG ketemu tidak
+// kelihatan unggul di rangking % kehadiran hanya karena sedikit kesempatan absen.
+const FREKUENSI_MIN_PER_BULAN = { caberawit: 20, pra_remaja: 12, remaja: 12, pra_nikah: 12 };
+const FREKUENSI_TINGKATAN_LIST = ['caberawit', 'pra_remaja', 'remaja', 'pra_nikah'];
+
 // Ringkasan KBM (generus, kehadiran, progress materi, pertemuan bulan ini) dipakai Dashboard
 // di 3 tingkat (Kelompok/Desa/Daerah) — tinggal beda scope kelompokIds-nya. Versi RINGAN dari
 // logika Rekap KBM/Rekap Desa/Rekap Daerah: cuma hitung TOTAL agregat, bukan rincian per-kelas,
 // supaya query-nya sedikit & dashboard tetap cepat dimuat.
-async function hitungRingkasanKbm(kelompokIds) {
-  const kosong = { totalGenerus:0, pctHadir:null, pctMateri:null, totalPertemuan:0, kelompokKosongIds:[] };
+async function hitungRingkasanKbm(kelompokIds, bulan) {
+  const kosong = { totalGenerus:0, pctHadir:null, pctMateri:null, totalPertemuan:0, kelompokKosongIds:[], santriListScope:[], perKelompok:[] };
   if (!kelompokIds || !kelompokIds.length) return kosong;
+  bulan = bulan || currentMonthName();
 
-  const [kelasRaw, allSantri, materiAll, progressRaw] = await Promise.all([
+  // Kelas Gabungan (kelas satu desa yg dipakai bareng beberapa kelompok, desa_id-nya
+  // keisi) cuma tersimpan dgn kelompok_id = kelompok TUAN RUMAH. Kalau kelompok anggota
+  // lain (bukan tuan rumah) ada di scope tapi dicari hanya lewat kelompok_id-nya sendiri,
+  // kelas gabungan itu tidak ketemu sama sekali. Makanya perlu tambahan fetch per desa.
+  const allKelompokCache = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
+  const kelompokDesaMap = Object.fromEntries(allKelompokCache.map(k => [k.id, k.desa_id]));
+  const desaIdsInScope = [...new Set(kelompokIds.map(kid => kelompokDesaMap[kid]).filter(Boolean))];
+  // Progress & kelas gabungan bisa tersimpan di kelompok tuan rumah yg berada DI LUAR
+  // scope asli (misal lihat dashboard Tundungan 2 sendirian, tuan rumahnya Tundungan 1) —
+  // jadi perlu ikut ambil semua kelompok se-desa, bukan cuma yg di kelompokIds.
+  const progressFetchIds = [...new Set([
+    ...kelompokIds,
+    ...allKelompokCache.filter(k => desaIdsInScope.includes(k.desa_id)).map(k => k.id),
+  ])];
+
+  const [kelasOwn, kelasGabunganArr, allSantri, materiAll, progressRaw] = await Promise.all([
     SB.kelas.getByKelompokIds(kelompokIds),
+    Promise.all(desaIdsInScope.map(d => SB.kelas.getByDesa(d))),
     App.cache.allSantri || (App.cache.allSantri = await SB.santri.getAll()),
     App.cache.materi || (App.cache.materi = await SB.materi.getAll()),
-    SB.progress.getByKelompokIds(kelompokIds, getTahunAjaran()),
+    SB.progress.getByKelompokIds(progressFetchIds, getTahunAjaran()),
   ]);
+  const kelasDedupe = new Map();
+  [...kelasOwn, ...kelasGabunganArr.flat()].forEach(k => kelasDedupe.set(k.id, k));
+  const kelasRaw = [...kelasDedupe.values()];
   if (!kelasRaw.length) return kosong;
 
   const kelasIds = kelasRaw.map(k => k.id);
   const pertemuanRaw = await SB.pertemuan.getByKelasIds(kelasIds, getTahunAjaran());
-  const bulanIni = currentMonthName();
-  const pertemuanBulanIni = pertemuanRaw.filter(p => p.bulan === bulanIni);
+  const pertemuanBulanIni = pertemuanRaw.filter(p => p.bulan === bulan);
   const pertemuanIds = pertemuanBulanIni.map(p => p.id);
   const absensiRaw = pertemuanIds.length ? await SB.absensi.getByPertemuanIds(pertemuanIds) : [];
 
@@ -1969,29 +2001,132 @@ async function hitungRingkasanKbm(kelompokIds) {
   (allSantri||[]).forEach(s => { if (s.kelas_id && kelasById[s.kelas_id]) (santriByKelas[s.kelas_id] ||= []).push(s); });
   const absensiByPertemuan = {};
   absensiRaw.forEach(a => { (absensiByPertemuan[a.pertemuan_id] ||= []).push(a); });
-  const progressSet = new Set((progressRaw||[]).map(p => p.materi_id + '|' + p.bulan));
-  const kelompokAdaPertemuan = new Set(pertemuanBulanIni.map(p => kelasById[p.kelas_id]?.kelompok_id).filter(Boolean));
+  // PENTING: progressSet HARUS dipisah per kelompok_id. materi_id adalah ID kurikulum
+  // GLOBAL yang sama dipakai semua kelompok (misal "R0065" = soal yg sama utk semua
+  // kelas SD 1 se-daerah) — kalau di-gabung jadi satu Set tanpa kelompok_id, kelompok
+  // yg belum pernah centang tuntas sama sekali bisa kebaca 100% hanya karena kelompok
+  // LAIN di scope yg sama kebetulan sudah menuntaskan materi dgn id yg sama bulan itu.
+  const progressByKlp = {};
+  (progressRaw||[]).forEach(p => { (progressByKlp[p.kelompok_id] ||= []).push(p); });
+  const progressSetByKlp = {};
+  Object.keys(progressByKlp).forEach(kid => {
+    progressSetByKlp[kid] = new Set(progressByKlp[kid].map(p => p.materi_id + '|' + p.bulan));
+  });
+
+  // Kelas gabungan (desa_id keisi) jadi milik SEMUA kelompok anggota desa itu yg ada
+  // di scope — masing-masing dapat kredit PENUH (bukan dibagi), karena satu pertemuan
+  // kelas gabungan memang mewakili ke semua kelompok anggotanya sekaligus.
+  const memberKelompokIdsOf = (k) => {
+    if (k.desa_id) return kelompokIds.filter(kid => kelompokDesaMap[kid] === k.desa_id);
+    return kelompokIds.includes(k.kelompok_id) ? [k.kelompok_id] : [];
+  };
+
+  const kelompokAdaPertemuan = new Set();
+  pertemuanBulanIni.forEach(p => {
+    const k = kelasById[p.kelas_id];
+    if (k) memberKelompokIdsOf(k).forEach(kid => kelompokAdaPertemuan.add(kid));
+  });
 
   let totalH = 0, totalSlot = 0, materiTarget = 0, materiTercapai = 0;
-  const col = bulanIni.toLowerCase();
+  const perKlpMap = {};
+  kelompokIds.forEach(kid => {
+    perKlpMap[kid] = {
+      totalPertemuan: 0, totalH: 0, totalSlot: 0,
+      freq: Object.fromEntries(FREKUENSI_TINGKATAN_LIST.map(t => [t, { target: 0, actual: 0 }])),
+      materi: Object.fromEntries(FREKUENSI_TINGKATAN_LIST.map(t => [t, { target: 0, tercapai: 0 }])),
+      hadir: Object.fromEntries(FREKUENSI_TINGKATAN_LIST.map(t => [t, { totalH: 0, totalSlot: 0 }])),
+    };
+  });
+  const col = bulan.toLowerCase();
   kelasRaw.forEach(k => {
     const santriKelas = santriByKelas[k.id] || [];
-    pertemuanBulanIni.filter(p => p.kelas_id === k.id).forEach(p => {
+    // Tingkatan dipakai bersama: nge-grup pertemuan, kehadiran, & materi per jenjang usia
+    // (bukan dijumlah jadi satu angka) karena jumlah kelas tiap jenjang beda-beda antar
+    // kelompok — kalau digabung, kelompok yg kebanyakan kelas Pra Nikah (target rendah /
+    // santri sedikit) bisa kelihatan lebih unggul drpd yg didominasi Caberawit.
+    const tingkatanKelas = tingkatanDariKelas(k.nama_kelas);
+    const pertemuanKelas = pertemuanBulanIni.filter(p => p.kelas_id === k.id);
+
+    // Hitung kehadiran kelas ini SEKALI (dipakai jg utk total agregat scope)
+    let kelasH = 0, kelasSlot = 0;
+    pertemuanKelas.forEach(p => {
       const absen = absensiByPertemuan[p.id] || [];
       santriKelas.forEach(s => {
         const st = absen.find(a => a.santri_id === s.id)?.status || 'A';
-        if (st === 'H') totalH++;
-        totalSlot++;
+        if (st === 'H') kelasH++;
+        kelasSlot++;
       });
     });
+    totalH += kelasH;
+    totalSlot += kelasSlot;
+
+    // Materi: progress kelas gabungan tersimpan di kelompok TUAN RUMAH (k.kelompok_id),
+    // bukan per anggota — makanya cek tuntasnya pakai punya tuan rumah.
+    const progressSetKlp = progressSetByKlp[k.kelompok_id];
     const mk = (materiAll||[]).filter(r => r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim());
+    const mkTercapai = progressSetKlp ? mk.filter(r => progressSetKlp.has(r.id + '|' + bulan)).length : 0;
     materiTarget += mk.length;
-    materiTercapai += mk.filter(r => progressSet.has(r.id + '|' + bulanIni)).length;
+    materiTercapai += mkTercapai;
+
+    // Kelas Gabungan: SEMUA kelompok anggota (se-desa, yg ada di scope) dapat kredit
+    // PENUH dari kelas ini — bukan dibagi — karena 1 pertemuan itu memang mewakili
+    // ke-4 kelompok anggotanya sekaligus (bukan 4 pertemuan terpisah).
+    memberKelompokIdsOf(k).forEach(kid => {
+      const pk = perKlpMap[kid];
+      if (!pk) return;
+      pk.totalPertemuan += pertemuanKelas.length;
+      pk.totalH += kelasH;
+      pk.totalSlot += kelasSlot;
+      if (tingkatanKelas) {
+        pk.hadir[tingkatanKelas].totalH += kelasH;
+        pk.hadir[tingkatanKelas].totalSlot += kelasSlot;
+        if (FREKUENSI_MIN_PER_BULAN[tingkatanKelas]) {
+          pk.freq[tingkatanKelas].target += FREKUENSI_MIN_PER_BULAN[tingkatanKelas];
+          pk.freq[tingkatanKelas].actual += pertemuanKelas.length;
+          pk.materi[tingkatanKelas].target += mk.length;
+          pk.materi[tingkatanKelas].tercapai += mkTercapai;
+        }
+      }
+    });
   });
 
   const santriListScope = kelasRaw.flatMap(k => santriByKelas[k.id] || []);
   const totalGenerus = santriListScope.length;
   const kelompokKosongIds = kelompokIds.filter(kid => !kelompokAdaPertemuan.has(kid));
+  const perKelompok = kelompokIds.map(kid => {
+    const pk = perKlpMap[kid];
+    const freqByTingkatan = {};
+    const materiByTingkatan = {};
+    const hadirByTingkatan = {};
+    FREKUENSI_TINGKATAN_LIST.forEach(t => {
+      const f = pk.freq[t];
+      freqByTingkatan[t] = {
+        actual: f.actual,
+        target: f.target,
+        pct: f.target > 0 ? Math.min(100, Math.round(f.actual / f.target * 100)) : null,
+      };
+      const m = pk.materi[t];
+      materiByTingkatan[t] = {
+        actual: m.tercapai,
+        target: m.target,
+        pct: m.target > 0 ? Math.round(m.tercapai / m.target * 100) : null,
+      };
+      const h = pk.hadir[t];
+      hadirByTingkatan[t] = {
+        totalH: h.totalH,
+        totalSlot: h.totalSlot,
+        pct: h.totalSlot > 0 ? Math.round(h.totalH / h.totalSlot * 100) : null,
+      };
+    });
+    return {
+      kelompokId: kid,
+      totalPertemuan: pk.totalPertemuan,
+      pctHadir: pk.totalSlot > 0 ? Math.round(pk.totalH/pk.totalSlot*100) : null,
+      freqByTingkatan,
+      materiByTingkatan,
+      hadirByTingkatan,
+    };
+  });
 
   return {
     totalGenerus,
@@ -2000,12 +2135,35 @@ async function hitungRingkasanKbm(kelompokIds) {
     totalPertemuan: pertemuanBulanIni.length,
     kelompokKosongIds,
     santriListScope,
+    perKelompok,
   };
 }
 
 function pctCardColor(pct) {
   if (pct === null) return 'var(--ink-soft)';
   return pct >= 80 ? 'var(--green)' : pct >= 50 ? '#e6a817' : 'var(--rose)';
+}
+
+// Jumlah generus "milik" satu kelompok — sadar kelas gabungan: kalau kelasnya gabungan
+// (desa_id keisi), yg dihitung cuma santri yg kelompok_asal_id-nya kelompok ini (bukan
+// semua santri di kelas itu, krn itu gabungan beberapa kelompok sekaligus).
+function hitungJumlahGenerusKelompok(kelompokId) {
+  const allSantri = App.cache.allSantri || [];
+  return allSantri.filter(s => {
+    const kls = s.kelas;
+    if (!kls) return s.kelompok_asal_id === kelompokId;
+    if (kls.desa_id) return s.kelompok_asal_id === kelompokId;
+    return kls.kelompok_id === kelompokId;
+  }).length;
+}
+
+// Status konfirmasi pendataan: kalau jumlah jamaah/generus SEKARANG beda dari saat
+// terakhir dikonfirmasi, otomatis dianggap "perlu konfirmasi ulang" — tapi edit data
+// diri (nama/alamat/dll, tanpa mengubah JUMLAH) tidak memicu ini.
+function statusKonfirmasiPendataan(row, jumlahJamaahSkrg, jumlahGenerusSkrg) {
+  if (!row) return 'belum';
+  if (row.jumlah_jamaah !== jumlahJamaahSkrg || row.jumlah_generus !== jumlahGenerusSkrg) return 'berubah';
+  return 'valid';
 }
 
 async function renderDashboard() {
@@ -2019,42 +2177,98 @@ async function renderDashboard() {
   const isDesaTier = DESA_TIER.includes(u.role);
   const isKelompokTier = KELOMPOK_TIER.includes(u.role);
 
-  // Load data sesuai role
+  let selectedBulan = currentMonthName();
+  let bulanIni = selectedBulan;
+  let bulanLalu = previousMonthName(bulanIni);
+
   let stats = {};
-  let kbm = null;
+  let kbm = null, kbmPrev = null;
   let kelompokKosongNama = [];
   let naikLevelList = [];
+  let rankingNameMap = {};
+  let scopeKelompok = [];
 
+  // Data yg TIDAK tergantung bulan dipilih — dimuat sekali saja.
   if (isAdmin) {
     const [allUsers, allKelompok] = await Promise.all([SB.anggota.getAll(), SB.kelompok.getAll()]);
     App.cache.kelompok = allKelompok;
     const pending = allUsers.filter(x => x.status === 'pending');
     stats = { totalUser: allUsers.length, pending: pending.length, kelompok: allKelompok.length };
   }
-
   if (isDaerahTier) {
-    const allKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
-    if (!isAdmin) stats.kelompok = allKelompok.length;
-    kbm = await hitungRingkasanKbm(allKelompok.map(k => k.id));
-    if (kbm.kelompokKosongIds.length) {
-      const nameMap = Object.fromEntries(allKelompok.map(k => [k.id, k.nama]));
-      kelompokKosongNama = kbm.kelompokKosongIds.map(id => nameMap[id] || id);
-    }
+    scopeKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
+    if (!isAdmin) stats.kelompok = scopeKelompok.length;
+    rankingNameMap = Object.fromEntries(scopeKelompok.map(k => [k.id, k.nama]));
   } else if (isDesaTier) {
     const allKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
-    const myKelompok = allKelompok.filter(k => k.desa_id === u.desa_id);
-    stats.kelompok = myKelompok.length;
-    kbm = await hitungRingkasanKbm(myKelompok.map(k => k.id));
-    if (kbm.kelompokKosongIds.length) {
-      const nameMap = Object.fromEntries(myKelompok.map(k => [k.id, k.nama]));
-      kelompokKosongNama = kbm.kelompokKosongIds.map(id => nameMap[id] || id);
-    }
-  } else if (isKelompokTier && u.kelompok_id) {
-    kbm = await hitungRingkasanKbm([u.kelompok_id]);
-    naikLevelList = (kbm.santriListScope || [])
-      .map(s => ({ nama: s.nama, label: hitungNaikLevel(s.tgl_lahir) }))
-      .filter(x => x.label);
+    scopeKelompok = allKelompok.filter(k => k.desa_id === u.desa_id);
+    stats.kelompok = scopeKelompok.length;
+    rankingNameMap = Object.fromEntries(scopeKelompok.map(k => [k.id, k.nama]));
   }
+
+  // Konfirmasi Pendataan Jamaah & Generus — per kelompok, per tahun ajaran (reset tiap TA
+  // baru). Kalau jumlah jamaah/generus berubah sejak terakhir dikonfirmasi (ada yg nambah/
+  // berkurang), status otomatis balik jadi "perlu konfirmasi ulang" — tapi edit data diri
+  // (nama/alamat/dll tanpa mengubah JUMLAH) tidak memicu ini.
+  const taAktif = getTahunAjaran();
+  let konfirmasiPendataanStatus = null; // 'belum' | 'berubah' | 'valid' — dipakai PJP Kelompok
+  let konfirmasiRow = null; // row konfirmasi terakhir milik kelompok sendiri (PJP Kelompok)
+  let jumlahGenerusSkrg = 0, jumlahJamaahSkrg = 0;
+  let konfirmasiBelumList = []; // dipakai admin: nama kelompok yg belum/perlu konfirmasi ulang
+
+  if (isAdmin) {
+    const allKelompokIds = (App.cache.kelompok || []).map(k => k.id);
+    const [allKonfirmasi, allJamaah] = await Promise.all([
+      SB.konfirmasiPendataan.getByTahunAjaran(taAktif),
+      SB.jamaah.getByKelompokIds(allKelompokIds),
+    ]);
+    if (!App.cache.allSantri) App.cache.allSantri = await SB.santri.getAll();
+    const jamaahCountByKlp = {};
+    (allJamaah||[]).forEach(j => { jamaahCountByKlp[j.kelompok_id] = (jamaahCountByKlp[j.kelompok_id]||0) + 1; });
+    const konfirmasiByKlp = Object.fromEntries((allKonfirmasi||[]).map(r => [r.kelompok_id, r]));
+    konfirmasiBelumList = (App.cache.kelompok || [])
+      .filter(k => statusKonfirmasiPendataan(konfirmasiByKlp[k.id], jamaahCountByKlp[k.id]||0, hitungJumlahGenerusKelompok(k.id)) !== 'valid')
+      .map(k => k.nama);
+  } else if (u.role === 'pjp_kelompok' && u.kelompok_id) {
+    const [rows, jamaahList] = await Promise.all([
+      SB.konfirmasiPendataan.getByKelompok(u.kelompok_id, taAktif),
+      SB.jamaah.getByKelompok(u.kelompok_id),
+    ]);
+    if (!App.cache.allSantri) App.cache.allSantri = await SB.santri.getAll();
+    konfirmasiRow = rows && rows.length ? rows[0] : null;
+    jumlahJamaahSkrg = (jamaahList||[]).length;
+    jumlahGenerusSkrg = hitungJumlahGenerusKelompok(u.kelompok_id);
+    konfirmasiPendataanStatus = statusKonfirmasiPendataan(konfirmasiRow, jumlahJamaahSkrg, jumlahGenerusSkrg);
+  }
+
+  // Data yg TERGANTUNG bulan dipilih — dimuat ulang tiap kali bulan diganti (admin).
+  async function loadKbmData() {
+    bulanIni = selectedBulan;
+    bulanLalu = previousMonthName(bulanIni);
+    kelompokKosongNama = [];
+    naikLevelList = [];
+
+    if (isDaerahTier || isDesaTier) {
+      const ids = scopeKelompok.map(k => k.id);
+      [kbm, kbmPrev] = await Promise.all([
+        hitungRingkasanKbm(ids, bulanIni),
+        hitungRingkasanKbm(ids, bulanLalu),
+      ]);
+      if (kbm.kelompokKosongIds.length) {
+        kelompokKosongNama = kbm.kelompokKosongIds.map(id => rankingNameMap[id] || id);
+      }
+    } else if (isKelompokTier && u.kelompok_id) {
+      [kbm, kbmPrev] = await Promise.all([
+        hitungRingkasanKbm([u.kelompok_id], bulanIni),
+        hitungRingkasanKbm([u.kelompok_id], bulanLalu),
+      ]);
+      naikLevelList = (kbm.santriListScope || [])
+        .map(s => ({ nama: s.nama, label: hitungNaikLevel(s.tgl_lahir) }))
+        .filter(x => x.label);
+    }
+  }
+
+  await loadKbmData();
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -2064,7 +2278,18 @@ async function renderDashboard() {
     return 'Selamat Malam';
   };
 
-  const kbmGridHtml = (kbmData) => `
+  const deltaHtml = (curr, prev, suffix) => {
+    if (curr === null || curr === undefined || prev === null || prev === undefined) return '';
+    const diff = curr - prev;
+    if (diff === 0) return `<div style="font-size:10px; color:var(--ink-soft); margin-top:3px;">= bulan lalu (${escHtml(bulanLalu)})</div>`;
+    const up = diff > 0;
+    const color = up ? 'var(--green)' : 'var(--rose)';
+    const arrow = up ? '▲' : '▼';
+    const sign = up ? '+' : '';
+    return `<div style="font-size:10px; color:${color}; margin-top:3px; font-weight:700;">${arrow} ${sign}${diff}${suffix||''} vs ${escHtml(bulanLalu)}</div>`;
+  };
+
+  const kbmGridHtml = (kbmData, kbmPrevData) => `
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-num">${kbmData.totalGenerus}</div>
@@ -2073,94 +2298,323 @@ async function renderDashboard() {
       <div class="stat-card">
         <div class="stat-num">${kbmData.totalPertemuan}</div>
         <div class="stat-label">Pertemuan Bulan Ini</div>
+        ${kbmPrevData ? deltaHtml(kbmData.totalPertemuan, kbmPrevData.totalPertemuan, '') : ''}
       </div>
       <div class="stat-card">
         <div class="stat-num" style="color:${pctCardColor(kbmData.pctHadir)};">${kbmData.pctHadir === null ? '—' : kbmData.pctHadir + '%'}</div>
         <div class="stat-label">Kehadiran Bulan Ini</div>
+        ${kbmPrevData ? deltaHtml(kbmData.pctHadir, kbmPrevData.pctHadir, '%') : ''}
       </div>
       <div class="stat-card">
         <div class="stat-num" style="color:${pctCardColor(kbmData.pctMateri)};">${kbmData.pctMateri === null ? '—' : kbmData.pctMateri + '%'}</div>
         <div class="stat-label">Materi Tuntas Bulan Ini</div>
+        ${kbmPrevData ? deltaHtml(kbmData.pctMateri, kbmPrevData.pctMateri, '%') : ''}
       </div>
     </div>
   `;
 
-  let statsHtml = '';
-  if (isAdmin) {
-    statsHtml += `
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-num">${stats.totalUser}</div>
-          <div class="stat-label">Total Pengguna</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num" style="color:${stats.pending > 0 ? 'var(--rose)' : 'var(--green)'};">${stats.pending}</div>
-          <div class="stat-label">Menunggu Approve</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-num">${stats.kelompok}</div>
-          <div class="stat-label">Total Kelompok</div>
-        </div>
-      </div>
-      ${stats.pending > 0 ? `
-        <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft);">
-          <div class="flex items-center justify-between">
-            <div>
-              <div class="fw-bold" style="color:var(--green);">Ada ${stats.pending} pendaftar menunggu persetujuan</div>
-              <div class="text-sm color-soft">Buka menu Kelola Pengguna untuk menyetujui atau menolak</div>
-            </div>
-            <button class="btn btn-gold btn-sm" onclick="navigate('users')">Lihat →</button>
+  let rankSortMode = 'frekuensi';
+  const FREKUENSI_TINGKATAN_LABEL = { caberawit: 'Caberawit', pra_remaja: 'Pra Remaja', remaja: 'Remaja', pra_nikah: 'Pra Nikah' };
+  const fmtPct = (v) => (v === null || v === undefined) ? '—' : v + '%';
+
+  // Rangking dari rata-rata jenjang yg memang ADA kelasnya di kelompok itu —
+  // bukan 4 jenjang dipaksa semua, krn banyak kelompok yg wajar tidak punya kelas
+  // di salah satu jenjang (misal tidak ada santri Pra Nikah sama sekali). Jenjang
+  // yg memang tidak ada kelasnya (target=0 → pct=null) dikecualikan dari rata-rata,
+  // tidak dianggap 0% dan tidak membuat kelompok itu otomatis turun rangking.
+  const sortByTingkatanAvg = (list, byTingkatanKey) => {
+    const score = (r) => {
+      const vals = FREKUENSI_TINGKATAN_LIST.map(t => r[byTingkatanKey][t].pct).filter(v => v !== null);
+      return vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+    };
+    return [...list].sort((a, b) => {
+      const sa = score(a), sb = score(b);
+      if (sa === null) return 1;
+      if (sb === null) return -1;
+      return sb - sa;
+    });
+  };
+
+  // Rangking by Kehadiran: dipecah PER JENJANG USIA juga, alasan sama spt Frekuensi & Materi.
+  const rankingKehadiranHtml = (showAll) => {
+    const sorted = sortByTingkatanAvg(kbm.perKelompok, 'hadirByTingkatan');
+    const ranked = showAll ? sorted : sorted.slice(0, 5);
+    const rows = ranked.map((r, i) => {
+      const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
+      const nama = rankingNameMap[r.kelompokId] || r.kelompokId;
+      const cells = FREKUENSI_TINGKATAN_LIST.map(t => {
+        const h = r.hadirByTingkatan[t];
+        const detail = h.totalSlot > 0 ? `<div style="font-size:9px; color:var(--ink-soft); font-weight:400;">${h.totalH}/${h.totalSlot}</div>` : '';
+        return `<td style="padding:6px 6px; font-size:12.5px; font-weight:700; color:var(--green); text-align:center;">${fmtPct(h.pct)}${detail}</td>`;
+      }).join('');
+      return `
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:6px 6px; font-size:12.5px; font-weight:700; color:#000; white-space:nowrap;">${badge}</td>
+          <td style="padding:6px 6px; font-size:12.5px; font-weight:600;">${escHtml(nama)}</td>
+          ${cells}
+        </tr>`;
+    }).join('');
+    return `
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--green);">
+            <th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:left;"></th>
+            <th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:left;">Kelompok</th>
+            ${FREKUENSI_TINGKATAN_LIST.map(t => `<th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:center;">${FREKUENSI_TINGKATAN_LABEL[t]}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  };
+
+  // Rangking by Kepatuhan Frekuensi: dipecah PER JENJANG USIA (bukan satu angka gabungan),
+  // karena jumlah kelas tiap kelompok beda-beda — supaya adil dibandingkan.
+  const rankingFrekuensiHtml = (showAll) => {
+    const sorted = sortByTingkatanAvg(kbm.perKelompok, 'freqByTingkatan');
+    const ranked = showAll ? sorted : sorted.slice(0, 5);
+    const rows = ranked.map((r, i) => {
+      const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
+      const nama = rankingNameMap[r.kelompokId] || r.kelompokId;
+      const cells = FREKUENSI_TINGKATAN_LIST.map(t => {
+        const f = r.freqByTingkatan[t];
+        const detail = f.target > 0 ? `<div style="font-size:9px; color:var(--ink-soft); font-weight:400;">${f.actual}/${f.target}x</div>` : '';
+        return `<td style="padding:6px 6px; font-size:12.5px; font-weight:700; color:var(--green); text-align:center;">${fmtPct(f.pct)}${detail}</td>`;
+      }).join('');
+      return `
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:6px 6px; font-size:12.5px; font-weight:700; color:#000; white-space:nowrap;">${badge}</td>
+          <td style="padding:6px 6px; font-size:12.5px; font-weight:600;">${escHtml(nama)}</td>
+          ${cells}
+        </tr>`;
+    }).join('');
+    return `
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--green);">
+            <th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:left;"></th>
+            <th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:left;">Kelompok</th>
+            ${FREKUENSI_TINGKATAN_LIST.map(t => `<th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:center;">${FREKUENSI_TINGKATAN_LABEL[t]}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  };
+
+  // Rangking by Progress Materi: dipecah PER JENJANG USIA juga, pakai kurikulum
+  // masing-masing jenjang (bukan dijumlah jadi satu angka, dgn alasan sama spt Frekuensi).
+  const rankingMateriHtml = (showAll) => {
+    const sorted = sortByTingkatanAvg(kbm.perKelompok, 'materiByTingkatan');
+    const ranked = showAll ? sorted : sorted.slice(0, 5);
+    const rows = ranked.map((r, i) => {
+      const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
+      const nama = rankingNameMap[r.kelompokId] || r.kelompokId;
+      const cells = FREKUENSI_TINGKATAN_LIST.map(t => {
+        const m = r.materiByTingkatan[t];
+        const detail = m.target > 0 ? `<div style="font-size:9px; color:var(--ink-soft); font-weight:400;">${m.actual}/${m.target}</div>` : '';
+        return `<td style="padding:6px 6px; font-size:12.5px; font-weight:700; color:var(--green); text-align:center;">${fmtPct(m.pct)}${detail}</td>`;
+      }).join('');
+      return `
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:6px 6px; font-size:12.5px; font-weight:700; color:#000; white-space:nowrap;">${badge}</td>
+          <td style="padding:6px 6px; font-size:12.5px; font-weight:600;">${escHtml(nama)}</td>
+          ${cells}
+        </tr>`;
+    }).join('');
+    return `
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--green);">
+            <th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:left;"></th>
+            <th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:left;">Kelompok</th>
+            ${FREKUENSI_TINGKATAN_LIST.map(t => `<th style="padding:5px 6px; font-size:10.5px; color:#fff; text-align:center;">${FREKUENSI_TINGKATAN_LABEL[t]}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  };
+
+  const RANK_CAPTION = {
+    frekuensi: 'Kepatuhan Frekuensi per jenjang usia = pertemuan aktual ÷ anjuran minimal bulan ini (Caberawit 5x/minggu, Pra Remaja/Remaja/Pra Nikah 3x/minggu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.',
+    materi: 'Progress Materi per jenjang usia = jumlah materi yang diklik tuntas ÷ target materi kurikulum bulan ini, dihitung terpisah per jenjang. Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.',
+    kehadiran: 'Kehadiran per jenjang usia = total hadir ÷ total slot kehadiran bulan ini, dihitung terpisah per jenjang (santri × pertemuan jenjang itu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.',
+  };
+
+  const rankingHtml = () => {
+    if (!kbm || !kbm.perKelompok || !kbm.perKelompok.length) return '';
+    const showAll = isAdmin;
+    const pageTarget = isDaerahTier ? 'rekap_daerah' : 'rekap_desa';
+    const titleCount = showAll ? ` (${kbm.perKelompok.length} kelompok)` : '';
+    const bodyHtml = rankSortMode === 'frekuensi' ? rankingFrekuensiHtml(showAll)
+      : rankSortMode === 'materi' ? rankingMateriHtml(showAll)
+      : rankingKehadiranHtml(showAll);
+    return `
+      <div class="card" style="margin-top:4px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
+          <div class="fw-bold" style="font-size:14px; color:var(--green);">🏆 Rangking Kelompok ${isDaerahTier ? 'se-Daerah' : 'se-Desa'}${titleCount}</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-sm ${rankSortMode === 'frekuensi' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('frekuensi')">Kepatuhan Frekuensi</button>
+            <button class="btn btn-sm ${rankSortMode === 'materi' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('materi')">Progress Materi</button>
+            <button class="btn btn-sm ${rankSortMode === 'kehadiran' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('kehadiran')">Kehadiran</button>
           </div>
-        </div>` : ''}
-    `;
-  }
-
-  if (kbm) statsHtml += kbmGridHtml(kbm);
-
-  if ((isDaerahTier || isDesaTier) && kelompokKosongNama.length) {
-    statsHtml += `
-      <div class="card" style="border-left:4px solid var(--rose); background:var(--rose-soft);">
-        <div class="fw-bold" style="color:var(--green);">⚠️ ${kelompokKosongNama.length} kelompok belum ada pertemuan bulan ${escHtml(currentMonthName())}</div>
-        <div class="text-sm color-soft" style="margin-top:4px;">${escHtml(kelompokKosongNama.slice(0, 8).join(', '))}${kelompokKosongNama.length > 8 ? ` dan ${kelompokKosongNama.length - 8} lainnya` : ''}</div>
+        </div>
+        ${RANK_CAPTION[rankSortMode] ? `<div style="font-size:10.5px; color:var(--ink-soft); margin-bottom:8px;">${RANK_CAPTION[rankSortMode]}</div>` : ''}
+        <div style="${showAll ? 'max-height:420px; overflow-y:auto;' : ''}">${bodyHtml}</div>
+        <button class="btn btn-outline btn-sm" style="margin-top:10px; width:100%;" onclick="navigate('${pageTarget}')">${showAll ? 'Lihat Detail per Desa & Materi →' : 'Lihat Rangking Lengkap →'}</button>
       </div>
     `;
-  }
+  };
 
-  if (isKelompokTier && naikLevelList.length) {
-    statsHtml += `
-      <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft);">
-        <div class="fw-bold" style="color:var(--green);">🎓 ${naikLevelList.length} generus akan naik tingkatan tahun ajaran depan</div>
-        <div class="text-sm color-soft" style="margin-top:4px;">${naikLevelList.slice(0, 8).map(x => escHtml(x.nama) + ' (' + escHtml(x.label) + ')').join(', ')}${naikLevelList.length > 8 ? ` dan ${naikLevelList.length - 8} lainnya` : ''}</div>
+  function paint() {
+    let statsHtml = '';
+    if (isAdmin) {
+      statsHtml += `
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-num">${stats.totalUser}</div>
+            <div class="stat-label">Total Pengguna</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" style="color:${stats.pending > 0 ? 'var(--rose)' : 'var(--green)'};">${stats.pending}</div>
+            <div class="stat-label">Menunggu Approve</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">${stats.kelompok}</div>
+            <div class="stat-label">Total Kelompok</div>
+          </div>
+        </div>
+        ${stats.pending > 0 ? `
+          <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft);">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="fw-bold" style="color:var(--green);">Ada ${stats.pending} pendaftar menunggu persetujuan</div>
+                <div class="text-sm color-soft">Buka menu Kelola Pengguna untuk menyetujui atau menolak</div>
+              </div>
+              <button class="btn btn-gold btn-sm" onclick="navigate('users')">Lihat →</button>
+            </div>
+          </div>` : ''}
+      `;
+    }
+
+    if (kbm) statsHtml += kbmGridHtml(kbm, kbmPrev);
+
+    if (isDaerahTier || isDesaTier) statsHtml += rankingHtml();
+
+    if ((isDaerahTier || isDesaTier) && kelompokKosongNama.length) {
+      statsHtml += `
+        <div class="card" style="border-left:4px solid var(--rose); background:var(--rose-soft);">
+          <div class="fw-bold" style="color:var(--green);">⚠️ ${kelompokKosongNama.length} kelompok belum ada pertemuan bulan ${escHtml(bulanIni)}</div>
+          <div class="text-sm color-soft" style="margin-top:4px;">${escHtml(kelompokKosongNama.slice(0, 8).join(', '))}${kelompokKosongNama.length > 8 ? ` dan ${kelompokKosongNama.length - 8} lainnya` : ''}</div>
+        </div>
+      `;
+    }
+
+    if (isKelompokTier && naikLevelList.length) {
+      statsHtml += `
+        <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft);">
+          <div class="fw-bold" style="color:var(--green);">🎓 ${naikLevelList.length} generus akan naik tingkatan tahun ajaran depan</div>
+          <div class="text-sm color-soft" style="margin-top:4px;">${naikLevelList.slice(0, 8).map(x => escHtml(x.nama) + ' (' + escHtml(x.label) + ')').join(', ')}${naikLevelList.length > 8 ? ` dan ${naikLevelList.length - 8} lainnya` : ''}</div>
+        </div>
+      `;
+    }
+
+    if (isAdmin && konfirmasiBelumList.length) {
+      statsHtml += `
+        <div class="card" style="border-left:4px solid var(--rose); background:var(--rose-soft);">
+          <div class="fw-bold" style="color:var(--green);">📋 ${konfirmasiBelumList.length} kelompok belum konfirmasi pendataan TA ${escHtml(taAktif)}</div>
+          <div class="text-sm color-soft" style="margin-top:4px;">${escHtml(konfirmasiBelumList.slice(0, 8).join(', '))}${konfirmasiBelumList.length > 8 ? ` dan ${konfirmasiBelumList.length - 8} lainnya` : ''}</div>
+        </div>
+      `;
+    }
+
+    if (u.role === 'pjp_kelompok' && u.kelompok_id) {
+      if (konfirmasiPendataanStatus === 'valid') {
+        statsHtml += `
+          <div class="card" style="border-left:4px solid var(--green); background:var(--green-soft);">
+            <div class="fw-bold" style="color:var(--green);">✅ Pendataan Jamaah & Generus sudah dikonfirmasi</div>
+            <div class="text-sm color-soft" style="margin-top:4px;">TA ${escHtml(taAktif)} · ${konfirmasiRow.jumlah_jamaah} jamaah · ${konfirmasiRow.jumlah_generus} generus · dikonfirmasi ${fmtDate(konfirmasiRow.confirmed_at)}</div>
+          </div>
+        `;
+      } else {
+        const isBerubah = konfirmasiPendataanStatus === 'berubah';
+        statsHtml += `
+          <div class="card" style="border-left:4px solid var(--gold); background:var(--gold-soft);">
+            <div class="fw-bold" style="color:var(--green);">⚠️ Pendataan Jamaah & Generus ${isBerubah ? 'perlu dikonfirmasi ulang' : 'belum dikonfirmasi'}</div>
+            <div class="text-sm color-soft" style="margin:4px 0 10px;">
+              ${isBerubah
+                ? `Jumlah berubah sejak konfirmasi terakhir (${fmtDate(konfirmasiRow.confirmed_at)}): ${konfirmasiRow.jumlah_jamaah} jamaah / ${konfirmasiRow.jumlah_generus} generus → sekarang ${jumlahJamaahSkrg} jamaah / ${jumlahGenerusSkrg} generus.`
+                : `Pastikan data jamaah (${jumlahJamaahSkrg} orang) dan generus (${jumlahGenerusSkrg} orang) kelompok ini sudah lengkap & benar, TA ${escHtml(taAktif)}.`}
+            </div>
+            <button class="btn btn-gold btn-sm" onclick="DASH_confirmPendataan(this)">${isBerubah ? 'Konfirmasi Ulang' : 'Konfirmasi Pendataan Selesai'}</button>
+          </div>
+        `;
+      }
+    }
+
+    const bulanPickerHtml = isAdmin ? `
+      <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:14px;">
+        ${BULAN_URUT_KALENDER.map(m => `
+          <div onclick="DASH_setBulan('${m}')"
+            style="flex:0 0 auto; padding:6px 13px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;
+              background:${selectedBulan===m?'var(--green)':'var(--white)'};
+              color:${selectedBulan===m?'#fff':'var(--ink-soft)'};
+              border:1.5px solid ${selectedBulan===m?'var(--green)':'var(--line)'};">
+            ${m}${m===currentMonthName()?' ●':''}
+          </div>`).join('')}
+      </div>
+    ` : '';
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">${greeting()}, ${escHtml(u.nama_lengkap.split(' ')[0])}!</h1>
+          <p class="page-subtitle">${escHtml(ROLE_LABELS[u.role] || '')} · Bulan ${escHtml(bulanIni)} ${SEM1_MONTHS.includes(bulanIni) ? getTahunAjaran().split('/')[0] : getTahunAjaran().split('/')[1]}</p>
+        </div>
+      </div>
+      ${bulanPickerHtml}
+      ${statsHtml}
+      <div id="onlineUsersWidget"></div>
+      <div class="card">
+        <div class="fw-bold" style="font-size:15px; margin-bottom:12px; color:var(--green);">Menu Cepat</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:10px;">
+          ${getQuickMenuItems().map(item => `
+            <button onclick="navigate('${item.page}')"
+              style="padding:14px 10px; background:var(--cream-2); border-radius:var(--radius); border:1.5px solid var(--line); text-align:center; cursor:pointer; transition:all .15s;"
+              onmouseover="this.style.borderColor='var(--green)'; this.style.background='var(--green-soft)'"
+              onmouseout="this.style.borderColor='var(--line)'; this.style.background='var(--cream-2)'">
+              <div style="font-size:22px; margin-bottom:6px;">${item.emoji}</div>
+              <div style="font-size:12px; font-weight:700; color:var(--green);">${escHtml(item.label)}</div>
+            </button>
+          `).join('')}
+        </div>
       </div>
     `;
+
+    loadOnlineUsersWidget();
   }
 
-  main.innerHTML = `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">${greeting()}, ${escHtml(u.nama_lengkap.split(' ')[0])}!</h1>
-        <p class="page-subtitle">${escHtml(ROLE_LABELS[u.role] || '')} · Bulan ${escHtml(currentMonthName())} ${new Date().getFullYear()}</p>
-      </div>
-    </div>
-    ${statsHtml}
-    <div id="onlineUsersWidget"></div>
-    <div class="card">
-      <div class="fw-bold" style="font-size:15px; margin-bottom:12px; color:var(--green);">Menu Cepat</div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:10px;">
-        ${getQuickMenuItems().map(item => `
-          <button onclick="navigate('${item.page}')"
-            style="padding:14px 10px; background:var(--cream-2); border-radius:var(--radius); border:1.5px solid var(--line); text-align:center; cursor:pointer; transition:all .15s;"
-            onmouseover="this.style.borderColor='var(--green)'; this.style.background='var(--green-soft)'"
-            onmouseout="this.style.borderColor='var(--line)'; this.style.background='var(--cream-2)'">
-            <div style="font-size:22px; margin-bottom:6px;">${item.emoji}</div>
-            <div style="font-size:12px; font-weight:700; color:var(--green);">${escHtml(item.label)}</div>
-          </button>
-        `).join('')}
-      </div>
-    </div>
-  `;
+  window.DASH_setRankSort = (m) => { rankSortMode = m; paint(); };
+  window.DASH_setBulan = async (b) => {
+    if (b === selectedBulan) return;
+    selectedBulan = b;
+    main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
+    await loadKbmData();
+    paint();
+  };
+  window.DASH_confirmPendataan = async (btn) => {
+    if (btn) btn.disabled = true;
+    try {
+      await SB.konfirmasiPendataan.confirm(u.kelompok_id, taAktif, u.id, jumlahJamaahSkrg, jumlahGenerusSkrg);
+      konfirmasiRow = { kelompok_id: u.kelompok_id, tahun_ajaran: taAktif, jumlah_jamaah: jumlahJamaahSkrg, jumlah_generus: jumlahGenerusSkrg, confirmed_at: new Date().toISOString() };
+      konfirmasiPendataanStatus = 'valid';
+      showToast('Konfirmasi pendataan tersimpan.');
+      paint();
+    } catch (e) {
+      showToast('Gagal menyimpan konfirmasi: ' + e.message, true);
+      if (btn) btn.disabled = false;
+    }
+  };
 
-  loadOnlineUsersWidget();
+  paint();
 }
 
 // "User Sedang Online" — user yang last_active-nya dalam 5 menit terakhir.
@@ -17772,6 +18226,7 @@ async function renderRekapDaerah() {
   const nowMonth = currentMonthName();
   const semNow = SEM1_MONTHS.includes(nowMonth) ? SEM1_MONTHS : SEM2_MONTHS;
   let selectedBulan = nowMonth;
+  let sortMode = 'pertemuan'; // 'pertemuan' atau 'kehadiran' — urutan ranking kelompok per desa
 
   // Group kelompok per desa
   const desaMap = {};
@@ -17969,9 +18424,20 @@ async function renderRekapDaerah() {
       const avgHD = hadirDesa.length ? Math.round(hadirDesa.reduce((n,k)=>n+(k.stats.pctHadir||0),0)/hadirDesa.length) : null;
       const avgMD = materiDesa.length ? Math.round(materiDesa.reduce((n,k)=>n+(k.stats.pctMateri||0),0)/materiDesa.length) : null;
 
+      const klpDesaRanked = [...klpDesa].sort((a, b) => {
+        if (sortMode === 'kehadiran') {
+          const pa = a.stats?.pctHadir, pb = b.stats?.pctHadir;
+          if (pa === null || pa === undefined) return 1;
+          if (pb === null || pb === undefined) return -1;
+          return pb - pa;
+        }
+        return (b.stats?.totalPertemuan || 0) - (a.stats?.totalPertemuan || 0);
+      });
+
       let klpIdx = 0;
-      const klpRows = klpDesa.map(({kelompok:klp, stats:s}) => {
+      const klpRows = klpDesaRanked.map(({kelompok:klp, stats:s}) => {
         klpIdx++;
+        const rankBadge = klpIdx <= 3 ? ['🥇','🥈','🥉'][klpIdx-1] : klpIdx + '.';
         const uid = desaNama.replace(/\s/g,'') + '_' + klpIdx;
         const kelasDetail = (s?.perKelas||[]).map((k, ki) => {
           const kUid = uid + '_k' + ki;
@@ -18005,7 +18471,7 @@ async function renderRekapDaerah() {
 
         return `
           <tr style="border-bottom:1px solid var(--line); cursor:pointer;" onclick="var el=this.nextElementSibling;while(el&&el.classList.contains('kd_row')){el.style.display=el.style.display==='none'?'table-row':'none';el=el.nextElementSibling;}">
-            <td style="padding:7px 10px; font-size:12.5px; font-weight:600;">${escHtml(klp.nama)} <span style="font-size:10px; color:var(--ink-soft);">▼</span></td>
+            <td style="padding:7px 10px; font-size:12.5px; font-weight:600;"><span style="display:inline-block; min-width:20px;">${rankBadge}</span> ${escHtml(klp.nama)} <span style="font-size:10px; color:var(--ink-soft);">▼</span></td>
             <td style="text-align:center; font-size:12px;">${s?.totalGenerus||0}</td>
             <td style="text-align:center; font-size:12px;">${s?.totalPertemuan||0}x</td>
             <td style="padding:6px 10px; min-width:90px;">${pctBar(s?.pctHadir)}</td>
@@ -18083,12 +18549,20 @@ async function renderRekapDaerah() {
         ${bulanChips}
       </div>
 
+      <!-- Toggle ranking kelompok -->
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+        <span style="font-size:11.5px; font-weight:700; color:var(--ink-soft);">Rangking kelompok per desa:</span>
+        <button class="btn btn-sm ${sortMode==='pertemuan'?'btn-green':'btn-outline'}" onclick="RDA_setSort('pertemuan')">Jumlah Pertemuan</button>
+        <button class="btn btn-sm ${sortMode==='kehadiran'?'btn-green':'btn-outline'}" onclick="RDA_setSort('kehadiran')">% Kehadiran</button>
+      </div>
+
       <!-- Kartu per desa -->
       ${desaCards}
     `;
   }
 
   window.RDA_setBulan = (b) => { selectedBulan = b; renderDashboard(); };
+  window.RDA_setSort = (m) => { sortMode = m; renderDashboard(); };
 
   window.RDA_toggleMateriList = (btn) => {
     const list = btn.parentElement.nextElementSibling;
@@ -18147,10 +18621,12 @@ async function renderRekapDaerah() {
         {x:ML,w:80,label:'Desa'},{x:ML+80,w:50,label:'Kelompok'},
         {x:ML+130,w:55,label:'Generus'},{x:ML+185,w:55,label:'Pertemuan'},
         {x:ML+240,w:80,label:'Kehadiran'},{x:ML+320,w:80,label:'Prog.Materi'},
-        {x:ML+400,w:370,label:'Caberawit     Pra Remaja      Remaja       Pra Nikah'},
       ];
       page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:16,color:GREEN});
       TC.forEach(c=>page.drawText(c.label,{x:c.x+3,y:y,font:fBold,size:7.5,color:rgb(1,1,1)}));
+      TINGKATAN_LIST.forEach((t,i)=>{
+        page.drawText(TINGKATAN_LABELS[t],{x:ML+403+i*90,y,font:fBold,size:7.5,color:rgb(1,1,1)});
+      });
       y-=18;
 
       Object.entries(desaMap).forEach(([desaNama, klpList],di) => {
@@ -18196,11 +18672,14 @@ async function renderRekapDaerah() {
         const SCols=[
           {x:ML,w:100,l:'Kelompok'},{x:ML+100,w:50,l:'Generus'},
           {x:ML+150,w:55,l:'Pertemuan'},{x:ML+205,w:70,l:'Kehadiran'},
-          {x:ML+275,w:70,l:'Prog.Materi'},{x:ML+345,w:460,l:'Caberawit      Pra Remaja      Remaja         Pra Nikah'},
+          {x:ML+275,w:70,l:'Prog.Materi'},
         ];
         checkY(14);
         page.drawRectangle({x:ML,y:y-4,width:W-ML-MR,height:14,color:rgb(0.2,0.5,0.3)});
         SCols.forEach(c=>page.drawText(c.l,{x:c.x+3,y:y-1,font:fBold,size:7.5,color:rgb(1,1,1)}));
+        TINGKATAN_LIST.forEach((t,i)=>{
+          page.drawText(TINGKATAN_LABELS[t],{x:ML+348+i*105,y:y-1,font:fBold,size:7.5,color:rgb(1,1,1)});
+        });
         y-=16;
 
         const klpDesa = allKlpStats.filter(k=>k.desaNama===desaNama);

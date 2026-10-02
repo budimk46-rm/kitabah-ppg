@@ -10,19 +10,50 @@ const SB_HEADERS = {
   'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
 };
 
-// Generic REST API helper
+// Generic REST API helper.
+// GET di-paginasi otomatis (1000 baris per halaman) karena project Supabase ini
+// punya batas keras max-rows=1000 di server — Range header "0-9999" dari client
+// DIABAIKAN diam-diam oleh PostgREST, jadi query besar (misal progress/pertemuan
+// se-31 kelompok) terpotong tanpa error dan bikin angka rekap salah (pernah
+// kejadian: progres materi tampil 0% padahal datanya ada, karena kelompok itu
+// kebagian halaman yang sudah lewat baris ke-1000).
 async function sbFetch(path, options = {}) {
   const url = `${SUPABASE_URL}/rest/v1/${path}`;
   const method = options.method || 'GET';
-  const extraHeaders = {};
-  // Tambah Range header hanya untuk GET supaya bisa ambil lebih dari 1000 baris
+
   if (method === 'GET') {
-    extraHeaders['Range-Unit'] = 'items';
-    extraHeaders['Range'] = '0-9999';
+    const PAGE_SIZE = 1000;
+    let offset = 0;
+    let all = [];
+    for (;;) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          ...SB_HEADERS,
+          ...(options.headers || {}),
+          'Range-Unit': 'items',
+          'Range': `${offset}-${offset + PAGE_SIZE - 1}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Supabase error ${res.status}: ${err.slice(0, 300)}`);
+      }
+      if (res.status === 204) return null;
+      const text = await res.text();
+      if (!text || text.trim() === '') return offset === 0 ? null : all;
+      const data = JSON.parse(text);
+      if (!Array.isArray(data)) return data; // respons objek tunggal, bukan list — tidak perlu paginasi
+      all = all.concat(data);
+      if (data.length < PAGE_SIZE) break; // halaman terakhir
+      offset += PAGE_SIZE;
+    }
+    return all;
   }
+
   const res = await fetch(url, {
     ...options,
-    headers: { ...SB_HEADERS, ...extraHeaders, ...(options.headers || {}) },
+    headers: { ...SB_HEADERS, ...(options.headers || {}) },
   });
   if (!res.ok) {
     const err = await res.text();
@@ -733,6 +764,19 @@ const sbSimpatisan = {
   delete: (id) => sbFetch(`simpatisan?id=eq.${id}`, { method: 'DELETE' }),
 };
 
+const sbKonfirmasiPendataan = {
+  getByTahunAjaran: (ta) => sbFetch(`konfirmasi_pendataan?tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  getByKelompok: (kelompokId, ta) => sbFetch(`konfirmasi_pendataan?kelompok_id=eq.${kelompokId}&tahun_ajaran=eq.${encodeURIComponent(ta)}&select=*`),
+  confirm: (kelompokId, ta, userId, jumlahJamaah, jumlahGenerus) => sbFetch(`konfirmasi_pendataan?on_conflict=kelompok_id,tahun_ajaran`, {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({
+      kelompok_id: kelompokId, tahun_ajaran: ta, confirmed_by: userId, confirmed_at: new Date().toISOString(),
+      jumlah_jamaah: jumlahJamaah, jumlah_generus: jumlahGenerus,
+    }),
+  }),
+};
+
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
@@ -785,4 +829,5 @@ window.SB = {
   penerobosan: sbPenerobosan,
   penerobosanDesa: sbPenerobosanDesa,
   formSubmissions: sbFormSubmissions,
+  konfirmasiPendataan: sbKonfirmasiPendataan,
 };
