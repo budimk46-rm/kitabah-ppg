@@ -65,6 +65,30 @@ async function sbFetch(path, options = {}) {
   return JSON.parse(text);
 }
 
+// Cache persisten di localStorage (bertahan lintas reload/buka-ulang PWA) — khusus
+// data referensi yang jarang berubah (kurikulum materi, daftar kelompok, daftar desa).
+// App.cache di memori reset tiap reload, tapi localStorage ini tidak, jadi reload
+// berulang (umum di PWA HP yang sering di-background lalu dibuka lagi) tidak perlu
+// tarik ulang data yang sama dari server tiap kali — hemat egress Supabase.
+const LS_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 jam
+function lsCacheGet(key) {
+  try {
+    const raw = localStorage.getItem('kc_' + key);
+    if (!raw) return null;
+    const { v, t } = JSON.parse(raw);
+    if (!t || Date.now() - t > LS_CACHE_TTL) return null;
+    return v;
+  } catch (e) { return null; }
+}
+function lsCacheSet(key, v) {
+  try { localStorage.setItem('kc_' + key, JSON.stringify({ v, t: Date.now() })); } catch (e) {}
+}
+function lsCacheClear() {
+  try {
+    ['materi', 'kelompok', 'desa'].forEach(k => localStorage.removeItem('kc_' + k));
+  } catch (e) {}
+}
+
 // ============ AUTH (custom, bukan Supabase Auth) ============
 async function sbLogin(username, password) {
   const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.trim())}&select=*`);
@@ -160,16 +184,30 @@ const sbUsers = {
 
 // ============ KELOMPOK & DESA ============
 const sbKelompok = {
-  getAll: () => sbFetch('kelompok?select=id,nama,desa_id,desa(id,nama)&order=desa_id,nama'),
+  getAll: async () => {
+    const cached = lsCacheGet('kelompok');
+    if (cached) return cached;
+    const data = await sbFetch('kelompok?select=id,nama,desa_id,desa(id,nama)&order=desa_id,nama');
+    lsCacheSet('kelompok', data);
+    return data;
+  },
   getByDesa: (desaId) => sbFetch(`kelompok?desa_id=eq.${desaId}&select=id,nama,desa_id&order=nama`),
 };
 const sbDesa = {
-  getAll: () => sbFetch('desa?select=id,nama&order=id'),
+  getAll: async () => {
+    const cached = lsCacheGet('desa');
+    if (cached) return cached;
+    const data = await sbFetch('desa?select=id,nama&order=id');
+    lsCacheSet('desa', data);
+    return data;
+  },
 };
 
 // ============ MATERI ============
 const sbMateri = {
   getAll: async () => {
+    const cached = lsCacheGet('materi');
+    if (cached) return cached;
     // Dipecah 2 (per semester) — bukan 1 request raksasa (~1552 baris kurikulum
     // sekaligus bisa bikin proses JSON.parse di HP lemah kerasa macet lama),
     // dan bukan 16 request kecil-kecil (sisa cara lama yang malah bikin banyak
@@ -178,13 +216,17 @@ const sbMateri = {
       sbFetch(`materi?semester=eq.1&select=*&order=jenjang,id`),
       sbFetch(`materi?semester=eq.2&select=*&order=jenjang,id`),
     ]);
-    return [...(sem1||[]), ...(sem2||[])];
+    const data = [...(sem1||[]), ...(sem2||[])];
+    lsCacheSet('materi', data);
+    return data;
   },
   getByJenjang: (jenjang, semester) =>
     sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=id&limit=500`),
-  update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  insert: (data) => sbFetch('materi', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }),
-  delete: (id) => sbFetch(`materi?id=eq.${id}`, { method: 'DELETE' }),
+  // Curriculum diedit lewat app — hapus cache localStorage biar edit langsung kebaca,
+  // bukan nunggu TTL 6 jam habis dulu.
+  update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }).then(r => { lsCacheClear(); return r; }),
+  insert: (data) => sbFetch('materi', { method: 'POST', headers: {'Prefer':'return=representation'}, body: JSON.stringify(data) }).then(r => { lsCacheClear(); return r; }),
+  delete: (id) => sbFetch(`materi?id=eq.${id}`, { method: 'DELETE' }).then(r => { lsCacheClear(); return r; }),
 };
 
 // ============ KELAS ============
@@ -244,11 +286,13 @@ const sbSantri = {
 const sbPertemuan = {
   getByKelas: (kelasId, ta) =>
     sbFetch(`pertemuan?kelas_id=eq.${kelasId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*&order=tanggal.desc`),
-  // Ambil pertemuan untuk BANYAK kelas sekaligus dalam satu request
-  getByKelasIds: (kelasIds, ta) => {
+  // Ambil pertemuan untuk BANYAK kelas sekaligus dalam satu request.
+  // bulan opsional — kalau diisi, scope ke 1 bulan saja (jauh lebih hemat drpd tarik
+  // satu tahun ajaran penuh tiap buka halaman rekap).
+  getByKelasIds: (kelasIds, ta, bulan) => {
     const ids = [...new Set(kelasIds)].filter(Boolean);
     if (!ids.length) return Promise.resolve([]);
-    return sbFetch(`pertemuan?kelas_id=in.(${ids.join(',')})${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*&order=tanggal.desc`);
+    return sbFetch(`pertemuan?kelas_id=in.(${ids.join(',')})${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}${bulan?'&bulan=eq.'+encodeURIComponent(bulan):''}&select=*&order=tanggal.desc`);
   },
   insert: (data) => sbFetch('pertemuan', {
     method: 'POST',
@@ -286,10 +330,12 @@ const sbJurnal = {
   // sekaligus, lewat join jurnal_materi -> jurnal -> pertemuan -> kelas (biar tau kelas_id-nya,
   // tanpa perlu daftar ID pertemuan yang bisa ribuan/kepanjangan buat 1 URL). Dipakai Rekap KBM
   // buat bedain "Tuntas" vs "Belum Tuntas" vs "Belum Dibahas" — bukan cuma progress (Tuntas) doang.
-  getMateriByKelompokIds: (kelompokIds) => {
+  // bulan opsional — scope ke bulan_target tertentu saja (jauh lebih hemat drpd tarik
+  // histori satu tahun ajaran penuh tiap buka halaman rekap).
+  getMateriByKelompokIds: (kelompokIds, bulan) => {
     const ids = [...new Set(kelompokIds)].filter(Boolean);
     if (!ids.length) return Promise.resolve([]);
-    return sbFetch(`jurnal_materi?select=materi_id,status,bulan_target,jurnal!inner(pertemuan!inner(kelas_id,kelas!inner(kelompok_id)))&jurnal.pertemuan.kelas.kelompok_id=in.(${ids.join(',')})`);
+    return sbFetch(`jurnal_materi?select=materi_id,status,bulan_target,jurnal!inner(pertemuan!inner(kelas_id,kelas!inner(kelompok_id)))&jurnal.pertemuan.kelas.kelompok_id=in.(${ids.join(',')})${bulan?'&bulan_target=eq.'+encodeURIComponent(bulan):''}`);
   },
 };
 
@@ -321,11 +367,13 @@ const sbAbsensi = {
 const sbProgress = {
   getByKelompok: (kelompokId, ta) =>
     sbFetch(`progress?kelompok_id=eq.${kelompokId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*`),
-  // Ambil progress untuk BANYAK kelompok sekaligus dalam satu request
-  getByKelompokIds: (kelompokIds, ta) => {
+  // Ambil progress untuk BANYAK kelompok sekaligus dalam satu request.
+  // bulan opsional — scope ke 1 bulan saja (jauh lebih hemat drpd tarik satu tahun
+  // ajaran penuh tiap buka halaman rekap).
+  getByKelompokIds: (kelompokIds, ta, bulan) => {
     const ids = [...new Set(kelompokIds)].filter(Boolean);
     if (!ids.length) return Promise.resolve([]);
-    return sbFetch(`progress?kelompok_id=in.(${ids.join(',')})${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*`);
+    return sbFetch(`progress?kelompok_id=in.(${ids.join(',')})${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}${bulan?'&bulan=eq.'+encodeURIComponent(bulan):''}&select=*`);
   },
   toggle: async (kelompokId, materiId, bulan, userId, ta) => {
     const existing = await sbFetch(
@@ -830,4 +878,5 @@ window.SB = {
   penerobosanDesa: sbPenerobosanDesa,
   formSubmissions: sbFormSubmissions,
   konfirmasiPendataan: sbKonfirmasiPendataan,
+  clearLocalCache: lsCacheClear,
 };
