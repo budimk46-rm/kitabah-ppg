@@ -70,13 +70,16 @@ async function sbFetch(path, options = {}) {
 // App.cache di memori reset tiap reload, tapi localStorage ini tidak, jadi reload
 // berulang (umum di PWA HP yang sering di-background lalu dibuka lagi) tidak perlu
 // tarik ulang data yang sama dari server tiap kali — hemat egress Supabase.
-const LS_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 jam
-function lsCacheGet(key) {
+const LS_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 jam — data referensi yg jarang berubah
+// Santri lebih sering diedit (PJP/Wali nambah-ubah murid tiap hari) — TTL lebih pendek
+// drpd materi/kelompok/desa supaya tidak kelamaan nampilin data basi.
+const LS_CACHE_TTL_SHORT = 30 * 60 * 1000; // 30 menit
+function lsCacheGet(key, ttl) {
   try {
     const raw = localStorage.getItem('kc_' + key);
     if (!raw) return null;
     const { v, t } = JSON.parse(raw);
-    if (!t || Date.now() - t > LS_CACHE_TTL) return null;
+    if (!t || Date.now() - t > (ttl || LS_CACHE_TTL)) return null;
     return v;
   } catch (e) { return null; }
 }
@@ -85,7 +88,7 @@ function lsCacheSet(key, v) {
 }
 function lsCacheClear() {
   try {
-    ['materi', 'kelompok', 'desa'].forEach(k => localStorage.removeItem('kc_' + k));
+    ['materi', 'kelompok', 'desa', 'santri'].forEach(k => localStorage.removeItem('kc_' + k));
   } catch (e) {}
 }
 
@@ -257,7 +260,7 @@ const sbKelas = {
 const sbSantri = {
   getByKelas: (kelasId) =>
     sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=*&order=nama`),
-  delete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'DELETE' }),
+  delete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'DELETE' }).then(r => { lsCacheClear(); return r; }),
   // Ambil santri untuk BANYAK kelas sekaligus dalam satu request
   getByKelasIds: (kelasIds) => {
     const ids = [...new Set(kelasIds)].filter(Boolean);
@@ -271,21 +274,28 @@ const sbSantri = {
   },
   getByKelompok: (kelompokId) =>
     sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
-  getAll: () =>
-    sbFetch(`santri?aktif=eq.true&select=*,kelas(id,kelompok_id,desa_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`),
+  // Di-cache localStorage 30 menit (lebih pendek drpd materi/kelompok/desa krn santri lebih
+  // sering diedit) — mutasi (insert/update/delete) di bawah otomatis hapus cache ini.
+  getAll: async () => {
+    const cached = lsCacheGet('santri', LS_CACHE_TTL_SHORT);
+    if (cached) return cached;
+    const data = await sbFetch(`santri?aktif=eq.true&select=*,kelas(id,kelompok_id,desa_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`);
+    lsCacheSet('santri', data);
+    return data;
+  },
   insert: (data) => sbFetch('santri', {
     method: 'POST',
     headers: {'Prefer':'return=representation'},
     body: JSON.stringify(Array.isArray(data) ? data : [data])
-  }),
-  update: (id, data) => sbFetch(`santri?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  softDelete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ aktif: false }) }),
+  }).then(r => { lsCacheClear(); return r; }),
+  update: (id, data) => sbFetch(`santri?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }).then(r => { lsCacheClear(); return r; }),
+  softDelete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ aktif: false }) }).then(r => { lsCacheClear(); return r; }),
 };
 
 // ============ PERTEMUAN ============
 const sbPertemuan = {
-  getByKelas: (kelasId, ta) =>
-    sbFetch(`pertemuan?kelas_id=eq.${kelasId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*&order=tanggal.desc`),
+  getByKelas: (kelasId, ta, bulan) =>
+    sbFetch(`pertemuan?kelas_id=eq.${kelasId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}${bulan?'&bulan=eq.'+encodeURIComponent(bulan):''}&select=*&order=tanggal.desc`),
   // Ambil pertemuan untuk BANYAK kelas sekaligus dalam satu request.
   // bulan opsional — kalau diisi, scope ke 1 bulan saja (jauh lebih hemat drpd tarik
   // satu tahun ajaran penuh tiap buka halaman rekap).
@@ -365,8 +375,8 @@ const sbAbsensi = {
 
 // ============ PROGRESS ============
 const sbProgress = {
-  getByKelompok: (kelompokId, ta) =>
-    sbFetch(`progress?kelompok_id=eq.${kelompokId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}&select=*`),
+  getByKelompok: (kelompokId, ta, bulan) =>
+    sbFetch(`progress?kelompok_id=eq.${kelompokId}${ta?'&tahun_ajaran=eq.'+encodeURIComponent(ta):''}${bulan?'&bulan=eq.'+encodeURIComponent(bulan):''}&select=*`),
   // Ambil progress untuk BANYAK kelompok sekaligus dalam satu request.
   // bulan opsional — scope ke 1 bulan saja (jauh lebih hemat drpd tarik satu tahun
   // ajaran penuh tiap buka halaman rekap).
