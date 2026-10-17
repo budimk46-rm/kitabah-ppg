@@ -3784,6 +3784,11 @@ async function renderSantri() {
         tabelBody += `<tr><td colspan="6" style="padding:4px; background:var(--line); height:4px;"></td></tr>`;
       }
       tabelBody += `<tr style="background:#e8f0e8;"><td colspan="6" style="padding:8px 10px; font-size:13px; font-weight:800; color:var(--green); border-top:2px solid var(--green);">📍 ${escHtml(desaNama)} &nbsp;·&nbsp; ${santriDesa.length} generus</td></tr>`;
+      tabelBody += `<tr style="background:var(--green-soft);">
+        <td style="padding:4px 10px; font-size:10.5px;"></td>
+        ${TINGKATAN_LIST.map(t => `<td style="text-align:center; padding:4px 4px; font-size:10.5px; font-weight:700; color:var(--green);">${escHtml(TINGKATAN_LABELS[t])}</td>`).join('')}
+        <td style="text-align:center; padding:4px 4px; font-size:10.5px; font-weight:700; color:var(--green);">Total</td>
+      </tr>`;
       tabelBody += statRow('Total ' + desaNama, statsDesa, false, false);
       klpList.forEach(k => {
         const santriKlp = santriFiltered.filter(s => (s.kelas?.kelompok_id || s.kelompok_asal_id) === k.id);
