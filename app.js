@@ -253,7 +253,8 @@ function showFullscreenKelas(k) {
             <div>
               <div style="font-size:19px; font-weight:700; color:${c};">${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
               ${m.subTitle ? `<div style="font-size:17px; font-weight:600; color:${c}; margin-top:2px;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
-              ${m.poinTitle ? `<div style="font-size:15px; color:var(--ink-soft); margin-top:2px;">${escHtml(m.poinTitle)}</div>` : ''}
+              ${m.poinTitle ? `<div style="font-size:15px; color:var(--ink-soft); margin-top:2px;">${escHtml(m.poinTitle)}</div>`
+                : m.konten ? `<div style="font-size:15px; color:var(--ink-soft); margin-top:2px;">${escHtml(m.konten)}</div>` : ''}
               ${status==='belum_tuntas' ? `<div style="font-size:13px; color:#c9930f; font-style:italic; margin-top:2px;">Belum tuntas, lanjut lagi</div>` : ''}
             </div>
           </div>`;
@@ -321,7 +322,8 @@ function materiItemCompactHtml(m) {
   return `<div style="padding:4px 0; border-bottom:1px solid var(--line);">
     <div style="color:${c}; font-weight:700;">${ICON[status]} ${m.bab?escHtml(m.bab)+'. ':''}${escHtml(m.babTitle||'')}</div>
     ${m.subTitle ? `<div style="color:${c}; margin-left:20px; font-weight:600;">${m.sub?escHtml(m.sub)+'. ':''}${escHtml(m.subTitle)}</div>` : ''}
-    ${m.poinTitle ? `<div style="color:var(--ink-soft); margin-left:20px;">${escHtml(m.poinTitle)}</div>` : ''}
+    ${m.poinTitle ? `<div style="color:var(--ink-soft); margin-left:20px;">${escHtml(m.poinTitle)}</div>`
+      : m.konten ? `<div style="color:var(--ink-soft); margin-left:20px;">${escHtml(m.konten)}</div>` : ''}
     ${status === 'belum_tuntas' ? `<div style="color:#c9930f; margin-left:20px; font-size:11px; font-style:italic;">Belum tuntas, lanjut lagi</div>` : ''}
   </div>`;
 }
@@ -17141,7 +17143,7 @@ async function renderRekap() {
       }).join('');
 
       const kUid = 'kk_' + ks.kelas.id;
-      const daftarMateri = ks.materiTarget.map(m => ({ bab: m.bab, babTitle: m.bab_title, sub: m.sub, subTitle: m.sub_title, poin: m.poin, poinTitle: m.poin_title, status: materiStatus3Arah(m.id, selectedBulan, progressSet, belumTuntasSet) }));
+      const daftarMateri = ks.materiTarget.map(m => ({ bab: m.bab, babTitle: m.bab_title, sub: m.sub, subTitle: m.sub_title, poin: m.poin, poinTitle: m.poin_title, konten: m[selectedBulan.toLowerCase()], status: materiStatus3Arah(m.id, selectedBulan, progressSet, belumTuntasSet) }));
       window._rekapKelasData[kUid] = {
         nama: namaKelas, kelompokNama: lastKelompokNama || myKlpObj?.nama || '',
         santri: ks.totalSantri, pctHadir: ks.pctHadir, pctMateri: ks.pctMateri,
@@ -17764,7 +17766,7 @@ async function renderRekapDesa() {
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
       const kMT = materiKelas.length;
-      const daftarMateri = materiKelas.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, status: materiStatus3Arah(r.id, bulan, d.progressSet, d.belumTuntasSet) }));
+      const daftarMateri = materiKelas.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, konten: r[col], status: materiStatus3Arah(r.id, bulan, d.progressSet, d.belumTuntasSet) }));
       const kMC = daftarMateri.filter(x => x.status === 'tuntas').length;
       materiTarget += kMT;
       materiTercapai += kMC;
@@ -18370,7 +18372,7 @@ async function renderRekapDaerah() {
         r.jenjang === k.jenjang && String(r.semester) === String(k.semester) && r[col] && r[col].trim()
       );
       const kMateriTarget = mk.length;
-      const daftarMateri = mk.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, status: materiStatus3Arah(r.id, bulan, d.progressSet, d.belumTuntasSet) }));
+      const daftarMateri = mk.map(r => ({ bab: r.bab, babTitle: r.bab_title, sub: r.sub, subTitle: r.sub_title, poin: r.poin, poinTitle: r.poin_title, konten: r[col], status: materiStatus3Arah(r.id, bulan, d.progressSet, d.belumTuntasSet) }));
       const kMateriCapai = daftarMateri.filter(x => x.status === 'tuntas').length;
       materiTarget += kMateriTarget;
       materiTercapai += kMateriCapai;
