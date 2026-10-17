@@ -1954,6 +1954,19 @@ async function renderPage(page) {
 const FREKUENSI_MIN_PER_BULAN = { caberawit: 20, pra_remaja: 12, remaja: 12, pra_nikah: 12 };
 const FREKUENSI_TINGKATAN_LIST = ['caberawit', 'pra_remaja', 'remaja', 'pra_nikah'];
 
+// Khusus utk aturan anjuran pertemuan/ranking — kelas PAUD ikut aturan Caberawit (5x/minggu),
+// beda dgn tingkatanDariKelas() global yg memperlakukan PAUD/TK sbg kategori tersendiri
+// (dipakai di Data Jamaah dll). Jangan ubah tingkatanDariKelas() global krn bisa mempengaruhi
+// fitur lain yg sengaja memisahkan PAUD/TK dari Caberawit.
+function tingkatanUntukRanking(k) {
+  const t = tingkatanDariKelas(k.nama_kelas);
+  if (t) return t;
+  const jenjang = (k.jenjang || '').toUpperCase().trim();
+  const nama = (k.nama_kelas || '').toUpperCase().trim();
+  if (jenjang === 'PAUD TK' || nama.startsWith('PAUD')) return 'caberawit';
+  return null;
+}
+
 // Ringkasan KBM (generus, kehadiran, progress materi, pertemuan bulan ini) dipakai Dashboard
 // di 3 tingkat (Kelompok/Desa/Daerah) — tinggal beda scope kelompokIds-nya. Versi RINGAN dari
 // logika Rekap KBM/Rekap Desa/Rekap Daerah: cuma hitung TOTAL agregat, bukan rincian per-kelas,
@@ -2045,7 +2058,7 @@ async function hitungRingkasanKbm(kelompokIds, bulan) {
     // (bukan dijumlah jadi satu angka) karena jumlah kelas tiap jenjang beda-beda antar
     // kelompok — kalau digabung, kelompok yg kebanyakan kelas Pra Nikah (target rendah /
     // santri sedikit) bisa kelihatan lebih unggul drpd yg didominasi Caberawit.
-    const tingkatanKelas = tingkatanDariKelas(k.nama_kelas);
+    const tingkatanKelas = tingkatanUntukRanking(k);
     const pertemuanKelas = pertemuanBulanIni.filter(p => p.kelas_id === k.id);
 
     // Hitung kehadiran kelas ini SEKALI (dipakai jg utk total agregat scope)
