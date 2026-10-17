@@ -319,8 +319,9 @@ const sbPertemuan = {
 
 // ============ JURNAL ============
 const sbJurnal = {
+  // anggota(nama_lengkap) via guru_id — biar admin bisa tau siapa yg terakhir isi jurnal ini.
   getByPertemuan: (pertemuanId) =>
-    sbFetch(`jurnal?pertemuan_id=eq.${pertemuanId}&select=*,jurnal_materi(*)`),
+    sbFetch(`jurnal?pertemuan_id=eq.${pertemuanId}&select=*,jurnal_materi(*),anggota(nama_lengkap)`),
   upsert: (data) => sbFetch('jurnal?on_conflict=pertemuan_id,guru_id', {
     method: 'POST',
     headers: {'Prefer': 'resolution=merge-duplicates,return=minimal'},
@@ -351,8 +352,9 @@ const sbJurnal = {
 
 // ============ ABSENSI ============
 const sbAbsensi = {
+  // anggota(nama_lengkap) via dicatat_oleh — biar admin bisa tau siapa yg terakhir isi absensi ini.
   getByPertemuan: (pertemuanId) =>
-    sbFetch(`absensi?pertemuan_id=eq.${pertemuanId}&select=*,santri(nama)&order=santri(nama)`),
+    sbFetch(`absensi?pertemuan_id=eq.${pertemuanId}&select=*,santri(nama),anggota(nama_lengkap)&order=santri(nama)`),
   // Ambil absensi untuk BANYAK pertemuan sekaligus dalam sedikit request (bukan satu per satu).
   // Dipecah per 150 id supaya URL tidak kepanjangan, tiap chunk jalan paralel.
   getByPertemuanIds: async (ids) => {

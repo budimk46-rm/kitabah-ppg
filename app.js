@@ -5097,6 +5097,8 @@ async function renderAbsensi() {
   let santriList = [];
   let absensiData = {};
   let jurnalData = null;
+  let absensiDiisiOleh = null; // {nama, waktu} — siapa & kapan terakhir isi absensi pertemuan ini
+  let jurnalDiisiOleh = null; // {nama, waktu} — siapa & kapan terakhir isi jurnal pertemuan ini
 
   async function refreshProgress() {
     const kId = activeKelompokId || myKelompokId || null;
@@ -5118,6 +5120,8 @@ async function renderAbsensi() {
     currentPertemuanId = null;
     absensiData = {};
     jurnalData = null;
+    absensiDiisiOleh = null;
+    jurnalDiisiOleh = null;
     selectedMateriIds = new Set();
     materiStatus = {};
     renderMain();
@@ -5134,7 +5138,9 @@ async function renderAbsensi() {
       SB.jurnal.getByPertemuan(pId),
     ]);
     absensiData = Object.fromEntries(absen.map(a => [a.santri_id, a.status]));
+    absensiDiisiOleh = absen.length ? (absen[0].anggota?.nama_lengkap || null) : null;
     jurnalData = jurnal.length ? jurnal[0] : null;
+    jurnalDiisiOleh = jurnalData ? (jurnalData.anggota?.nama_lengkap || null) : null;
     // Load materi yang sudah dipilih di jurnal ini
     const jurnalMateri = jurnalData ? (jurnalData.jurnal_materi || []) : [];
     selectedMateriIds = new Set(jurnalMateri.map(jm => jm.materi_id));
@@ -5352,7 +5358,10 @@ async function renderAbsensi() {
     // ── Jurnal ──
     const jurnalHtml = `
       <div class="card" style="margin-top:18px;">
-        <div class="fw-bold color-green" style="font-size:15px; margin-bottom:14px;">📝 Catatan Jurnal KBM</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:14px;">
+          <div class="fw-bold color-green" style="font-size:15px;">📝 Catatan Jurnal KBM</div>
+          ${isAdmin && jurnalDiisiOleh ? `<span class="badge badge-green">Diisi oleh: ${escHtml(jurnalDiisiOleh)}</span>` : ''}
+        </div>
         <div class="form-group" style="margin-bottom:14px;">
           <label>Catatan kondisi KBM, kendala, atau hal penting lainnya</label>
           <textarea id="jurnalCatatan" rows="3"
@@ -5446,7 +5455,10 @@ async function renderAbsensi() {
 
       <!-- Absensi -->
       <div class="card">
-        <div class="fw-bold color-green" style="font-size:15px; margin-bottom:12px;">\ud83d\udccb Absensi Kehadiran</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
+          <div class="fw-bold color-green" style="font-size:15px;">\ud83d\udccb Absensi Kehadiran</div>
+          ${isAdmin && absensiDiisiOleh ? `<span class="badge badge-green">Diisi oleh: ${escHtml(absensiDiisiOleh)}</span>` : ''}
+        </div>
         ${absensiTable}
       </div>
 
