@@ -2231,20 +2231,26 @@ async function renderDashboard() {
   let konfirmasiRow = null; // row konfirmasi terakhir milik kelompok sendiri (PJP Kelompok)
   let jumlahGenerusSkrg = 0, jumlahJamaahSkrg = 0;
   let konfirmasiBelumList = []; // dipakai admin: nama kelompok yg belum/perlu konfirmasi ulang
+  // kelompokId -> 'belum'|'berubah'|'valid' — dipakai jg sama rangking (lihat sortByTingkatanAvg)
+  // buat tau kelompok mana yg datanya udah dikonfirmasi lengkap.
+  let konfirmasiStatusByKlp = {};
 
-  if (isAdmin) {
-    const allKelompokIds = (App.cache.kelompok || []).map(k => k.id);
+  if (isDaerahTier || isDesaTier) {
+    const scopeIds = scopeKelompok.map(k => k.id);
     const [allKonfirmasi, allJamaah] = await Promise.all([
       SB.konfirmasiPendataan.getByTahunAjaran(taAktif),
-      SB.jamaah.getByKelompokIds(allKelompokIds),
+      SB.jamaah.getByKelompokIds(scopeIds),
     ]);
     if (!App.cache.allSantri) App.cache.allSantri = await SB.santri.getAll();
     const jamaahCountByKlp = {};
     (allJamaah||[]).forEach(j => { jamaahCountByKlp[j.kelompok_id] = (jamaahCountByKlp[j.kelompok_id]||0) + 1; });
     const konfirmasiByKlp = Object.fromEntries((allKonfirmasi||[]).map(r => [r.kelompok_id, r]));
-    konfirmasiBelumList = (App.cache.kelompok || [])
-      .filter(k => statusKonfirmasiPendataan(konfirmasiByKlp[k.id], jamaahCountByKlp[k.id]||0, hitungJumlahGenerusKelompok(k.id)) !== 'valid')
-      .map(k => k.nama);
+    scopeKelompok.forEach(k => {
+      konfirmasiStatusByKlp[k.id] = statusKonfirmasiPendataan(konfirmasiByKlp[k.id], jamaahCountByKlp[k.id]||0, hitungJumlahGenerusKelompok(k.id));
+    });
+    if (isAdmin) {
+      konfirmasiBelumList = scopeKelompok.filter(k => konfirmasiStatusByKlp[k.id] !== 'valid').map(k => k.nama);
+    }
   } else if (u.role === 'pjp_kelompok' && u.kelompok_id) {
     const [rows, jamaahList] = await Promise.all([
       SB.konfirmasiPendataan.getByKelompok(u.kelompok_id, taAktif),
@@ -2333,14 +2339,19 @@ async function renderDashboard() {
   const FREKUENSI_TINGKATAN_LABEL = { caberawit: 'Caberawit', pra_remaja: 'Pra Remaja', remaja: 'Remaja', pra_nikah: 'Pra Nikah' };
   const fmtPct = (v) => (v === null || v === undefined) ? '—' : v + '%';
 
-  // Rangking dari rata-rata jenjang yg memang ADA kelasnya di kelompok itu —
-  // bukan 4 jenjang dipaksa semua, krn banyak kelompok yg wajar tidak punya kelas
-  // di salah satu jenjang (misal tidak ada santri Pra Nikah sama sekali). Jenjang
-  // yg memang tidak ada kelasnya (target=0 → pct=null) dikecualikan dari rata-rata,
-  // tidak dianggap 0% dan tidak membuat kelompok itu otomatis turun rangking.
+  // Rangking dari rata-rata jenjang yg memang ADA kelasnya di kelompok itu — tapi
+  // itu HANYA berlaku kalau kelompoknya sudah konfirmasi Pendataan Jamaah & Generus
+  // selesai (status 'valid'). Selama belum dikonfirmasi, jenjang kosong dianggap 0%
+  // (bukan dikecualikan) — soalnya kosongnya bisa jadi krn datanya memang belum
+  // selesai diinput, bukan krn betul2 tidak ada generus di jenjang itu. Begitu sudah
+  // dikonfirmasi, baru dipercaya & disesuaikan ke kondisi aktualnya (dikecualikan lagi).
   const sortByTingkatanAvg = (list, byTingkatanKey) => {
     const score = (r) => {
-      const vals = FREKUENSI_TINGKATAN_LIST.map(t => r[byTingkatanKey][t].pct).filter(v => v !== null);
+      const sudahKonfirmasi = konfirmasiStatusByKlp[r.kelompokId] === 'valid';
+      const vals = FREKUENSI_TINGKATAN_LIST
+        .map(t => r[byTingkatanKey][t].pct)
+        .map(pct => pct !== null ? pct : (sudahKonfirmasi ? null : 0))
+        .filter(v => v !== null);
       return vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
     };
     return [...list].sort((a, b) => {
@@ -2449,10 +2460,11 @@ async function renderDashboard() {
       </table>`;
   };
 
+  const KONFIRMASI_NOTE = ' Kelompok yang belum konfirmasi Pendataan Jamaah & Generus selesai, jenjang kosongnya dianggap 0% (bukan dikecualikan) — sesuaikan ke kondisi aktual setelah kelompoknya konfirmasi.';
   const RANK_CAPTION = {
-    frekuensi: 'Kepatuhan Frekuensi per jenjang usia = pertemuan aktual ÷ anjuran minimal bulan ini (Caberawit 5x/minggu, Pra Remaja/Remaja/Pra Nikah 3x/minggu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.',
-    materi: 'Progress Materi per jenjang usia = jumlah materi yang diklik tuntas ÷ target materi kurikulum bulan ini, dihitung terpisah per jenjang. Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.',
-    kehadiran: 'Kehadiran per jenjang usia = total hadir ÷ total slot kehadiran bulan ini, dihitung terpisah per jenjang (santri × pertemuan jenjang itu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.',
+    frekuensi: 'Kepatuhan Frekuensi per jenjang usia = pertemuan aktual ÷ anjuran minimal bulan ini (Caberawit 5x/minggu, Pra Remaja/Remaja/Pra Nikah 3x/minggu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.' + KONFIRMASI_NOTE,
+    materi: 'Progress Materi per jenjang usia = jumlah materi yang diklik tuntas ÷ target materi kurikulum bulan ini, dihitung terpisah per jenjang. Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.' + KONFIRMASI_NOTE,
+    kehadiran: 'Kehadiran per jenjang usia = total hadir ÷ total slot kehadiran bulan ini, dihitung terpisah per jenjang (santri × pertemuan jenjang itu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.' + KONFIRMASI_NOTE,
   };
 
   const rankingHtml = () => {
