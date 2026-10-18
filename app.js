@@ -2464,18 +2464,21 @@ async function renderDashboard() {
       : rankSortMode === 'materi' ? rankingMateriHtml(showAll)
       : rankingKehadiranHtml(showAll);
     return `
-      <div class="card" style="margin-top:4px;">
+      <div class="card" style="margin-top:4px;" id="dashRankingCard">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
           <div class="fw-bold" style="font-size:14px; color:var(--green);">🏆 Rangking Kelompok ${isDaerahTier ? 'se-Daerah' : 'se-Desa'}${titleCount}</div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;" class="dash-ranking-hide-on-export">
             <button class="btn btn-sm ${rankSortMode === 'frekuensi' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('frekuensi')">Kepatuhan Frekuensi</button>
             <button class="btn btn-sm ${rankSortMode === 'materi' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('materi')">Progress Materi</button>
             <button class="btn btn-sm ${rankSortMode === 'kehadiran' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('kehadiran')">Kehadiran</button>
           </div>
         </div>
         ${RANK_CAPTION[rankSortMode] ? `<div style="font-size:10.5px; color:var(--ink-soft); margin-bottom:8px;">${RANK_CAPTION[rankSortMode]}</div>` : ''}
-        <div style="${showAll ? 'max-height:420px; overflow-y:auto;' : ''}">${bodyHtml}</div>
-        <button class="btn btn-outline btn-sm" style="margin-top:10px; width:100%;" onclick="navigate('${pageTarget}')">${showAll ? 'Lihat Detail per Desa & Materi →' : 'Lihat Rangking Lengkap →'}</button>
+        <div style="${showAll ? 'max-height:420px; overflow-y:auto;' : ''}" class="dash-ranking-scrollbox">${bodyHtml}</div>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;" class="dash-ranking-hide-on-export">
+          <button class="btn btn-outline btn-sm" style="flex:1; min-width:160px;" onclick="navigate('${pageTarget}')">${showAll ? 'Lihat Detail per Desa & Materi →' : 'Lihat Rangking Lengkap →'}</button>
+          <button class="btn btn-outline btn-sm" style="flex:0 0 auto;" onclick="DASH_downloadRankingImage(this)">📷 Unduh Gambar</button>
+        </div>
       </div>
     `;
   };
@@ -2609,6 +2612,42 @@ async function renderDashboard() {
   }
 
   window.DASH_setRankSort = (m) => { rankSortMode = m; paint(); };
+  window.DASH_downloadRankingImage = async (btn) => {
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyiapkan...'; }
+    const card = document.getElementById('dashRankingCard');
+    const controls = card ? card.querySelectorAll('.dash-ranking-hide-on-export') : [];
+    const scrollBox = card ? card.querySelector('.dash-ranking-scrollbox') : null;
+    const prevMaxHeight = scrollBox ? scrollBox.style.maxHeight : '';
+    const prevOverflow = scrollBox ? scrollBox.style.overflowY : '';
+    try {
+      if (!card) throw new Error('Kartu rangking tidak ditemukan');
+      if (!window.html2canvas) {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
+          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat library gambar'));
+          document.head.appendChild(s);
+        });
+      }
+      // Sembunyikan tombol & buka penuh daftar yg kepotong scroll, biar gambarnya bersih & lengkap
+      controls.forEach(el => el.style.display = 'none');
+      if (scrollBox) { scrollBox.style.maxHeight = 'none'; scrollBox.style.overflowY = 'visible'; }
+      const canvas = await window.html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+      controls.forEach(el => el.style.display = '');
+      if (scrollBox) { scrollBox.style.maxHeight = prevMaxHeight; scrollBox.style.overflowY = prevOverflow; }
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `Rangking_Kelompok_${isDaerahTier ? 'Daerah' : 'Desa'}_${rankSortMode}_${bulanIni}.png`;
+      a.click();
+      showToast('Gambar rangking berhasil diunduh ✓');
+    } catch (e) {
+      controls.forEach(el => el.style.display = '');
+      if (scrollBox) { scrollBox.style.maxHeight = prevMaxHeight; scrollBox.style.overflowY = prevOverflow; }
+      showToast('Gagal membuat gambar: ' + e.message, true);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '📷 Unduh Gambar'; }
+  };
   window.DASH_setBulan = async (b) => {
     if (b === selectedBulan) return;
     selectedBulan = b;
