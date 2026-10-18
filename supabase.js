@@ -88,7 +88,7 @@ function lsCacheSet(key, v) {
 }
 function lsCacheClear() {
   try {
-    ['materi', 'kelompok', 'desa', 'santri'].forEach(k => localStorage.removeItem('kc_' + k));
+    ['materi', 'kelompok', 'desa', 'santri', 'fgd_bk'].forEach(k => localStorage.removeItem('kc_' + k));
   } catch (e) {}
 }
 
@@ -837,6 +837,18 @@ const sbKonfirmasiPendataan = {
   }),
 };
 
+// Materi FGD - BK: referensi hasil Rapat Kerja Bidang BK (masalah/solusi/program kerja),
+// isinya statis (tidak diedit lewat app) jadi di-cache localStorage 6 jam spt materi kurikulum.
+const sbFgdBk = {
+  getAll: async () => {
+    const cached = lsCacheGet('fgd_bk');
+    if (cached) return cached;
+    const data = await sbFetch('fgd_bk?select=*&order=urutan');
+    lsCacheSet('fgd_bk', data);
+    return data;
+  },
+};
+
 const sbActivityLog = {
   insert: (data) => sbFetch('activity_log', { method:'POST', headers:{'Prefer':'return=minimal'}, body:JSON.stringify(data) }).catch(e => console.error('Gagal simpan activity_log:', e)),
   getAll: (limit=300) => sbFetch(`activity_log?select=*&order=created_at.desc&limit=${limit}`),
@@ -890,5 +902,6 @@ window.SB = {
   penerobosanDesa: sbPenerobosanDesa,
   formSubmissions: sbFormSubmissions,
   konfirmasiPendataan: sbKonfirmasiPendataan,
+  fgdBk: sbFgdBk,
   clearLocalCache: lsCacheClear,
 };

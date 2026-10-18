@@ -1596,6 +1596,7 @@ const NAV_ITEMS = {
   admin: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum & Materi', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
@@ -1627,6 +1628,7 @@ const NAV_ITEMS = {
   daerah: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Daerah' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'santri', icon: usersIcon(), label: 'Data Generus', section: 'DATA & KELOLA' },
@@ -1649,6 +1651,7 @@ const NAV_ITEMS = {
   desa: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
@@ -1674,6 +1677,7 @@ const NAV_ITEMS = {
   desa_view: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard Desa' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'penilaian', icon: starIcon(), label: 'Penilaian Generus' },
@@ -1695,6 +1699,7 @@ const NAV_ITEMS = {
   pjp_kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
@@ -1718,6 +1723,7 @@ const NAV_ITEMS = {
   wali_kbm: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'absensi', icon: calIcon(), label: 'Absensi & Jurnal' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
@@ -1737,6 +1743,7 @@ const NAV_ITEMS = {
   guru: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum Kelas Saya', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'absensi', icon: calIcon(), label: 'Input Absensi & Jurnal' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
@@ -1752,6 +1759,7 @@ const NAV_ITEMS = {
   kelompok: [
     { id: 'dashboard', icon: gridIcon(), label: 'Dashboard' },
     { id: 'live_chat', icon: chatIcon(), label: 'Live Chat' },
+    { id: 'fgd_bk', icon: meetIcon(), label: 'Materi FGD - BK' },
     { id: 'kurikulum', icon: bookIcon(), label: 'Kurikulum', section: 'KONTEN & PEMBELAJARAN' },
     { id: 'kelola_kelas', icon: cogIcon(), label: 'Kelola Kelas Generus' },
     { id: 'santri', icon: usersIcon(), label: 'Data Santri', section: 'DATA & KELOLA' },
@@ -1934,6 +1942,7 @@ async function renderPage(page) {
       case 'rekap_raport': await renderRekapRaport(); break;
       case 'profil_saya': await renderProfilSaya(); break;
       case 'live_chat': await renderLiveChat(); break;
+      case 'fgd_bk':      await renderFgdBk(); break;
       case 'proker':      await renderProker(); break;
       case 'kalender_ppg': await renderKalenderPPG(); break;
       case 'pengurus':    await renderPengurus(); break;
@@ -15946,6 +15955,245 @@ async function renderLiveChat() {
 
   render();
   App.chatInterval = setInterval(pollBaru, 8000);
+}
+
+/* ===== PAGE: MATERI FGD - BK ===== */
+// Referensi hasil Rapat Kerja Bidang Bimbingan Konseling (masalah/solusi/program kerja),
+// bisa dibuka semua role. Data statis (diimpor sekali dari notulen rapat), dicari lewat
+// pencarian kata kunci client-side (jumlahnya kecil, tidak perlu pencarian server-side).
+async function renderFgdBk() {
+  const main = document.getElementById('mainContent');
+  main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div><div style="margin-top:12px; color:var(--ink-soft); font-size:13px;">Memuat Materi FGD - BK...</div></div>';
+
+  let allData = [];
+  try {
+    allData = await SB.fgdBk.getAll() || [];
+  } catch (e) {
+    main.innerHTML = `<div class="page-header"><h1 class="page-title">Materi FGD - BK</h1></div><div class="card"><p class="color-soft">Gagal memuat data: ${escHtml(e.message)}</p></div>`;
+    return;
+  }
+
+  let searchQuery = '';
+  let lastFiltered = allData;
+
+  function filterData(q) {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return allData;
+    return allData.filter(r => `${r.tema} ${r.masalah} ${r.solusi||''} ${r.program}`.toLowerCase().includes(needle));
+  }
+
+  function highlightHtml(text, q) {
+    const esc = escHtml(text);
+    const needle = q.trim();
+    if (!needle) return esc;
+    const re = new RegExp('(' + needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+    return esc.replace(re, '<mark style="background:var(--gold-soft); color:var(--ink); padding:0 2px; border-radius:3px;">$1</mark>');
+  }
+
+  // Pecah teks "program" mentah (hasil gabungan beberapa sel tabel asli) jadi field
+  // PIC/Materi/Nama Kegiatan/Peserta/Waktu/Dana berdasarkan label ALL-CAPS yg jadi
+  // penanda di teksnya sendiri — bukan dari struktur tabel lagi (sudah tidak ada).
+  const PROGRAM_LABELS = [
+    { key: 'pic', re: /\[BIDANG\]\s*/i },
+    { key: 'nama_kegiatan', re: /NAMA\s+KEGIATAN\s*:\s*/i },
+    { key: 'peserta', re: /PESERTA\s*:\s*/i },
+    { key: 'waktu', re: /WAKTU\s*:\s*/i },
+    { key: 'dana', re: /DANA\s*:\s*/i },
+  ];
+  function parseProgramFields(programText) {
+    const text = (programText || '').trim();
+    const result = { pic: '', materi: '', nama_kegiatan: '', peserta: '', waktu: '', dana: '' };
+    const matches = [];
+    PROGRAM_LABELS.forEach(l => {
+      const m = text.match(l.re);
+      if (m) matches.push({ key: l.key, index: m.index, end: m.index + m[0].length });
+    });
+    matches.sort((a, b) => a.index - b.index);
+    if (!matches.length) { result.materi = text; return result; }
+    if (matches[0].index > 0) result.materi = text.slice(0, matches[0].index).trim();
+    matches.forEach((m, i) => {
+      const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+      const value = text.slice(m.end, end).trim();
+      if (m.key === 'pic') {
+        const nlIdx = value.indexOf('\n');
+        if (nlIdx !== -1) {
+          result.pic = value.slice(0, nlIdx).trim();
+          const rest = value.slice(nlIdx + 1).trim();
+          if (rest) result.materi = result.materi ? result.materi + '\n' + rest : rest;
+        } else {
+          result.pic = value;
+        }
+      } else {
+        result[m.key] = value;
+      }
+    });
+    return result;
+  }
+
+  function buildResultsHtml(rows, q) {
+    if (!rows.length) {
+      return `<div class="card" style="text-align:center; padding:34px; color:var(--ink-soft);">Tidak ada materi yang cocok dengan kata kunci ini.</div>`;
+    }
+    const temaOrder = [];
+    const temaMap = {};
+    rows.forEach(r => {
+      if (!temaMap[r.tema]) { temaMap[r.tema] = {}; temaOrder.push(r.tema); }
+      const key = r.masalah;
+      (temaMap[r.tema][key] ||= []).push(r);
+    });
+    const label = (text, color) => `<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:${color}; margin-bottom:2px;">${text}</div>`;
+    return temaOrder.map(tema => {
+      const masalahHtml = Object.entries(temaMap[tema]).map(([masalah, items]) => `
+        <div class="card" style="margin-bottom:10px;">
+          ${label('⚠️ Masalah', 'var(--rose)')}
+          <div class="fw-bold" style="color:var(--rose); font-size:13.5px; margin-bottom:10px;">${highlightHtml(masalah, q)}</div>
+          ${items.map(it => {
+            const pf = parseProgramFields(it.program);
+            const fieldRow = (lbl, val) => val ? `<div style="margin-bottom:5px; font-size:12px; line-height:1.5;"><span style="font-weight:700; color:var(--green);">${escHtml(lbl)}:</span> <span style="color:#000;">${highlightHtml(val, q)}</span></div>` : '';
+            return `
+            <div style="margin-bottom:8px; padding:9px 11px; background:var(--cream-2); border-radius:8px;">
+              ${it.solusi ? `${label('💡 Solusi', 'var(--green)')}<div style="font-size:12.5px; font-weight:700; color:var(--green); margin-bottom:8px;">${highlightHtml(it.solusi, q)}</div>` : ''}
+              ${label('📋 Program Action Plan', 'var(--ink-soft)')}
+              ${fieldRow('PIC', pf.pic)}
+              ${fieldRow('Materi', pf.materi)}
+              ${fieldRow('Nama Kegiatan', pf.nama_kegiatan)}
+              ${fieldRow('Peserta', pf.peserta)}
+              ${fieldRow('Waktu', pf.waktu)}
+              ${fieldRow('Dana', pf.dana)}
+            </div>
+          `;}).join('')}
+        </div>
+      `).join('');
+      return `
+        <div style="margin:18px 0 8px; font-size:13px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em;">📋 ${escHtml(tema)}</div>
+        ${masalahHtml}
+      `;
+    }).join('');
+  }
+
+  function doSearch(q) {
+    searchQuery = q;
+    lastFiltered = filterData(q);
+    const resEl = document.getElementById('fgdResults');
+    if (resEl) resEl.innerHTML = buildResultsHtml(lastFiltered, q);
+    const countEl = document.getElementById('fgdCount');
+    if (countEl) countEl.textContent = q.trim() ? `${lastFiltered.length} hasil dari ${allData.length} materi` : `${allData.length} materi tersedia`;
+  }
+
+  window.FGD_search = (v) => doSearch(v);
+
+  window.FGD_downloadPdf = async () => {
+    showToast('Menyiapkan PDF...');
+    if (!window.PDFLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        s.onload = res; s.onerror = () => rej(new Error('Gagal memuat library PDF'));
+        document.head.appendChild(s);
+      });
+    }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fReg = await doc.embedFont(StandardFonts.Helvetica);
+      const W = 595, H = 842, ML = 42, MR = 42, MT = 50; // A4 potret
+      const GREEN = rgb(0.106, 0.227, 0.173), GRAY = rgb(0.45, 0.45, 0.45), ROSE = rgb(0.65, 0.28, 0.23);
+      const contentWidth = W - ML - MR;
+
+      let page = doc.addPage([W, H]); let y = H - MT;
+      function newPage() { page = doc.addPage([W, H]); y = H - MT; }
+      function checkY(n) { if (y < n + 40) newPage(); }
+      function wrapText(text, maxWidth, size, font) {
+        const words = String(text || '').replace(/\n+/g, ' ').split(/\s+/).filter(Boolean);
+        const lines = []; let cur = '';
+        words.forEach(w => {
+          const test = cur ? cur + ' ' + w : w;
+          if (font.widthOfTextAtSize(test, size) > maxWidth && cur) { lines.push(cur); cur = w; }
+          else cur = test;
+        });
+        if (cur) lines.push(cur);
+        return lines;
+      }
+
+      page.drawText('MATERI FGD - BIDANG BK', { x: ML, y, font: fBold, size: 15, color: GREEN });
+      y -= 16;
+      page.drawText(
+        'PPG Sidoarjo Utara' + (searchQuery.trim() ? ` | Kata kunci: "${searchQuery.trim()}"` : '') +
+        ` | Dicetak: ${new Date().toLocaleDateString('id-ID')} | ${lastFiltered.length} hasil`,
+        { x: ML, y, font: fReg, size: 8.5, color: GRAY }
+      );
+      y -= 10;
+      page.drawLine({ start: { x: ML, y }, end: { x: W - MR, y }, thickness: 1.3, color: GREEN });
+      y -= 18;
+
+      let curTema = null;
+      lastFiltered.forEach(r => {
+        if (r.tema !== curTema) {
+          curTema = r.tema;
+          checkY(24);
+          page.drawRectangle({ x: ML, y: y - 4, width: contentWidth, height: 18, color: GREEN });
+          page.drawText(curTema.toUpperCase(), { x: ML + 6, y, font: fBold, size: 10, color: rgb(1, 1, 1) });
+          y -= 24;
+        }
+        checkY(20);
+        wrapText('MASALAH: ' + r.masalah, contentWidth, 9, fBold).forEach(line => {
+          checkY(12); page.drawText(line, { x: ML, y, font: fBold, size: 9, color: ROSE }); y -= 11;
+        });
+        if (r.solusi) {
+          wrapText('SOLUSI: ' + r.solusi, contentWidth - 8, 8.5, fBold).forEach(line => {
+            checkY(11); page.drawText(line, { x: ML + 8, y, font: fBold, size: 8.5, color: GREEN }); y -= 10;
+          });
+        }
+        checkY(10); page.drawText('PROGRAM ACTION PLAN:', { x: ML + 8, y, font: fBold, size: 8, color: rgb(0.2, 0.2, 0.2) }); y -= 9.5;
+        const pf = parseProgramFields(r.program);
+        [['PIC', pf.pic], ['Materi', pf.materi], ['Nama Kegiatan', pf.nama_kegiatan], ['Peserta', pf.peserta], ['Waktu', pf.waktu], ['Dana', pf.dana]]
+          .filter(([, val]) => val)
+          .forEach(([lbl, val]) => {
+            wrapText(lbl + ': ' + val, contentWidth - 8, 8, fReg).forEach(line => {
+              checkY(10); page.drawText(line, { x: ML + 8, y, font: fReg, size: 8, color: rgb(0.2, 0.2, 0.2) }); y -= 9.5;
+            });
+          });
+        y -= 8;
+      });
+
+      doc.getPages().forEach((p, i) => {
+        p.drawText(`Hal ${i + 1}/${doc.getPageCount()} - Materi FGD BK - PPG Sidoarjo Utara`, { x: ML, y: 24, font: fReg, size: 7, color: GRAY });
+      });
+
+      const bytes = await doc.save();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Materi_FGD_BK' + (searchQuery.trim() ? '_' + searchQuery.trim().replace(/[^a-z0-9]+/gi, '_') : '') + '.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('PDF berhasil diunduh ✓');
+    } catch (e) {
+      showToast('Gagal: ' + e.message, true);
+      console.error(e);
+    }
+  };
+
+  main.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Materi FGD - BK</h1>
+        <p class="page-subtitle">Referensi hasil Rapat Kerja Bidang Bimbingan Konseling — ketik kata kunci untuk mencari.</p>
+      </div>
+    </div>
+    <div class="card">
+      <input type="text" id="fgdSearchInput" placeholder="Cari kata kunci... misal: gadget, pacaran, dapukan, judol"
+        oninput="FGD_search(this.value)"
+        style="width:100%; padding:11px 14px; border:1.5px solid var(--line); border-radius:var(--radius-sm); font-size:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
+        <span id="fgdCount" style="font-size:12px; color:var(--ink-soft);">${allData.length} materi tersedia</span>
+        <button class="btn btn-outline btn-sm" onclick="FGD_downloadPdf()">📄 Download PDF</button>
+      </div>
+    </div>
+    <div id="fgdResults">${buildResultsHtml(allData, '')}</div>
+  `;
 }
 
 /* ===== PAGE: PROFIL SAYA ===== */
