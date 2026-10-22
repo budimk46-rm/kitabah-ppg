@@ -10226,11 +10226,36 @@ async function ambilNamaJamaahKelompok(kelompokId) {
     orang.push({ nama: x.nama, jenis_kelamin: x.jenis_kelamin, tgl_lahir: x.tgl_lahir, kategori: kat, status_menikah: x.status_menikah });
   });
 
-  semuaSantri.forEach(s => {
-    if (santriIdSudahAdaJamaah.has(s.id)) return;
+  const santriVirtual = semuaSantri.filter(s => !santriIdSudahAdaJamaah.has(s.id));
+  santriVirtual.forEach(s => {
     const kat = kategoriDariSantri.get(s.id) || kategoriUsiaJamaah(s.tgl_lahir, null);
-    orang.push({ nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir, kategori: kat, status_menikah: null });
+    orang.push({ nama: s.nama, jenis_kelamin: s.jenis_kel, tgl_lahir: s.tgl_lahir, kategori: kat, status_menikah: null, _virtual: true });
   });
+
+  // Tandai (info saja, modal ini read-only) nama yang sebenarnya sudah jadi Data Jamaah resmi
+  // di kelompok LAIN satu desa — kejadiannya lewat jalur kelas (Data Santri) yg kelompok_id-nya
+  // beda dari kelompok jamaah aslinya, jadi nongol dobel. Perbaikannya lewat halaman Data Jamaah
+  // PJP Kelompok yang bersangkutan (tombol "Kembalikan ke Asal").
+  const kelompokIni = (App.cache.kelompok||[]).find(k => k.id === kelompokId);
+  if (kelompokIni && santriVirtual.length) {
+    const siblingIds = (App.cache.kelompok||[]).filter(k => k.desa_id === kelompokIni.desa_id && k.id !== kelompokId).map(k => k.id);
+    if (siblingIds.length) {
+      const jamaahLuar = await SB.jamaah.getByKelompokIds(siblingIds) || [];
+      const kelompokNamaById = new Map((App.cache.kelompok||[]).map(k => [k.id, k.nama]));
+      const norm = (s) => (s||'').toLowerCase().trim().replace(/\s+/g,' ');
+      const jamaahLuarMap = new Map();
+      jamaahLuar.forEach(j => {
+        if (!j.tgl_lahir) return;
+        const key = norm(j.nama) + '|' + j.tgl_lahir;
+        if (!jamaahLuarMap.has(key)) jamaahLuarMap.set(key, j);
+      });
+      orang.forEach(o => {
+        if (!o._virtual || !o.tgl_lahir) return;
+        const match = jamaahLuarMap.get(norm(o.nama) + '|' + o.tgl_lahir);
+        if (match) o.kelompokAsalNama = kelompokNamaById.get(match.kelompok_id) || '-';
+      });
+    }
+  }
 
   return orang;
 }
@@ -10302,7 +10327,7 @@ async function renderJamaahEntry() {
   const kelompokNama = (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.nama || '';
   main.innerHTML = '<div style="padding:40px; text-align:center;"><div class="spinner dark"></div></div>';
 
-  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set(), kategoriDariSantriMap = new Map();
+  let list = [], santriKlp = [], santriBelumTertaut = [], byId, santriIdToJamaahRow, linksByJamaahId, listUrut = [], childLinkMap = new Map(), dupSantriMap = new Map(), globalLinkedSantriIds = new Set(), globalLinkedAnakJamaahIds = new Set(), kategoriDariSantriMap = new Map(), duplikatLintasKelompokMap = new Map();
   let simpatisanList = [];
   let searchQuery = '';
   let filterKategori = new Set();
@@ -10350,6 +10375,40 @@ async function renderJamaahEntry() {
       byId.set(virtualRow.id, virtualRow);
       santriIdToJamaahRow.set(s.id, virtualRow);
     });
+
+    // Deteksi santri "virtual" (belum pernah lewat "Jadikan Santri" di kelompok ini) yang
+    // nama + tgl lahirnya PERSIS sama dengan Data Jamaah resmi di kelompok LAIN satu desa.
+    // Ini nandain kasus: anak sebenarnya sudah tercatat di kelompok asalnya, tapi kelasnya
+    // (Data Santri) kecantol/ke-input di kelompok ini — jadi dobel nongol di 2 kelompok.
+    duplikatLintasKelompokMap = new Map();
+    const normNamaLintas = (s) => (s||'').toLowerCase().trim().replace(/\s+/g,' ');
+    // u.desa_id bisa kosong kalau diakses Admin lewat mode "View as" — ambil desa_id dari
+    // data kelompok cache sendiri (lebih pasti ada) sbg fallback.
+    const desaIdKelompokIni = u.desa_id || (App.cache.kelompok||[]).find(k => k.id === u.kelompok_id)?.desa_id;
+    const siblingKelompokIds = (App.cache.kelompok||[])
+      .filter(k => k.desa_id === desaIdKelompokIni && k.id !== u.kelompok_id)
+      .map(k => k.id);
+    if (siblingKelompokIds.length) {
+      const jamaahLuar = await SB.jamaah.getByKelompokIds(siblingKelompokIds) || [];
+      const kelompokNamaById = new Map((App.cache.kelompok||[]).map(k => [k.id, k.nama]));
+      const jamaahLuarMap = new Map();
+      jamaahLuar.forEach(j => {
+        if (!j.tgl_lahir) return; // tanpa tgl lahir terlalu beresiko salah cocok
+        const key = normNamaLintas(j.nama) + '|' + j.tgl_lahir;
+        if (!jamaahLuarMap.has(key)) jamaahLuarMap.set(key, j);
+      });
+      list.filter(x => x._virtual && x.tgl_lahir).forEach(x => {
+        const key = normNamaLintas(x.nama) + '|' + x.tgl_lahir;
+        const match = jamaahLuarMap.get(key);
+        if (match) {
+          duplikatLintasKelompokMap.set(x.id, {
+            kelompokAsalId: match.kelompok_id,
+            kelompokAsalNama: kelompokNamaById.get(match.kelompok_id) || '-',
+            santriId: x.santri_id,
+          });
+        }
+      });
+    }
 
     const processed = new Set();
     const families = [];
@@ -10484,6 +10543,12 @@ async function renderJamaahEntry() {
         <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Kemungkinan orang yang sama sudah tercatat 2 kali (di Data Jamaah dan Data Santri terpisah). Cek tanda ⚠️ merah di kolom Keterangan pada tabel di bawah, lalu pilih "Tautkan ke situ" kalau memang orang yang sama — supaya tidak double saat "Jadikan Santri".</div>
       </div>` : ''}
 
+      ${duplikatLintasKelompokMap.size ? `
+      <div class="card" style="margin-bottom:16px; border:1.5px solid var(--rose);">
+        <div style="font-size:12.5px; font-weight:700; color:var(--rose);">⚠️ ${duplikatLintasKelompokMap.size} Nama Sebenarnya Sudah Jadi Data Jamaah di Kelompok Lain</div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Nama + tanggal lahirnya persis sama dengan Data Jamaah resmi di kelompok lain (satu desa) — kemungkinan Data Santri di sini ke-input salah kelompok. Cek tanda ⚠️ di kolom "Aksi" pada tabel di bawah, lalu klik "Kembalikan ke Asal" untuk menghapus entri dobelnya dari sini (data asli di kelompok lain tidak akan terganggu).</div>
+      </div>` : ''}
+
       <div class="card" style="margin-bottom:16px; padding:0; overflow:hidden;">
         ${jamaahKategoriTableHtml(list, kategoriDariSantriMap)}
       </div>
@@ -10597,7 +10662,13 @@ async function renderJamaahEntry() {
                   </div>
                 </td>
                 ${canEdit ? `<td style="padding:7px 10px; text-align:center;">
-                  ${x._virtual ? '<span style="font-size:10px; color:var(--ink-soft); font-style:italic;">Data Santri</span>' : `
+                  ${x._virtual ? (duplikatLintasKelompokMap.has(x.id) ? (() => {
+                    const dup = duplikatLintasKelompokMap.get(x.id);
+                    return `<div style="font-size:10px; color:var(--rose); font-weight:700; line-height:1.5;">
+                      ⚠️ Sudah ada di<br>"${escHtml(dup.kelompokAsalNama)}"<br>
+                      <a href="#" onclick="JMH_kembalikanKeAsal('${dup.santriId}','${escHtml(x.nama)}','${escHtml(dup.kelompokAsalNama)}'); return false;" style="color:var(--rose); text-decoration:underline;">↩️ Kembalikan ke Asal</a>
+                    </div>`;
+                  })() : '<span style="font-size:10px; color:var(--ink-soft); font-style:italic;">Data Santri</span>') : `
                   <div style="display:flex; gap:3px; justify-content:center;">
                     <button class="btn-icon" onclick="JMH_edit('${x.id}')" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 013 3L12 15l-4 1 1-4z"/></svg></button>
                     <button class="btn-icon danger" onclick="JMH_hapus(this.dataset.id, this.dataset.nama)" data-id="${x.id}" data-nama="${escHtml(x.nama)}" title="Hapus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
@@ -10699,6 +10770,22 @@ async function renderJamaahEntry() {
     showToast('Data jamaah dihapus');
     await refreshJamaahData();
     render();
+  };
+
+  // Hapus entri Data Santri yang nama+tgl lahirnya kedobel ketahuan sama persis dgn Data
+  // Jamaah resmi di kelompok lain — jadi "ngembaliin" ke keadaan benar (cuma ada 1 catatan,
+  // di kelompok asalnya). Data asli di kelompok lain SAMA SEKALI tidak disentuh di sini.
+  window.JMH_kembalikanKeAsal = async (santriId, nama, kelompokAsalNama) => {
+    if (!confirm(`"${nama}" sudah tercatat sebagai Data Jamaah resmi di kelompok "${kelompokAsalNama}".\n\nEntri Data Santri untuk "${nama}" di kelompok ini adalah DUPLIKAT dan akan DIHAPUS. Data aslinya di "${kelompokAsalNama}" TIDAK akan terpengaruh.\n\nLanjutkan?`)) return;
+    try {
+      await SB.santri.delete(santriId);
+      logActivity('hapus', 'Data Santri', `Menghapus data santri duplikat "${nama}" (data asli sudah ada di kelompok ${kelompokAsalNama})`);
+      showToast('Data duplikat dikembalikan ke kelompok asal');
+      await refreshJamaahData();
+      render();
+    } catch(e) {
+      showToast('Gagal: ' + e.message, true);
+    }
   };
 
   window.JMH_jadikanSantri = async (jamaahId) => {
@@ -11761,15 +11848,19 @@ async function renderJamaahRekap() {
       const orang = await ambilNamaJamaahKelompok(kelompokId);
       const grouped = {};
       orang.forEach(o => { (grouped[o.kategori] ||= []).push(o); });
+      const jumlahDuplikat = orang.filter(o => o.kelompokAsalNama).length;
       const bodyHtml = !orang.length ? '<div style="text-align:center; padding:20px; color:var(--ink-soft); font-size:13px;">Belum ada data jamaah di kelompok ini.</div>' : `
         <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:10px;">Total: ${orang.length} orang · Tampilan lihat-saja (tidak bisa diedit dari sini)</div>
+        ${jumlahDuplikat ? `<div style="background:#fbe4e4; border-radius:8px; padding:10px 12px; margin-bottom:14px; font-size:12px; color:var(--rose); font-weight:600;">
+          ⚠️ ${jumlahDuplikat} nama bertanda ⚠️ di bawah sebenarnya sudah tercatat sebagai Data Jamaah resmi di kelompok lain (lihat keterangan di tiap baris) — kemungkinan Data Santri-nya ke-input salah kelompok. Perbaiki lewat menu Data Jamaah milik kelompok ini (tombol "Kembalikan ke Asal"), bukan dari modal ini.
+        </div>` : ''}
         ${KATEGORI_JAMAAH_ORDER.filter(k => grouped[k]?.length).map(kat => `
           <div style="margin-bottom:14px;">
             <div style="font-size:12.5px; font-weight:800; color:var(--green); text-transform:uppercase; letter-spacing:.03em; padding-bottom:4px; border-bottom:1.5px solid var(--green); margin-bottom:6px;">${escHtml(kat)} (${grouped[kat].length})</div>
             <div class="table-wrap"><table>
               <thead><tr><th>Nama</th><th style="text-align:center;">L/P</th><th>Tgl Lahir</th></tr></thead>
               <tbody>${grouped[kat].sort((a,b)=>(a.nama||'').localeCompare(b.nama||'')).map(o => `<tr>
-                <td style="font-weight:600;">${escHtml(o.nama)}</td>
+                <td style="font-weight:600;">${escHtml(o.nama)}${o.kelompokAsalNama ? `<div style="font-size:10px; color:var(--rose); font-weight:700; margin-top:2px;">⚠️ Sudah ada di "${escHtml(o.kelompokAsalNama)}"</div>` : ''}</td>
                 <td style="text-align:center;"><span class="badge ${o.jenis_kelamin==='L'?'badge-green':'badge-rose'}">${o.jenis_kelamin||'—'}</span></td>
                 <td>${o.tgl_lahir ? fmtDateShort(o.tgl_lahir) : '—'}</td>
               </tr>`).join('')}</tbody>
