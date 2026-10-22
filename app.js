@@ -4235,7 +4235,10 @@ async function renderKelolaKelas() {
     santriList = [];
     await loadUnassignedManage();
     if (kelompokId) {
-      let kelas = sortKelas(await SB.kelas.getByKelompok(kelompokId));
+      // Kelas gabungan (desa_id keisi) ikut kebawa di getByKelompok JUGA (kelompok_id-nya
+      // tetap keisi kelompok pembuatnya) — exclude di sini supaya gak dobel kehitung sama
+      // kelas gabungan yg diambil terpisah di bawah lewat getByDesa.
+      let kelas = sortKelas((await SB.kelas.getByKelompok(kelompokId)).filter(k => !k.desa_id));
       // Load kelas gabungan desa
       const klp = (App.cache.kelompok||[]).find(k => k.id === kelompokId);
       const desaId = klp?.desa_id || u.desa_id;
@@ -4340,16 +4343,26 @@ async function renderKelolaKelas() {
 
   function kelasLabel(k) {
     const nama = k.nama_kelas ? k.nama_kelas + ' — ' : '';
-    const gabungan = k.desa_id ? ' 🏘️ Gabungan' : '';
-    return `${nama}${escHtml(k.jenjang)} Sem ${k.semester}${gabungan}`;
+    return `${nama}${escHtml(k.jenjang)} Sem ${k.semester}`;
+  }
+
+  // Dropdown dikelompokkan pakai <optgroup> — kelas kelompok sendiri dulu (sudah urut per
+  // tingkatan+huruf lewat sortKelas), baru kelas gabungan desa, juga urut — supaya gak
+  // "loncat-loncat" kebaca & gampang bedain mana yg gabungan.
+  function kelasOptsHtmlGrouped() {
+    const sendiri = kelasOptions.filter(k => !k._isGabungan);
+    const gabungan = kelasOptions.filter(k => k._isGabungan);
+    const optFor = (k) => `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>${kelasLabel(k)}</option>`;
+    let html = '';
+    if (sendiri.length) html += `<optgroup label="📚 Kelas Kelompok Sendiri">${sendiri.map(optFor).join('')}</optgroup>`;
+    if (gabungan.length) html += `<optgroup label="🏘️ Kelas Gabungan Desa">${gabungan.map(optFor).join('')}</optgroup>`;
+    return html;
   }
 
   function render() {
     const kelompokList = App.cache.kelompok || [];
 
-    const kelasOptsHtml = kelasOptions.map(k =>
-      `<option value="${k.id}" ${k.id === selectedKelasId ? 'selected' : ''}>${kelasLabel(k)}</option>`
-    ).join('');
+    const kelasOptsHtml = kelasOptsHtmlGrouped();
 
     const selectedKelas = kelasOptions.find(k => k.id === selectedKelasId);
     const selectedKelasObj = selectedKelas;
