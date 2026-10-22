@@ -8220,15 +8220,16 @@ function pengajianJenisLabel(j) { return j==='sub' ? 'Sub Pengajian' : j==='ibu_
 // dari PGJ_setStatus) — biar pas klik nama terakhir, jumlahnya udah kelihatan, tinggal Simpan.
 function pengajianRingkasanHtml(jamaahList, absensiMap) {
   const total = jamaahList.length;
-  let h=0, s=0, i=0, a=0;
+  let h=0, s=0, i=0, a=0, hL=0, hP=0;
   jamaahList.forEach(x => {
     const st = absensiMap[x.id];
-    if (st==='H') h++; else if (st==='S') s++; else if (st==='I') i++; else if (st==='A') a++;
+    if (st==='H') { h++; if (x.jenis_kelamin==='L') hL++; else if (x.jenis_kelamin==='P') hP++; }
+    else if (st==='S') s++; else if (st==='I') i++; else if (st==='A') a++;
   });
   const belum = total - (h+s+i+a);
   return `<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:9px 12px; background:var(--cream-2); border-radius:8px; font-size:12.5px;">
     <span style="font-weight:700; color:var(--ink-soft); text-transform:uppercase; font-size:10px; letter-spacing:.03em;">Rekap Sementara</span>
-    <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.H};">H ${h}</span>
+    <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.H};">H ${h} <span style="font-weight:600; font-size:11px;">(L ${hL} · P ${hP})</span></span>
     <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.S};">S ${s}</span>
     <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.I};">I ${i}</span>
     <span style="font-weight:800; color:${PENGAJIAN_STATUS_COLOR.A};">A ${a}</span>
@@ -8414,17 +8415,23 @@ async function renderAbsensiPengajian() {
     });
 
     const totalKeseluruhan = perBulanData.reduce((s,d) => s + d.totalPtm, 0);
-    const hadirKeseluruhan = jamaahEligible.reduce((sum, x) => {
-      return sum + perBulanData.reduce((s,d) => s + (d.absensiPerOrang[x.id]||0), 0);
-    }, 0);
+    let hadirL = 0, hadirP = 0;
+    jamaahEligible.forEach(x => {
+      const sumOrang = perBulanData.reduce((s,d) => s + (d.absensiPerOrang[x.id]||0), 0);
+      if (x.jenis_kelamin === 'L') hadirL += sumOrang; else if (x.jenis_kelamin === 'P') hadirP += sumOrang;
+    });
+    const hadirKeseluruhan = hadirL + hadirP;
     const pctKeseluruhan = totalKeseluruhan && jamaahEligible.length
       ? Math.round((hadirKeseluruhan / (totalKeseluruhan * jamaahEligible.length)) * 100) : 0;
+    const jmlL = jamaahEligible.filter(x => x.jenis_kelamin === 'L').length;
+    const jmlP = jamaahEligible.filter(x => x.jenis_kelamin === 'P').length;
 
     rekapHtml = `
       <div class="card" style="margin-bottom:14px;">
         <div style="display:flex; gap:20px; flex-wrap:wrap;">
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Rata-rata Kehadiran 3 Bulan</span><div style="font-size:22px; font-weight:800; color:${pctKeseluruhan<50?'var(--rose)':'var(--green)'};">${pctKeseluruhan}%</div></div>
-          <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Jamaah</span><div style="font-size:22px; font-weight:800; color:var(--green);">${jamaahEligible.length}</div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Jumlah Jamaah</span><div style="font-size:22px; font-weight:800; color:var(--green);">${jamaahEligible.length} <span style="font-size:12px; font-weight:600; color:var(--ink-soft);">(L ${jmlL} · P ${jmlP})</span></div></div>
+          <div><span style="font-size:10.5px; color:var(--ink-soft);">Total Kehadiran (3 bulan)</span><div style="font-size:22px; font-weight:800; color:var(--green);">${hadirKeseluruhan} <span style="font-size:12px; font-weight:600; color:var(--ink-soft);">(L ${hadirL} · P ${hadirP})</span></div></div>
           <div><span style="font-size:10.5px; color:var(--ink-soft);">Total Pertemuan (3 bulan)</span><div style="font-size:22px; font-weight:800; color:var(--green);">${totalKeseluruhan}</div></div>
         </div>
       </div>
