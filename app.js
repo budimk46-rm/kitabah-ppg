@@ -13045,15 +13045,17 @@ async function renderProker() {
       }).join('');
 
       return `
-        <div class="card" style="margin-bottom:14px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+        <div class="card" style="margin-bottom:14px; padding:0; overflow:hidden;">
+          <div style="display:flex; align-items:center; justify-content:space-between; background:var(--green-soft); border-bottom:1.5px solid var(--green); padding:12px 16px; flex-wrap:wrap; gap:6px;">
             <div>
               <div class="fw-bold color-green" style="font-size:14px;">📋 ${escHtml(bidang)}</div>
               <div style="font-size:12px; color:var(--ink-soft);">${programs.length} program · ${fmtRp(totalBidang)}</div>
             </div>
             ${isAdmin ? `<button class="btn btn-outline btn-sm" onclick="PK_tambahProker('${escHtml(bidang)}')">+ Program</button>` : ''}
           </div>
-          ${progRows || '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada program kerja.</div>'}
+          <div style="padding:14px 16px;">
+            ${progRows || '<div style="font-size:12px; color:var(--ink-soft); padding:8px 0;">Belum ada program kerja.</div>'}
+          </div>
         </div>`;
     }).join('');
 
