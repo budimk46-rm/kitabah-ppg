@@ -538,14 +538,14 @@ async function showShell() {
 function startOnlineHeartbeat() {
   if (App.onlineHeartbeatInterval) clearInterval(App.onlineHeartbeatInterval);
   SB.anggota.pingActive(App.user.id);
-  App.onlineHeartbeatInterval = setInterval(() => SB.anggota.pingActive(App.user.id), 120000);
+  App.onlineHeartbeatInterval = setInterval(() => { if (!document.hidden) SB.anggota.pingActive(App.user.id); }, 180000);
 }
 
 // Segarkan data akses user sendiri secara berkala — supaya kalau admin baru saja ubah
 // akses_menu/akses_lintas/role, langsung kerasa tanpa perlu logout-login manual.
 function startAksesRefreshWatcher() {
   if (App.aksesRefreshInterval) clearInterval(App.aksesRefreshInterval);
-  App.aksesRefreshInterval = setInterval(refreshRealUserData, 90000);
+  App.aksesRefreshInterval = setInterval(() => { if (!document.hidden) refreshRealUserData(); }, 300000);
 }
 async function refreshRealUserData() {
   if (!App.realUser?.id) return;
@@ -569,7 +569,7 @@ async function refreshRealUserData() {
 function startChatUnreadWatcher() {
   if (App.chatUnreadInterval) clearInterval(App.chatUnreadInterval);
   checkChatUnread();
-  App.chatUnreadInterval = setInterval(checkChatUnread, 60000);
+  App.chatUnreadInterval = setInterval(() => { if (!document.hidden) checkChatUnread(); }, 180000);
 }
 async function checkChatUnread() {
   try {
@@ -577,7 +577,8 @@ async function checkChatUnread() {
     // Belum pernah buka Live Chat sama sekali — hitung dari awal waktu (epoch), bukan skip,
     // supaya user baru tetap lihat berapa banyak pesan yang menunggu sejak dia gabung.
     const sinceIso = lastSeen || '1970-01-01T00:00:00.000Z';
-    const rows = await SB.chat.getIdsSince(sinceIso) || [];
+    // Dibatasi 100 baris (hemat egress) — badge tampil maksimal "99+" kalau lebih banyak.
+    const rows = await SB.chat.getIdsSince(sinceIso, 100) || [];
     const count = rows.filter(r => r.user_id !== App.user?.id).length;
     if (count !== App.chatUnreadCount) {
       App.chatUnreadCount = count;
@@ -16044,7 +16045,7 @@ async function renderLiveChat() {
     }
   };
 
-  // Polling tiap 8 detik — HANYA selagi halaman ini terbuka. Otomatis berhenti
+  // Polling tiap 15 detik (berhenti saat tab tidak aktif) — HANYA selagi halaman ini terbuka. Otomatis berhenti
   // begitu pindah menu lain (dibersihkan di navigate()), supaya tidak membebani
   // halaman lain / jalan di background terus-menerus.
   async function pollBaru() {
@@ -16067,7 +16068,7 @@ async function renderLiveChat() {
   }
 
   render();
-  App.chatInterval = setInterval(pollBaru, 8000);
+  App.chatInterval = setInterval(() => { if (!document.hidden) pollBaru(); }, 15000);
 }
 
 /* ===== PAGE: MATERI FGD - BK ===== */

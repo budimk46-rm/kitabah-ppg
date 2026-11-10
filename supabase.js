@@ -656,7 +656,7 @@ const sbChat = {
   getLatestTimestamp: () => sbFetch(`chat_messages?select=created_at&order=created_at.desc&limit=1`),
   // Query ringan — cuma id+user_id (bukan isi pesan) sejak waktu tertentu, buat HITUNG JUMLAH
   // pesan belum dibaca (badge angka), bukan cuma "ada/tidak ada" kayak getLatestTimestamp.
-  getIdsSince: (sinceIso) => sbFetch(`chat_messages?select=id,user_id&created_at=gt.${encodeURIComponent(sinceIso)}&order=created_at.asc`),
+  getIdsSince: (sinceIso, limit=100) => sbFetch(`chat_messages?select=id,user_id&created_at=gt.${encodeURIComponent(sinceIso)}&order=created_at.desc&limit=${limit}`),
   insert: (data) => sbFetch('chat_messages', { method:'POST', headers:{'Prefer':'return=representation'}, body:JSON.stringify(data) }),
 };
 
