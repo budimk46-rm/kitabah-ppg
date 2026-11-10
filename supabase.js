@@ -1,8 +1,8 @@
 // supabase.js - Kitabah v2 Supabase Client
 // Simpan file ini bersama index.html
 
-const SUPABASE_URL = 'https://jxkumrxnokmkzsmkhvol.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4a3Vtcnhub2tta3pzbWtodm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3Mjk1MTcsImV4cCI6MjA5OTMwNTUxN30.V1qxZCAeqH89un1yDQHZAV_rFHb-eAhNWLbO0SCB6Gk';
+const SUPABASE_URL = 'https://leastktlugjzupeohqag.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_HWHNNxI8i4BHUpJIL8lEcQ_RwIugn-o';
 
 const SB_HEADERS = {
   'Content-Type': 'application/json',
