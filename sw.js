@@ -4,7 +4,7 @@
    supaya kunjungan ulang tetap cepat walau sinyal lemah.
    ============================================================ */
 
-const CACHE_NAME = 'ppg-siduta-cache-v3';
+const CACHE_NAME = 'ppg-siduta-cache-v4';
 
 const APP_SHELL = [
   './index.html',
