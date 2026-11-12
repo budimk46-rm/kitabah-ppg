@@ -980,7 +980,7 @@ async function renderPendingSection(jenis, scopeType, scopeRef, config, approveF
   if (!pending.length) return '';
 
   const rows = pending.map(p => {
-    const data = JSON.parse(p.data || '{}');
+    const data = p.data || {};
     const ringkas = config.fields.slice(0,3).map(f => data[f.key]).filter(Boolean).join(' · ');
     return `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap;">
       <div style="flex:1; min-width:160px;">
@@ -997,7 +997,7 @@ async function renderPendingSection(jenis, scopeType, scopeRef, config, approveF
   window.PEND_approve = async (id, jns) => {
     const sub = pending.find(p => p.id === id);
     if (!sub) return;
-    const data = JSON.parse(sub.data || '{}');
+    const data = sub.data || {};
     try {
       const ok = await approveFn(data, sub);
       if (ok === false) return; // approveFn sendiri yang urus alur (mis. butuh pilih kelas dulu)
