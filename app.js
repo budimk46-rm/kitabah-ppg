@@ -2528,6 +2528,7 @@ async function renderDashboard() {
             <button class="btn btn-sm ${rankSortMode === 'kehadiran' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('kehadiran')">Kehadiran</button>
           </div>
         </div>
+        <div style="font-size:11px; color:var(--ink-soft); font-weight:600; margin-bottom:8px;">📅 Data bulan ${escHtml(bulanIni)} ${escHtml(SEM1_MONTHS.includes(bulanIni) ? getTahunAjaran().split('/')[0] : getTahunAjaran().split('/')[1])}</div>
         ${showDesaFilter ? `
         <div style="margin-bottom:8px;" class="dash-ranking-hide-on-export">
           <select onchange="DASH_setRankFilterDesa(this.value)" style="font-size:12px; font-weight:600; padding:5px 8px; border-radius:8px; border:1.5px solid var(--line); color:var(--ink); background:var(--white);">
