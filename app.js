@@ -2393,8 +2393,8 @@ async function renderDashboard() {
   };
 
   // Rangking by Kehadiran: dipecah PER JENJANG USIA juga, alasan sama spt Frekuensi & Materi.
-  const rankingKehadiranHtml = (showAll) => {
-    const sorted = sortByTingkatanAvg(rankScopePerKelompok(), 'hadirByTingkatan');
+  const rankingKehadiranHtml = (showAll, listOverride) => {
+    const sorted = sortByTingkatanAvg(listOverride || rankScopePerKelompok(), 'hadirByTingkatan');
     const ranked = showAll ? sorted : sorted.slice(0, 5);
     const rows = ranked.map((r, i) => {
       const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
@@ -2426,8 +2426,8 @@ async function renderDashboard() {
 
   // Rangking by Kepatuhan Frekuensi: dipecah PER JENJANG USIA (bukan satu angka gabungan),
   // karena jumlah kelas tiap kelompok beda-beda — supaya adil dibandingkan.
-  const rankingFrekuensiHtml = (showAll) => {
-    const sorted = sortByTingkatanAvg(rankScopePerKelompok(), 'freqByTingkatan');
+  const rankingFrekuensiHtml = (showAll, listOverride) => {
+    const sorted = sortByTingkatanAvg(listOverride || rankScopePerKelompok(), 'freqByTingkatan');
     const ranked = showAll ? sorted : sorted.slice(0, 5);
     const rows = ranked.map((r, i) => {
       const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
@@ -2459,8 +2459,8 @@ async function renderDashboard() {
 
   // Rangking by Progress Materi: dipecah PER JENJANG USIA juga, pakai kurikulum
   // masing-masing jenjang (bukan dijumlah jadi satu angka, dgn alasan sama spt Frekuensi).
-  const rankingMateriHtml = (showAll) => {
-    const sorted = sortByTingkatanAvg(rankScopePerKelompok(), 'materiByTingkatan');
+  const rankingMateriHtml = (showAll, listOverride) => {
+    const sorted = sortByTingkatanAvg(listOverride || rankScopePerKelompok(), 'materiByTingkatan');
     const ranked = showAll ? sorted : sorted.slice(0, 5);
     const rows = ranked.map((r, i) => {
       const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
@@ -2497,17 +2497,27 @@ async function renderDashboard() {
     kehadiran: 'Kehadiran per jenjang usia = total hadir ÷ total slot kehadiran bulan ini, dihitung terpisah per jenjang (santri × pertemuan jenjang itu). Rangking dari rata-rata jenjang yang kelompok itu punya kelasnya saja.' + KONFIRMASI_NOTE,
   };
 
+  const rankFnByMode = { frekuensi: rankingFrekuensiHtml, materi: rankingMateriHtml, kehadiran: rankingKehadiranHtml };
   const rankingHtml = () => {
     if (!kbm || !kbm.perKelompok || !kbm.perKelompok.length) return '';
-    const showAll = isAdmin;
+    const isPerDesa = isDaerahTier && rankFilterDesaId === 'per_desa';
+    const showAll = isAdmin || isPerDesa;
     const pageTarget = isDaerahTier ? 'rekap_daerah' : 'rekap_desa';
-    const scopedCount = rankScopePerKelompok().length;
+    const scopedCount = isPerDesa ? kbm.perKelompok.length : rankScopePerKelompok().length;
     const titleCount = showAll ? ` (${scopedCount} kelompok)` : '';
     const showDesaFilter = isDaerahTier && desaFilterOptions.length > 1;
-    const desaFilterLabel = rankFilterDesaId === 'all' ? '' : ` — ${escHtml(desaNameMap[rankFilterDesaId] || rankFilterDesaId)}`;
-    const bodyHtml = rankSortMode === 'frekuensi' ? rankingFrekuensiHtml(showAll)
-      : rankSortMode === 'materi' ? rankingMateriHtml(showAll)
-      : rankingKehadiranHtml(showAll);
+    const desaFilterLabel = isPerDesa ? ' — Tiap Desa'
+      : rankFilterDesaId === 'all' ? '' : ` — ${escHtml(desaNameMap[rankFilterDesaId] || rankFilterDesaId)}`;
+    const bodyHtml = isPerDesa
+      ? desaFilterOptions.map(d => {
+          const listDesa = kbm.perKelompok.filter(r => kelompokDesaMap[r.kelompokId] === d.id);
+          if (!listDesa.length) return '';
+          return `
+            <div style="margin:${d === desaFilterOptions[0] ? '0' : '16px'} 0 6px; font-size:12.5px; font-weight:700; color:var(--green);">📍 ${escHtml(d.nama)} (${listDesa.length} kelompok)</div>
+            ${rankFnByMode[rankSortMode](true, listDesa)}
+          `;
+        }).join('')
+      : rankFnByMode[rankSortMode](showAll);
     return `
       <div class="card" style="margin-top:4px;" id="dashRankingCard">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
@@ -2522,6 +2532,7 @@ async function renderDashboard() {
         <div style="margin-bottom:8px;" class="dash-ranking-hide-on-export">
           <select onchange="DASH_setRankFilterDesa(this.value)" style="font-size:12px; font-weight:600; padding:5px 8px; border-radius:8px; border:1.5px solid var(--line); color:var(--ink); background:var(--white);">
             <option value="all" ${rankFilterDesaId==='all'?'selected':''}>Semua Desa</option>
+            <option value="per_desa" ${rankFilterDesaId==='per_desa'?'selected':''}>Tiap Desa</option>
             ${desaFilterOptions.map(d => `<option value="${d.id}" ${rankFilterDesaId===d.id?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
           </select>
         </div>` : ''}
@@ -2694,9 +2705,9 @@ async function renderDashboard() {
     }
   }
   function rankingFileBase() {
-    const desaSuffix = (isDaerahTier && rankFilterDesaId !== 'all')
-      ? '_' + (desaNameMap[rankFilterDesaId] || rankFilterDesaId).replace(/\s+/g, '')
-      : '';
+    const desaSuffix = !isDaerahTier || rankFilterDesaId === 'all' ? ''
+      : rankFilterDesaId === 'per_desa' ? '_TiapDesa'
+      : '_' + (desaNameMap[rankFilterDesaId] || rankFilterDesaId).replace(/\s+/g, '');
     return `Rangking_Kelompok_${isDaerahTier ? 'Daerah' : 'Desa'}${desaSuffix}_${rankSortMode}_${bulanIni}`;
   }
   window.DASH_downloadRankingImage = async (btn) => {
