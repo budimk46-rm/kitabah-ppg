@@ -2213,6 +2213,11 @@ async function renderDashboard() {
   let naikLevelList = [];
   let rankingNameMap = {};
   let scopeKelompok = [];
+  // Dipakai utk filter "per Desa" di kartu Rangking (hanya relevan utk tier Daerah/Admin —
+  // tier Desa sudah otomatis ter-scope ke desanya sendiri, jadi gak perlu filter lagi).
+  let kelompokDesaMap = {};
+  let desaNameMap = {};
+  let desaFilterOptions = [];
 
   // Data yg TIDAK tergantung bulan dipilih — dimuat sekali saja.
   if (isAdmin) {
@@ -2225,6 +2230,12 @@ async function renderDashboard() {
     scopeKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
     if (!isAdmin) stats.kelompok = scopeKelompok.length;
     rankingNameMap = Object.fromEntries(scopeKelompok.map(k => [k.id, k.nama]));
+    kelompokDesaMap = Object.fromEntries(scopeKelompok.map(k => [k.id, k.desa_id]));
+    desaNameMap = await loadDesaMap();
+    const desaIdsAda = [...new Set(scopeKelompok.map(k => k.desa_id).filter(Boolean))];
+    desaFilterOptions = desaIdsAda
+      .map(id => ({ id, nama: desaNameMap[id] || id }))
+      .sort((a,b) => a.nama.localeCompare(b.nama));
   } else if (isDesaTier) {
     const allKelompok = App.cache.kelompok || (App.cache.kelompok = await SB.kelompok.getAll());
     scopeKelompok = allKelompok.filter(k => k.desa_id === u.desa_id);
@@ -2346,8 +2357,17 @@ async function renderDashboard() {
   `;
 
   let rankSortMode = 'frekuensi';
+  let rankFilterDesaId = 'all'; // 'all' atau id desa — filter kartu Rangking (tier Daerah/Admin)
   const FREKUENSI_TINGKATAN_LABEL = { caberawit: 'Caberawit', pra_remaja: 'Pra Remaja', remaja: 'Remaja', pra_nikah: 'Pra Nikah' };
   const fmtPct = (v) => (v === null || v === undefined) ? '—' : v + '%';
+
+  // Daftar kelompok yg dipakai di kartu Rangking — disaring per Desa kalau filternya aktif
+  // (tier Daerah/Admin saja; tier Desa sudah otomatis ter-scope ke desanya sendiri).
+  const rankScopePerKelompok = () => {
+    if (!kbm || !kbm.perKelompok) return [];
+    if (!isDaerahTier || rankFilterDesaId === 'all') return kbm.perKelompok;
+    return kbm.perKelompok.filter(r => kelompokDesaMap[r.kelompokId] === rankFilterDesaId);
+  };
 
   // Rangking dari rata-rata jenjang yg memang ADA kelasnya di kelompok itu — tapi
   // itu HANYA berlaku kalau kelompoknya sudah konfirmasi Pendataan Jamaah & Generus
@@ -2374,7 +2394,7 @@ async function renderDashboard() {
 
   // Rangking by Kehadiran: dipecah PER JENJANG USIA juga, alasan sama spt Frekuensi & Materi.
   const rankingKehadiranHtml = (showAll) => {
-    const sorted = sortByTingkatanAvg(kbm.perKelompok, 'hadirByTingkatan');
+    const sorted = sortByTingkatanAvg(rankScopePerKelompok(), 'hadirByTingkatan');
     const ranked = showAll ? sorted : sorted.slice(0, 5);
     const rows = ranked.map((r, i) => {
       const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
@@ -2407,7 +2427,7 @@ async function renderDashboard() {
   // Rangking by Kepatuhan Frekuensi: dipecah PER JENJANG USIA (bukan satu angka gabungan),
   // karena jumlah kelas tiap kelompok beda-beda — supaya adil dibandingkan.
   const rankingFrekuensiHtml = (showAll) => {
-    const sorted = sortByTingkatanAvg(kbm.perKelompok, 'freqByTingkatan');
+    const sorted = sortByTingkatanAvg(rankScopePerKelompok(), 'freqByTingkatan');
     const ranked = showAll ? sorted : sorted.slice(0, 5);
     const rows = ranked.map((r, i) => {
       const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
@@ -2440,7 +2460,7 @@ async function renderDashboard() {
   // Rangking by Progress Materi: dipecah PER JENJANG USIA juga, pakai kurikulum
   // masing-masing jenjang (bukan dijumlah jadi satu angka, dgn alasan sama spt Frekuensi).
   const rankingMateriHtml = (showAll) => {
-    const sorted = sortByTingkatanAvg(kbm.perKelompok, 'materiByTingkatan');
+    const sorted = sortByTingkatanAvg(rankScopePerKelompok(), 'materiByTingkatan');
     const ranked = showAll ? sorted : sorted.slice(0, 5);
     const rows = ranked.map((r, i) => {
       const badge = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1) + '.';
@@ -2481,25 +2501,36 @@ async function renderDashboard() {
     if (!kbm || !kbm.perKelompok || !kbm.perKelompok.length) return '';
     const showAll = isAdmin;
     const pageTarget = isDaerahTier ? 'rekap_daerah' : 'rekap_desa';
-    const titleCount = showAll ? ` (${kbm.perKelompok.length} kelompok)` : '';
+    const scopedCount = rankScopePerKelompok().length;
+    const titleCount = showAll ? ` (${scopedCount} kelompok)` : '';
+    const showDesaFilter = isDaerahTier && desaFilterOptions.length > 1;
+    const desaFilterLabel = rankFilterDesaId === 'all' ? '' : ` — ${escHtml(desaNameMap[rankFilterDesaId] || rankFilterDesaId)}`;
     const bodyHtml = rankSortMode === 'frekuensi' ? rankingFrekuensiHtml(showAll)
       : rankSortMode === 'materi' ? rankingMateriHtml(showAll)
       : rankingKehadiranHtml(showAll);
     return `
       <div class="card" style="margin-top:4px;" id="dashRankingCard">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
-          <div class="fw-bold" style="font-size:14px; color:var(--green);">🏆 Rangking Kelompok ${isDaerahTier ? 'se-Daerah' : 'se-Desa'}${titleCount}</div>
+          <div class="fw-bold" style="font-size:14px; color:var(--green);">🏆 Rangking Kelompok ${isDaerahTier ? 'se-Daerah' : 'se-Desa'}${desaFilterLabel}${titleCount}</div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;" class="dash-ranking-hide-on-export">
             <button class="btn btn-sm ${rankSortMode === 'frekuensi' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('frekuensi')">Kepatuhan Frekuensi</button>
             <button class="btn btn-sm ${rankSortMode === 'materi' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('materi')">Progress Materi</button>
             <button class="btn btn-sm ${rankSortMode === 'kehadiran' ? 'btn-green' : 'btn-outline'}" onclick="DASH_setRankSort('kehadiran')">Kehadiran</button>
           </div>
         </div>
+        ${showDesaFilter ? `
+        <div style="margin-bottom:8px;" class="dash-ranking-hide-on-export">
+          <select onchange="DASH_setRankFilterDesa(this.value)" style="font-size:12px; font-weight:600; padding:5px 8px; border-radius:8px; border:1.5px solid var(--line); color:var(--ink); background:var(--white);">
+            <option value="all" ${rankFilterDesaId==='all'?'selected':''}>Semua Desa</option>
+            ${desaFilterOptions.map(d => `<option value="${d.id}" ${rankFilterDesaId===d.id?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
+          </select>
+        </div>` : ''}
         ${RANK_CAPTION[rankSortMode] ? `<div style="font-size:10.5px; color:var(--ink-soft); margin-bottom:8px;">${RANK_CAPTION[rankSortMode]}</div>` : ''}
         <div style="${showAll ? 'max-height:420px; overflow-y:auto;' : ''}" class="dash-ranking-scrollbox">${bodyHtml}</div>
         <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;" class="dash-ranking-hide-on-export">
           <button class="btn btn-outline btn-sm" style="flex:1; min-width:160px;" onclick="navigate('${pageTarget}')">${showAll ? 'Lihat Detail per Desa & Materi →' : 'Lihat Rangking Lengkap →'}</button>
           <button class="btn btn-outline btn-sm" style="flex:0 0 auto;" onclick="DASH_downloadRankingImage(this)">📷 Unduh Gambar</button>
+          <button class="btn btn-outline btn-sm" style="flex:0 0 auto;" onclick="DASH_downloadRankingPdf(this)">📄 Unduh PDF</button>
         </div>
       </div>
     `;
@@ -2634,41 +2665,88 @@ async function renderDashboard() {
   }
 
   window.DASH_setRankSort = (m) => { rankSortMode = m; paint(); };
-  window.DASH_downloadRankingImage = async (btn) => {
-    if (btn) { btn.disabled = true; btn.textContent = 'Menyiapkan...'; }
+  window.DASH_setRankFilterDesa = (id) => { rankFilterDesaId = id; paint(); };
+
+  // Dipakai bersama oleh unduh Gambar & unduh PDF — ambil screenshot kartu Rangking
+  // (sembunyikan tombol & buka penuh daftar yg kepotong scroll biar hasilnya bersih & lengkap).
+  async function captureRankingCardCanvas() {
     const card = document.getElementById('dashRankingCard');
-    const controls = card ? card.querySelectorAll('.dash-ranking-hide-on-export') : [];
-    const scrollBox = card ? card.querySelector('.dash-ranking-scrollbox') : null;
+    if (!card) throw new Error('Kartu rangking tidak ditemukan');
+    if (!window.html2canvas) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
+        s.onload = res; s.onerror = () => rej(new Error('Gagal memuat library gambar'));
+        document.head.appendChild(s);
+      });
+    }
+    const controls = card.querySelectorAll('.dash-ranking-hide-on-export');
+    const scrollBox = card.querySelector('.dash-ranking-scrollbox');
     const prevMaxHeight = scrollBox ? scrollBox.style.maxHeight : '';
     const prevOverflow = scrollBox ? scrollBox.style.overflowY : '';
+    controls.forEach(el => el.style.display = 'none');
+    if (scrollBox) { scrollBox.style.maxHeight = 'none'; scrollBox.style.overflowY = 'visible'; }
     try {
-      if (!card) throw new Error('Kartu rangking tidak ditemukan');
-      if (!window.html2canvas) {
-        await new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
-          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat library gambar'));
-          document.head.appendChild(s);
-        });
-      }
-      // Sembunyikan tombol & buka penuh daftar yg kepotong scroll, biar gambarnya bersih & lengkap
-      controls.forEach(el => el.style.display = 'none');
-      if (scrollBox) { scrollBox.style.maxHeight = 'none'; scrollBox.style.overflowY = 'visible'; }
-      const canvas = await window.html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+      return await window.html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+    } finally {
       controls.forEach(el => el.style.display = '');
       if (scrollBox) { scrollBox.style.maxHeight = prevMaxHeight; scrollBox.style.overflowY = prevOverflow; }
+    }
+  }
+  function rankingFileBase() {
+    const desaSuffix = (isDaerahTier && rankFilterDesaId !== 'all')
+      ? '_' + (desaNameMap[rankFilterDesaId] || rankFilterDesaId).replace(/\s+/g, '')
+      : '';
+    return `Rangking_Kelompok_${isDaerahTier ? 'Daerah' : 'Desa'}${desaSuffix}_${rankSortMode}_${bulanIni}`;
+  }
+  window.DASH_downloadRankingImage = async (btn) => {
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyiapkan...'; }
+    try {
+      const canvas = await captureRankingCardCanvas();
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `Rangking_Kelompok_${isDaerahTier ? 'Daerah' : 'Desa'}_${rankSortMode}_${bulanIni}.png`;
+      a.download = `${rankingFileBase()}.png`;
       a.click();
       showToast('Gambar rangking berhasil diunduh ✓');
     } catch (e) {
-      controls.forEach(el => el.style.display = '');
-      if (scrollBox) { scrollBox.style.maxHeight = prevMaxHeight; scrollBox.style.overflowY = prevOverflow; }
       showToast('Gagal membuat gambar: ' + e.message, true);
     }
     if (btn) { btn.disabled = false; btn.textContent = '📷 Unduh Gambar'; }
+  };
+  window.DASH_downloadRankingPdf = async (btn) => {
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyiapkan...'; }
+    try {
+      const canvas = await captureRankingCardCanvas();
+      if (!window.PDFLib) {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+          s.onload = res; s.onerror = () => rej(new Error('Gagal memuat library PDF'));
+          document.head.appendChild(s);
+        });
+      }
+      const { PDFDocument } = window.PDFLib;
+      const dataUrl = canvas.toDataURL('image/png');
+      const pngBytes = Uint8Array.from(atob(dataUrl.split(',')[1]), c => c.charCodeAt(0));
+      const doc = await PDFDocument.create();
+      const img = await doc.embedPng(pngBytes);
+      const pageW = 595; // lebar A4 potret (pt) — tinggi ikut rasio gambar
+      const scale = pageW / img.width;
+      const page = doc.addPage([pageW, img.height * scale]);
+      page.drawImage(img, { x: 0, y: 0, width: pageW, height: img.height * scale });
+      const pdfBytes = await doc.save();
+      const blobUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${rankingFileBase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      showToast('PDF rangking berhasil diunduh ✓');
+    } catch (e) {
+      showToast('Gagal membuat PDF: ' + e.message, true);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '📄 Unduh PDF'; }
   };
   window.DASH_setBulan = async (b) => {
     if (b === selectedBulan) return;
