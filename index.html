@@ -811,7 +811,7 @@ input.flatpickr-alt-input:focus { outline: none; border-color: var(--green); }
       <!-- Form Masuk -->
       <div id="panelMasuk">
         <div class="field"><label>Nama Pengguna</label>
-          <input type="text" id="loginUser" placeholder="contoh: budi.santoso" autocomplete="username">
+          <input type="text" id="loginUser" placeholder="contoh: budi.santoso" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
         </div>
         <div class="field"><label>Kata Sandi</label>
           <div class="pwd-wrap">
@@ -1030,12 +1030,12 @@ input.flatpickr-alt-input:focus { outline: none; border-color: var(--green); }
 </div>
 
 <!-- bcryptjs for password verification -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<script defer src="bcrypt.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js';document.head.appendChild(s);"></script>
 <!-- Flatpickr — kalender modern pengganti input tanggal bawaan browser -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/id.js"></script>
 <!-- Supabase client (minified — source: supabase.js, build with: npx terser supabase.js -c -m -o supabase.min.js) -->
-<script defer src="supabase.min.js?v=20261112"></script>
+<script defer src="supabase.min.js?v=20261114a"></script>
 <!-- Main App (minified — source: app.js, build with: npx terser app.js -c -m -o app.min.js) -->
 <script defer src="app.min.js?v=20261114b"></script>
 </body>

@@ -4,12 +4,13 @@
    supaya kunjungan ulang tetap cepat walau sinyal lemah.
    ============================================================ */
 
-const CACHE_NAME = 'ppg-siduta-cache-v4';
+const CACHE_NAME = 'ppg-siduta-cache-v5';
 
 const APP_SHELL = [
   './index.html',
   './app.min.js',
   './supabase.min.js',
+  './bcrypt.min.js',
   './manifest.json',
 ];
 

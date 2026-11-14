@@ -94,7 +94,16 @@ function lsCacheClear() {
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
 async function sbLogin(username, password) {
-  const data = await sbFetch(`anggota?username=eq.${encodeURIComponent(username.trim())}&select=*`);
+  const uname = username.trim();
+  // Cari persis dulu (cepat & pakai index), lalu fallback tanpa membedakan huruf besar/kecil.
+  // Keyboard HP sering otomatis mengapitalkan huruf pertama ("Ilma.nur"), dan dulu itu
+  // langsung ditolak "Nama pengguna tidak ditemukan" walau akunnya ada.
+  let data = await sbFetch(`anggota?username=eq.${encodeURIComponent(uname)}&select=*`);
+  if (!data || data.length === 0) {
+    const alt = await sbFetch(`anggota?username=ilike.${encodeURIComponent(uname)}&select=*`);
+    // ilike mengenal wildcard % dan _, jadi saring ulang agar benar-benar sama (abaikan kapital).
+    data = (alt || []).filter(u => (u.username || '').toLowerCase() === uname.toLowerCase());
+  }
   if (!data || data.length === 0) throw new Error('Nama pengguna tidak ditemukan.');
   const user = data[0];
   // Simple comparison (app-level, production should use bcrypt)
@@ -122,6 +131,9 @@ async function verifyPassword(plain, hash) {
     if (window.dcodeIO && window.dcodeIO.bcrypt) {
       return window.dcodeIO.bcrypt.compareSync(plain, hash);
     }
+    // Library verifikasi belum termuat (mis. CDN terblokir / halaman baru setengah jalan).
+    // Jangan balas "kata sandi salah" — sandinya bisa saja benar.
+    throw new Error('Verifikasi sandi belum siap dimuat. Muat ulang halaman ini lalu coba lagi.');
   }
   return false;
 }
