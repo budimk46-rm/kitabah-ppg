@@ -143,6 +143,8 @@ const App = {
   chatUnread: false,
   chatUnreadCount: 0,
   chatUnreadInterval: null,
+  chatInterval: null,      // penanda halaman Live Chat aktif (polling-nya pakai setTimeout adaptif)
+  chatPollStop: null,      // fungsi penghenti polling chat halaman aktif
   onlineHeartbeatInterval: null,
   aksesRefreshInterval: null,
   kurState: {
@@ -176,6 +178,8 @@ function clearSession() {
   App.user = null;
   App.cache = { materi: null, kelompok: null, desa: null, myProgress: null, allSantri: null };
   if (App.chatUnreadInterval) { clearInterval(App.chatUnreadInterval); App.chatUnreadInterval = null; }
+  if (App.chatPollStop) { App.chatPollStop(); App.chatPollStop = null; }
+  if (App.chatInterval) { clearInterval(App.chatInterval); App.chatInterval = null; }
   if (App.onlineHeartbeatInterval) { clearInterval(App.onlineHeartbeatInterval); App.onlineHeartbeatInterval = null; }
   if (App.aksesRefreshInterval) { clearInterval(App.aksesRefreshInterval); App.aksesRefreshInterval = null; }
   if (typeof updateAppBadge === 'function') updateAppBadge(0); // bersihkan badge ikon HP saat logout
@@ -1867,6 +1871,7 @@ function navigate(page) {
   // dasar laporan "User Tidak Aktif Mingguan". Ringan, tidak nunggu selesai (fire-and-forget).
   if (page !== 'dashboard' && App.user) SB.navLog.insert(App.user.id);
   // Hentikan polling Live Chat kalau sedang pindah dari halaman itu — supaya tidak jalan terus di background
+  if (App.chatPollStop) { App.chatPollStop(); App.chatPollStop = null; }
   if (App.chatInterval) { clearInterval(App.chatInterval); App.chatInterval = null; }
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(el => {
@@ -16194,11 +16199,20 @@ async function renderLiveChat() {
     }
   };
 
-  // Polling tiap 15 detik (berhenti saat tab tidak aktif) — HANYA selagi halaman ini terbuka. Otomatis berhenti
-  // begitu pindah menu lain (dibersihkan di navigate()), supaya tidak membebani
-  // halaman lain / jalan di background terus-menerus.
+  // Polling ADAPTIF — hemat egress Supabase free tier (dulu tetap 15 detik terus
+  // selama tab terbuka, siang-malam, walau ruang obrolan sunyi):
+  //   - 15 detik kalau barusan ada pesan baru (biar tetap terasa live)
+  //   - melambat 30 -> 60 -> 90 detik kalau sunyi, kembali 15 detik begitu ada pesan
+  //   - ruang masih kosong: cek tiap 30 detik
+  //   - BERHENTI total saat tab disembunyikan, dan langsung cek begitu tab dibuka lagi
+  // Hanya hidup selama halaman Live Chat terbuka (dibersihkan di navigate()).
+  const POLL_CEPAT = 15000, POLL_LAMBAT = 90000;
+  let pollDelay = POLL_CEPAT;
+  let pollTimer = null;
+  let pollStop = false;
+
   async function pollBaru() {
-    if (!messages.length) return;
+    if (!messages.length) return 0;
     const lastTime = messages[messages.length-1].created_at;
     try {
       const baru = await SB.chat.getSince(lastTime);
@@ -16211,13 +16225,48 @@ async function renderLiveChat() {
           markChatAsRead();
           render();
           if (wasNearBottom) scrollBawah();
+          return trulyBaru.length;
         }
       }
     } catch(e) { /* diam-diam gagal, coba lagi di polling berikutnya */ }
+    return 0;
   }
 
+  function jadwalkanPoll(delay) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = null;
+    if (pollStop) return;
+    pollTimer = setTimeout(jalanPoll, delay);
+  }
+
+  async function jalanPoll() {
+    pollTimer = null;
+    if (pollStop) return;
+    if (document.hidden) { jadwalkanPoll(POLL_LAMBAT); return; } // tab tidak aktif: jangan nembak server
+    const jumlahBaru = await pollBaru();
+    if (jumlahBaru > 0) pollDelay = POLL_CEPAT;
+    else if (!messages.length) pollDelay = 30000;
+    else pollDelay = Math.min(POLL_LAMBAT, Math.round(pollDelay * 2));
+    jadwalkanPoll(pollDelay);
+  }
+
+  function saatTabTerlihat() {
+    if (document.hidden || pollStop) return;
+    pollDelay = POLL_CEPAT;   // tab dibuka lagi: jangan tunggu sisa timer 90 detik
+    jadwalkanPoll(0);
+  }
+  document.addEventListener('visibilitychange', saatTabTerlihat);
+
+  App.chatPollStop = () => {
+    pollStop = true;
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = null;
+    document.removeEventListener('visibilitychange', saatTabTerlihat);
+  };
+  App.chatInterval = true; // penanda halaman chat sedang aktif (lihat navigate())
+
   render();
-  App.chatInterval = setInterval(() => { if (!document.hidden) pollBaru(); }, 15000);
+  jadwalkanPoll(POLL_CEPAT);
 }
 
 /* ===== PAGE: MATERI FGD - BK ===== */

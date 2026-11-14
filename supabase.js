@@ -70,7 +70,7 @@ async function sbFetch(path, options = {}) {
 // App.cache di memori reset tiap reload, tapi localStorage ini tidak, jadi reload
 // berulang (umum di PWA HP yang sering di-background lalu dibuka lagi) tidak perlu
 // tarik ulang data yang sama dari server tiap kali — hemat egress Supabase.
-const LS_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 jam — data referensi yg jarang berubah
+const LS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 jam — data referensi yg jarang berubah
 // Santri lebih sering diedit (PJP/Wali nambah-ubah murid tiap hari) — TTL lebih pendek
 // drpd materi/kelompok/desa supaya tidak kelamaan nampilin data basi.
 const LS_CACHE_TTL_SHORT = 30 * 60 * 1000; // 30 menit
@@ -91,6 +91,23 @@ function lsCacheClear() {
     ['materi', 'kelompok', 'desa', 'santri', 'fgd_bk'].forEach(k => localStorage.removeItem('kc_' + k));
   } catch (e) {}
 }
+
+// Daftar kolom eksplisit untuk tabel besar. Kolom yang tidak pernah dibaca aplikasi
+// sengaja TIDAK diambil — ini penghemat egress Supabase free tier (batas 5 GB/bulan
+// pernah terlampaui sekali, jadi setiap KB di sini penting).
+// Yang paling besar: tabel `materi` punya 12 kolom bulan (juli...juni) yang tidak
+// dipakai di mana pun — 80% berat payload kurikulum. Terukur: 1082 KB -> 300 KB
+// (gzip 164 KB -> 16 KB) tiap kali kurikulum ditarik.
+// Kalau nanti ada fitur baru yang butuh kolom lain: tambahkan di sini, JANGAN balik
+// ke select=* — dengan select=*, tabel yang ditambah kolom baru otomatis membengkak.
+const KOLOM_MATERI = 'id,jenjang,semester,bab,bab_title,sub,sub_title,no,topik,poin,poin_title';
+// aktif & created_at/updated_at tidak pernah dibaca dari objek santri
+// (aktif cuma dipakai sebagai filter query) — hemat ~18% payload.
+const KOLOM_SANTRI = 'id,kelas_id,nama,nis,jenis_kel,no_hp,nama_ortu,tgl_lahir,tingkatan,tingkatan_override,kelompok_asal_id,simpatisan_wali_id';
+// aktif cuma filter query, created_at tidak ditampilkan — hemat ~14% payload.
+const KOLOM_JAMAAH = 'id,kelompok_id,nama,jenis_kelamin,tgl_lahir,no_hp,keterangan,status_menikah,santri_id,pasangan_id,mtms_id,guru_sekolah_id,sub_pengajian_id,kepala_keluarga';
+// Chat di-polling terus-menerus, jadi dikunci ke 6 kolom ini selamanya.
+const KOLOM_CHAT = 'id,user_id,nama_lengkap,role,pesan,created_at';
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
 // Login: utamakan verifikasi di SERVER lewat RPC `login_anggota` supaya hash sandi
@@ -280,15 +297,15 @@ const sbMateri = {
     // dan bukan 16 request kecil-kecil (sisa cara lama yang malah bikin banyak
     // koneksi bersamaan nabrak batas server gratis).
     const [sem1, sem2] = await Promise.all([
-      sbFetch(`materi?semester=eq.1&select=*&order=jenjang,id`),
-      sbFetch(`materi?semester=eq.2&select=*&order=jenjang,id`),
+      sbFetch(`materi?semester=eq.1&select=${KOLOM_MATERI}&order=jenjang,id`),
+      sbFetch(`materi?semester=eq.2&select=${KOLOM_MATERI}&order=jenjang,id`),
     ]);
     const data = [...(sem1||[]), ...(sem2||[])];
     lsCacheSet('materi', data);
     return data;
   },
   getByJenjang: (jenjang, semester) =>
-    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=*&order=id&limit=500`),
+    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=${KOLOM_MATERI}&order=id&limit=500`),
   // Curriculum diedit lewat app — hapus cache localStorage biar edit langsung kebaca,
   // bukan nunggu TTL 6 jam habis dulu.
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }).then(r => { lsCacheClear(); return r; }),
@@ -323,27 +340,27 @@ const sbKelas = {
 // ============ SANTRI ============
 const sbSantri = {
   getByKelas: (kelasId) =>
-    sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=*&order=nama`),
+    sbFetch(`santri?kelas_id=eq.${kelasId}&aktif=eq.true&select=${KOLOM_SANTRI}&order=nama`),
   delete: (id) => sbFetch(`santri?id=eq.${id}`, { method: 'DELETE' }).then(r => { lsCacheClear(); return r; }),
   // Ambil santri untuk BANYAK kelas sekaligus dalam satu request
   getByKelasIds: (kelasIds) => {
     const ids = [...new Set(kelasIds)].filter(Boolean);
     if (!ids.length) return Promise.resolve([]);
-    return sbFetch(`santri?kelas_id=in.(${ids.join(',')})&aktif=eq.true&select=*&order=nama`);
+    return sbFetch(`santri?kelas_id=in.(${ids.join(',')})&aktif=eq.true&select=${KOLOM_SANTRI}&order=nama`);
   },
   getUnassigned: (kelompokIds) => {
     const ids = [...new Set(Array.isArray(kelompokIds) ? kelompokIds : [kelompokIds])].filter(Boolean);
     if (!ids.length) return Promise.resolve([]);
-    return sbFetch(`santri?aktif=eq.true&kelas_id=is.null&kelompok_asal_id=in.(${ids.map(id=>`"${id}"`).join(',')})&select=*&order=nama`);
+    return sbFetch(`santri?aktif=eq.true&kelas_id=is.null&kelompok_asal_id=in.(${ids.map(id=>`"${id}"`).join(',')})&select=${KOLOM_SANTRI}&order=nama`);
   },
   getByKelompok: (kelompokId) =>
-    sbFetch(`santri?aktif=eq.true&select=*,kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
+    sbFetch(`santri?aktif=eq.true&select=${KOLOM_SANTRI},kelas!inner(kelompok_id,jenjang,nama_kelas)&kelas.kelompok_id=eq.${kelompokId}&order=nama`),
   // Di-cache localStorage 30 menit (lebih pendek drpd materi/kelompok/desa krn santri lebih
   // sering diedit) — mutasi (insert/update/delete) di bawah otomatis hapus cache ini.
   getAll: async () => {
     const cached = lsCacheGet('santri', LS_CACHE_TTL_SHORT);
     if (cached) return cached;
-    const data = await sbFetch(`santri?aktif=eq.true&select=*,kelas(id,kelompok_id,desa_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`);
+    const data = await sbFetch(`santri?aktif=eq.true&select=${KOLOM_SANTRI},kelas(id,kelompok_id,desa_id,jenjang,nama_kelas,kelompok(nama,desa_id))&order=nama&limit=5000`);
     lsCacheSet('santri', data);
     return data;
   },
@@ -715,8 +732,8 @@ const sbFormSubmissions = {
 
 // ============ LIVE CHAT ============
 const sbChat = {
-  getRecent: (limit=100) => sbFetch(`chat_messages?select=*&order=created_at.desc&limit=${limit}`),
-  getSince: (sinceIso) => sbFetch(`chat_messages?created_at=gt.${encodeURIComponent(sinceIso)}&select=*&order=created_at.asc`),
+  getRecent: (limit=100) => sbFetch(`chat_messages?select=${KOLOM_CHAT}&order=created_at.desc&limit=${limit}`),
+  getSince: (sinceIso) => sbFetch(`chat_messages?created_at=gt.${encodeURIComponent(sinceIso)}&select=${KOLOM_CHAT}&order=created_at.asc`),
   // Query ringan — cuma ambil waktu pesan terakhir, dipakai untuk badge notifikasi (bukan isi pesan)
   getLatestTimestamp: () => sbFetch(`chat_messages?select=created_at&order=created_at.desc&limit=1`),
   // Query ringan — cuma id+user_id (bukan isi pesan) sejak waktu tertentu, buat HITUNG JUMLAH
@@ -830,11 +847,11 @@ const sbPengajianOverride = {
 };
 
 const sbJamaah = {
-  getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=*&order=nama`),
+  getByKelompok: (kid) => sbFetch(`jamaah?kelompok_id=eq.${kid}&aktif=eq.true&select=${KOLOM_JAMAAH}&order=nama`),
   getByKelompokIds: (ids) => {
     const list = [...new Set(ids)].filter(Boolean);
     if (!list.length) return Promise.resolve([]);
-    return sbFetch(`jamaah?kelompok_id=in.(${list.join(',')})&aktif=eq.true&select=*&order=nama`);
+    return sbFetch(`jamaah?kelompok_id=in.(${list.join(',')})&aktif=eq.true&select=${KOLOM_JAMAAH}&order=nama`);
   },
   insert: async (data) => {
     try { return await sbFetch('jamaah', { method:'POST', headers:{'Prefer':'return=representation'}, body: JSON.stringify(data) }); }
