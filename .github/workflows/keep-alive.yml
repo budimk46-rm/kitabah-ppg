@@ -4,21 +4,63 @@ name: Keep Supabase Alive
 # Workflow ini "ketuk" database tiap 3 hari sekali (ringan, cuma baca 1 baris),
 # supaya project tidak pernah dianggap idle — penting khusus untuk periode sepi
 # seperti bulan puasa yang bisa 1-2 bulan tidak ada yang buka aplikasi.
+#
+# CATATAN (migrasi project): dulu workflow ini menembak project lama
+# `jxkumrxnokmkzsmkhvol` yang sekarang sudah mati (HTTP 401). URL sudah
+# disesuaikan ke project yang benar-benar dipakai aplikasi, yaitu project
+# yang URL-nya ada di `supabase.js` (`leastktlugjzupeohqag`).
+# Kalau suatu saat pindah project lagi: ubah URL di bawah DAN di `supabase.js`.
+#
+# CATATAN (GitHub): workflow berjadwal otomatis DIMATIKAN GitHub kalau repo
+# tidak ada commit/aktivitas selama 60 hari. Kalau nanti ping berhenti sendiri,
+# buka tab Actions -> Keep Supabase Alive -> Run workflow (atau commit apa saja).
+# Egress yang ditimbulkan workflow ini praktis nol: 10 request/bulan, tiap
+# request membaca 1 baris tabel kelompok.
 
 on:
   schedule:
     - cron: '0 3 */3 * *'   # tiap 3 hari sekali, jam 03:00 UTC (~10:00 WIB)
   workflow_dispatch:         # supaya bisa dites manual lewat tab "Actions" di GitHub
 
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase (ambil 1 baris ringan)
+        env:
+          SUPABASE_URL: https://leastktlugjzupeohqag.supabase.co
+          # Publishable/anon key ini memang publik (ikut ter-bundle di supabase.min.js
+          # yang di-serve ke browser), jadi aman ditulis langsung di sini.
+          # Sengaja TIDAK memakai secrets.SUPABASE_ANON_KEY: dulu secret itu berisi key
+          # project lama, sehingga ping gagal (401) tanpa pesan yang jelas.
+          SUPABASE_KEY: sb_publishable_HWHNNxI8i4BHUpJIL8lEcQ_RwIugn-o
         run: |
-          curl -sS -X GET \
-            "https://jxkumrxnokmkzsmkhvol.supabase.co/rest/v1/kelompok?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            --fail --show-error
+          set -euo pipefail
+
+          # Ambil HTTP status + body sekaligus, supaya kalau gagal pesan error-nya jelas
+          # (bedakan: key salah vs tabel/policy berubah vs project di-pause).
+          body=$(curl -sS -X GET \
+            "$SUPABASE_URL/rest/v1/kelompok?select=id&limit=1" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            --retry 3 --retry-delay 5 --retry-connrefused \
+            --max-time 30 \
+            -w '\n%{http_code}')
+
+          status=$(printf '%s' "$body" | tail -n1)
+          payload=$(printf '%s' "$body" | sed '$d')
+
+          echo "HTTP $status — $payload"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Ping gagal (HTTP $status). Cek: (1) project Supabase di-pause atau"
+            echo "::error::URL project berubah? (2) anon/publishable key di file ini masih key"
+            echo "::error::project yang sekarang dipakai? (3) hak baca tabel kelompok dicabut?"
+            exit 1
+          fi
+
           echo "Ping berhasil — Supabase project tetap aktif."
