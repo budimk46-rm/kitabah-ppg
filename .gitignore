@@ -3,3 +3,6 @@ node_modules/
 
 # Source map hasil build (generated, tidak perlu ikut repo)
 *.min.js.map
+
+# File konfirmasi pembersihan data (berisi nama/tgl lahir/no HP -> jangan masuk repo publik)
+Konfirmasi_Pembersihan_Data_*.xlsx

@@ -9,6 +9,7 @@
     "build": "npm run validate && npx terser app.js -c -m -o app.min.js --source-map \"url='app.min.js.map'\" && npx terser supabase.js -c -m -o supabase.min.js --source-map \"url='supabase.min.js.map'\"",
     "audit": "node scripts/audit-supabase.mjs",
     "audit:data": "node scripts/audit-data-cleanup.cjs",
+    "export:konfirmasi": "node scripts/export-konfirmasi-cleanup.cjs",
     "hashpw": "node scripts/hash-plaintext-passwords.cjs",
     "test:auth": "node scripts/test-auth.cjs",
     "check:login": "node scripts/check-login-live.cjs"
@@ -19,6 +20,7 @@
   "devDependencies": {
     "acorn": "^8.17.0",
     "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
     "terser": "^5.49.0"
   }
 }
