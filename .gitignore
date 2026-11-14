@@ -1,0 +1,5 @@
+# Dependencies (hanya dipakai untuk build: acorn + terser, tidak ikut di-deploy)
+node_modules/
+
+# Source map hasil build (generated, tidak perlu ikut repo)
+*.min.js.map

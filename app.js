@@ -3410,7 +3410,7 @@ async function renderUsers() {
           ${u.jabatan ? `<br><span style="font-size:11px; color:var(--green);">${escHtml(u.jabatan)}</span>` : ''}
         </td>
         <td><span style="font-size:12px;">${escHtml(ROLE_LABELS[u.role] || u.role)}</span></td>
-        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : (u.desa_id ? escHtml(desaMap[u.desa_id] || u.desa_id) : '—')}</td>
+        <td style="font-size:12px;">${u.kelompok_id ? escHtml(kelompokMap[u.kelompok_id] || u.kelompok_id) : (u.desa_id ? escHtml(desaMap[u.desa_id] || u.desa_id) : (['desa','desa_view'].includes(u.role) ? '<span style="color:var(--rose); font-weight:600;">⚠️ tanpa desa</span>' : '—'))}</td>
         <td style="font-size:11px; font-family:monospace;">
           <div>👤 ${escHtml(u.username)}</div>
         </td>
@@ -3530,9 +3530,26 @@ async function renderUsers() {
         <div class="form-group"><label>No. HP / WhatsApp</label><input type="tel" inputmode="numeric" id="eudNoHp" value="${escHtml(target.no_hp||'')}" placeholder="Contoh: 081234567890" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
         <div class="form-group">
           <label>Peran / Level</label>
-          <select id="eudRole">${ROLE_OPTIONS.map(r => `<option value="${r}" ${r===target.role?'selected':''}>${escHtml(ROLE_LABELS[r]||r)}</option>`).join('')}</select>
-          <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Hati-hati mengubah ini — menentukan menu & hak akses apa saja yang bisa dilihat/diedit user. Kelompok/Desa yang sudah tersimpan TIDAK ikut berubah, cuma perannya saja.</div>
+          <select id="eudRole" onchange="USR_syncWilayah()">${ROLE_OPTIONS.map(r => `<option value="${r}" ${r===target.role?'selected':''}>${escHtml(ROLE_LABELS[r]||r)}</option>`).join('')}</select>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Menentukan menu & hak akses apa saja yang bisa dilihat/diedit user. Wilayah (desa/kelompok) diatur di kolom bawah — WAJIB terisi untuk Level Desa & Level Kelompok.</div>
         </div>
+        <div class="form-group" id="eudDesaGroup">
+          <label>Desa (wilayah akses)</label>
+          <select id="eudDesa">
+            <option value="">— Belum dipilih —</option>
+            ${desaList.map(d => `<option value="${d.id}" ${d.id===target.desa_id?'selected':''}>${escHtml(d.nama)}</option>`).join('')}
+          </select>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Wajib untuk Level Desa / Pengelola Desa. Kalau kosong, dashboard & rekap user ini kosong (tidak ada kelompok yang bisa dibaca).</div>
+        </div>
+        <div class="form-group" id="eudKelompokGroup">
+          <label>Kelompok (wilayah akses)</label>
+          <select id="eudKelompok">
+            <option value="">— Belum dipilih —</option>
+            ${kelompokList.slice().sort((a,b)=>(a.nama||'').localeCompare(b.nama||'')).map(k => `<option value="${k.id}" ${k.id===target.kelompok_id?'selected':''}>${escHtml(k.nama)}${k.desa_id ? ' · ' + escHtml(desaMap[k.desa_id] || k.desa_id) : ''}</option>`).join('')}
+          </select>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Wajib untuk PJP Kelompok / Wali KBM / Guru Generus / Pengelola Kelompok.</div>
+        </div>
+        <div id="eudWilayahNote" style="font-size:11.5px; color:var(--ink-soft); display:none; margin-bottom:4px;">Level Daerah &amp; Admin tidak butuh desa/kelompok — aksesnya lintas wilayah.</div>
         <div style="font-size:11.5px; color:var(--ink-soft); margin-top:4px;">Ganti username berarti user harus login pakai username baru mulai sekarang. Pastikan sudah diinfokan ke yang bersangkutan.</div>
       </div>
       <div class="modal-foot">
@@ -3541,19 +3558,53 @@ async function renderUsers() {
       </div>
     </div>`;
 
+    // Tampilkan hanya kolom wilayah yang relevan dengan level terpilih.
+    // (Level Desa → pilih Desa, Level Kelompok → pilih Kelompok, Daerah/Admin → tidak perlu)
+    window.USR_syncWilayah = () => {
+      const role = document.getElementById('eudRole')?.value;
+      const isDesaRole = ['desa','desa_view'].includes(role);
+      const isKlpRole = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(role);
+      const dg = document.getElementById('eudDesaGroup');
+      const kg = document.getElementById('eudKelompokGroup');
+      const note = document.getElementById('eudWilayahNote');
+      if (dg) dg.style.display = isDesaRole ? '' : 'none';
+      if (kg) kg.style.display = isKlpRole ? '' : 'none';
+      if (note) note.style.display = (!isDesaRole && !isKlpRole) ? 'block' : 'none';
+    };
+    USR_syncWilayah();
+
     document.getElementById('eudSaveBtn').onclick = async () => {
       const nama = document.getElementById('eudNama').value.trim();
       const username = document.getElementById('eudUsername').value.trim();
       const jabatan = document.getElementById('eudJabatan').value.trim();
       const noHp = document.getElementById('eudNoHp').value.trim();
       const role = document.getElementById('eudRole').value;
+      const isDesaRole = ['desa','desa_view'].includes(role);
+      const isKlpRole = ['kelompok','pjp_kelompok','wali_kbm','guru'].includes(role);
+      const desaId = isDesaRole ? (document.getElementById('eudDesa')?.value || null) : null;
+      const kelompokId = isKlpRole ? (document.getElementById('eudKelompok')?.value || null) : null;
       if (!nama || !username) { showToast('Nama dan Username wajib diisi', true); return; }
+      if (isDesaRole && !desaId) { showToast('Pilih Desa dulu — akun level desa tanpa desa dashboardnya kosong', true); return; }
+      if (isKlpRole && !kelompokId) { showToast('Pilih Kelompok dulu — akun level kelompok tanpa kelompok tidak bisa membaca data', true); return; }
 
       const btn = document.getElementById('eudSaveBtn');
       btn.disabled = true; btn.textContent = 'Menyimpan...';
+      // Level desa → simpan desa (kelompok dikosongkan). Level kelompok → simpan kelompok
+      // + desa_id senyawa dari kelompoknya (data existing juga begitu, biar konsisten).
+      // Level daerah/admin: wilayah lama TIDAK diutak-atik (scope-nya lintas wilayah).
+      const klpTerpilih = isKlpRole ? kelompokList.find(k => k.id === kelompokId) : null;
+      const wilayahPayload = isDesaRole
+        ? { desa_id: desaId, kelompok_id: null }
+        : isKlpRole
+          ? { kelompok_id: kelompokId, desa_id: klpTerpilih?.desa_id || null }
+          : {};
       try {
-        await SB.anggota.update(target.id, { nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null, no_hp: noHp || null, role });
+        await SB.anggota.update(target.id, {
+          nama_lengkap: toTitleCase(nama), username, jabatan: jabatan || null, no_hp: noHp || null, role,
+          ...wilayahPayload
+        });
         target.nama_lengkap = toTitleCase(nama); target.username = username; target.jabatan = jabatan || null; target.no_hp = noHp || null; target.role = role;
+        Object.assign(target, wilayahPayload);
         logActivity('ubah', 'Kelola Pengguna', `Edit data user: ${target.nama_lengkap}`);
         showToast('Data tersimpan');
         closeModal('editUserModal');
