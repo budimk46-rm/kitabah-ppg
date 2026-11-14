@@ -8,6 +8,7 @@
     "validate": "node -e \"const a=require('acorn');const fs=require('fs');['app.js','supabase.js'].forEach(f=>{a.parse(fs.readFileSync(f,'utf8'),{ecmaVersion:2022,sourceType:'script'});console.log(f+' OK')})\"",
     "build": "npm run validate && npx terser app.js -c -m -o app.min.js --source-map \"url='app.min.js.map'\" && npx terser supabase.js -c -m -o supabase.min.js --source-map \"url='supabase.min.js.map'\"",
     "audit": "node scripts/audit-supabase.mjs",
+    "audit:data": "node scripts/audit-data-cleanup.cjs",
     "hashpw": "node scripts/hash-plaintext-passwords.cjs",
     "test:auth": "node scripts/test-auth.cjs",
     "check:login": "node scripts/check-login-live.cjs"
