@@ -2,6 +2,14 @@
 -- KITABAH / PPG SIDUTA — PENGERASAN AKSES DATABASE
 -- Jalankan di Supabase Dashboard -> SQL Editor (butuh hak owner; anon key TIDAK bisa).
 --
+-- STATUS: TAHAP 1 + TAHAP 2 sudah dijalankan pada 14 Nov 2026 dan diverifikasi:
+--   - rpc/login_anggota & rpc/cek_password -> HTTP 200 (status_code ok/no_user/bad_password)
+--   - SELECT password_hash / SELECT * pada anggota -> HTTP 401 (hak baca dicabut)
+--   - SELECT kolom aman -> HTTP 200; PATCH password_hash (ganti/reset sandi) -> HTTP 204
+--   - login sandi benar sukses, sandi lama/salah ditolak
+-- File ini disimpan sebagai dokumentasi + untuk dipasang ulang di project baru.
+-- Baris perintah (CREATE/REVOKE/GRANT) di bawah tetap idempoten: aman dijalankan ulang.
+--
 -- Kenapa perlu: aplikasi memakai "anon/publishable key" yang ikut terkirim ke
 -- browser, dan RLS (Row Level Security) saat ini MATI. Artinya siapa pun yang
 -- membuka DevTools bisa membaca seluruh tabel `anggota` — termasuk password_hash.

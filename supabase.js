@@ -134,8 +134,13 @@ async function sbLoginViaRpc(uname, password) {
   } catch (e) {
     return null; // jaringan bermasalah -> coba cara lama
   }
-  if (res.status === 404 || res.status === 400) return null; // fungsi belum dibuat
-  if (!res.ok) return null;
+  if (res.status === 404 || res.status === 400) return null; // fungsi belum dibuat -> pakai cara lama
+  if (!res.ok) {
+    // RPC ada tapi menolak/mengalami gangguan (401/403/5xx). Jangan diam-diam
+    // jatuh ke cara lama: setelah Tahap 2 (hak baca password_hash dicabut),
+    // cara lama pasti gagal dan pesan errornya jadi menyesatkan.
+    throw new Error(`Layanan login sedang bermasalah (${res.status}). Coba lagi beberapa saat.`);
+  }
   let rows;
   try { rows = await res.json(); } catch (e) { return null; }
   if (!Array.isArray(rows) || rows.length === 0) return null;
