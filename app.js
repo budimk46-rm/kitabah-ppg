@@ -1531,7 +1531,10 @@ async function doRegister() {
 
     await SB.anggota.register({
       username: username.trim(),
-      password_hash: password,
+      // Password pendaftaran WAJIB di-hash (jangan simpan plaintext): tabel anggota bisa
+      // dibaca anon, jadi nilai mentah di sini = password bocor. verifyPassword() mendukung
+      // hash bcrypt, jadi login tetap normal.
+      password_hash: await hashPassword(password),
       nama_lengkap: toTitleCase(namaLengkap),
       role,
       status: 'pending',
