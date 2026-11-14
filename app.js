@@ -550,9 +550,14 @@ function startAksesRefreshWatcher() {
 async function refreshRealUserData() {
   if (!App.realUser?.id) return;
   try {
-    const rows = await sbFetch(`anggota?id=eq.${App.realUser.id}&select=*`);
+    // Daftar kolom eksplisit (tanpa password_hash) supaya tetap jalan setelah hak baca
+    // kolom itu dicabut di database — lihat db/security-hardening.sql.
+    const rows = await sbFetch(`anggota?id=eq.${App.realUser.id}&select=id,username,nama_lengkap,role,status,kelompok_id,desa_id,wa_number,created_at,jabatan,akses_menu,akses_lintas,last_active,no_hp`);
     const fresh = rows?.[0];
     if (!fresh) return;
+    // Hash tidak diambil lagi dari database; pertahankan yang sudah ada di sesi
+    // supaya pencocokan sandi lama (sebelum RPC cek_password terpasang) tetap jalan.
+    if (!fresh.password_hash && App.realUser.password_hash) fresh.password_hash = App.realUser.password_hash;
     const navRelevantChanged = fresh.akses_lintas !== App.realUser.akses_lintas
       || fresh.akses_menu !== App.realUser.akses_menu
       || fresh.role !== App.realUser.role;
@@ -16647,7 +16652,7 @@ async function renderSettings() {
     const btn = document.getElementById('pwSaveBtn');
     btn.disabled = true; btn.textContent = 'Memproses...';
     try {
-      const ok = await verifyPassword(oldPw, u.password_hash);
+      const ok = await SB.cekPassword(u.username, oldPw, u.password_hash);
       if (!ok) { showToast('Password lama salah', true); return; }
       const newHash = await hashPassword(newPw);
       await SB.anggota.update(u.id, { password_hash: newHash });

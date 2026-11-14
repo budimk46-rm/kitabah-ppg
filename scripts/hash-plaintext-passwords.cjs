@@ -18,7 +18,20 @@
  * Yang dilewati otomatis: hash bcrypt yang sudah ada, sha256/md5 hex, dan nilai kosong
  * (tidak bisa dibalik jadi password, jadi jangan diutak-atik).
  */
-const bcrypt = require('bcryptjs');
+const path = require('path');
+// Pakai bcryptjs 2.4.3 yang SAMA dengan yang dimuat browser (bcrypt.min.js di root repo),
+// supaya hash yang dihasilkan pasti bisa diverifikasi verifyPassword() di aplikasi.
+// (Fallback ke node_modules hanya kalau file itu tidak ada.)
+let bcrypt;
+try {
+  bcrypt = require(path.join(__dirname, '..', 'bcrypt.min.js'));
+} catch (e) {
+  bcrypt = require('bcryptjs');
+}
+if (!bcrypt || typeof bcrypt.hashSync !== 'function') {
+  console.error('bcryptjs tidak tersedia. Jalankan: npm install');
+  process.exit(1);
+}
 
 const URL_SB = process.env.SUPABASE_URL || 'https://leastktlugjzupeohqag.supabase.co';
 const KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_HWHNNxI8i4BHUpJIL8lEcQ_RwIugn-o';

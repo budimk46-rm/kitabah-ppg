@@ -1,10 +1,10 @@
 /* ============================================================
-   KITABAH v2 — Service Worker v6
+   KITABAH v2 — Service Worker v7
    Strategi: cache-first + stale-while-revalidate untuk app shell
    supaya kunjungan ulang tetap cepat walau sinyal lemah.
    ============================================================ */
 
-const CACHE_NAME = 'ppg-siduta-cache-v5';
+const CACHE_NAME = 'ppg-siduta-cache-v6';
 
 const APP_SHELL = [
   './index.html',

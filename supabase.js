@@ -93,11 +93,17 @@ function lsCacheClear() {
 }
 
 // ============ AUTH (custom, bukan Supabase Auth) ============
+// Login: utamakan verifikasi di SERVER lewat RPC `login_anggota` supaya hash sandi
+// tidak perlu (dan tidak boleh) dikirim ke browser. Kalau fungsi RPC belum dipasang
+// di database, otomatis jatuh ke cara lama (baca hash + bcrypt di browser), jadi
+// aplikasi tetap jalan sebelum maupun sesudah penguncian database.
 async function sbLogin(username, password) {
   const uname = username.trim();
-  // Cari persis dulu (cepat & pakai index), lalu fallback tanpa membedakan huruf besar/kecil.
-  // Keyboard HP sering otomatis mengapitalkan huruf pertama ("Ilma.nur"), dan dulu itu
-  // langsung ditolak "Nama pengguna tidak ditemukan" walau akunnya ada.
+
+  const viaRpc = await sbLoginViaRpc(uname, password);
+  if (viaRpc) return viaRpc;
+
+  // ---- cara lama (fallback): baca baris + cocokkan hash di browser ----
   let data = await sbFetch(`anggota?username=eq.${encodeURIComponent(uname)}&select=*`);
   if (!data || data.length === 0) {
     const alt = await sbFetch(`anggota?username=ilike.${encodeURIComponent(uname)}&select=*`);
@@ -106,7 +112,6 @@ async function sbLogin(username, password) {
   }
   if (!data || data.length === 0) throw new Error('Nama pengguna tidak ditemukan.');
   const user = data[0];
-  // Simple comparison (app-level, production should use bcrypt)
   const ok = await verifyPassword(password, user.password_hash);
   if (!ok) throw new Error('Kata sandi salah.');
   if (user.status === 'pending') throw new Error('PENDING');
@@ -114,20 +119,62 @@ async function sbLogin(username, password) {
   return user;
 }
 
-// Password verification — bcrypt check via Web Crypto fallback
+// Panggil RPC login_anggota. Return:
+//   objek user  -> kredensial VALID (hash tidak pernah keluar dari database)
+//   null        -> RPC belum ada / tidak bisa dipakai, pemanggil pakai cara lama
+//   throw Error -> kredensial salah / akun pending / rejected
+async function sbLoginViaRpc(uname, password) {
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/login_anggota`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ p_username: uname, p_password: password }),
+    });
+  } catch (e) {
+    return null; // jaringan bermasalah -> coba cara lama
+  }
+  if (res.status === 404 || res.status === 400) return null; // fungsi belum dibuat
+  if (!res.ok) return null;
+  let rows;
+  try { rows = await res.json(); } catch (e) { return null; }
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const row = rows[0] || {};
+  const kode = row.status_code || 'ok';
+  if (kode === 'no_user') throw new Error('Nama pengguna tidak ditemukan.');
+  if (kode === 'bad_password') throw new Error('Kata sandi salah.');
+  if (kode === 'empty_password') throw new Error('Kata sandi salah.');
+  if (kode !== 'ok' || !row.profil) return null;
+  const user = row.profil;
+  if (user.status === 'pending') throw new Error('PENDING');
+  if (user.status === 'rejected') throw new Error('REJECTED');
+  return user;
+}
+
+// Cek sandi (dipakai fitur ganti password sendiri). Utamakan RPC `cek_password`,
+// fallback ke perbandingan hash lokal bila hash-nya masih ada di sesi.
+async function sbCekPassword(username, plain, hashKnown) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cek_password`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ p_username: username, p_password: plain }),
+    });
+    if (res.ok) {
+      const v = await res.json();
+      if (typeof v === 'boolean') return v;
+    }
+  } catch (e) { /* jatuh ke fallback */ }
+  if (hashKnown) return verifyPassword(plain, hashKnown);
+  return false;
+}
+
+// Verifikasi hash bcrypt. Tidak ada lagi jalur "plaintext dianggap cocok" dan
+// tidak ada jalur SHA-256: seluruh 358 akun sudah bcrypt, jadi jalur lemah itu
+// hanya memperbesar risiko.
 async function verifyPassword(plain, hash) {
-  // hash is stored as bcrypt, but since we can't run bcrypt in browser easily,
-  // for now we compare SHA-256 of plain or accept literal match for migration
-  // In production, use a serverless function for bcrypt
-  if (hash === plain) return true; // plain text stored (migration mode)
-  // Try SHA-256 comparison
-  const enc = new TextEncoder();
-  const buf = await crypto.subtle.digest('SHA-256', enc.encode(plain));
-  const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  if (hash === hex) return true;
-  // bcrypt check — delegate to stored hash starting with $2
+  if (!hash || typeof hash !== 'string') return false;
   if (hash.startsWith('$2')) {
-    // We use dcodeIO/bcryptjs loaded externally
     if (window.dcodeIO && window.dcodeIO.bcrypt) {
       return window.dcodeIO.bcrypt.compareSync(plain, hash);
     }
@@ -138,22 +185,22 @@ async function verifyPassword(plain, hash) {
   return false;
 }
 
-// Hash password baru — pakai bcrypt (lib sudah dimuat di index.html), fallback SHA-256.
-// Dipakai untuk ganti password (self-service maupun reset oleh admin), supaya
-// password baru tidak pernah tersimpan plain text lagi.
+// Hash password baru — WAJIB bcrypt. Tidak ada fallback SHA-256: lebih baik gagal
+// terang-terangan daripada diam-diam menyimpan hash lemah ke database.
 async function hashPassword(plain) {
   if (window.dcodeIO && window.dcodeIO.bcrypt) {
     const salt = window.dcodeIO.bcrypt.genSaltSync(10);
     return window.dcodeIO.bcrypt.hashSync(plain, salt);
   }
-  const enc = new TextEncoder();
-  const buf = await crypto.subtle.digest('SHA-256', enc.encode(plain));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  throw new Error('Library pengaman sandi belum termuat. Muat ulang halaman ini lalu coba lagi.');
 }
+
 
 // ============ USERS ============
 const sbUsers = {
-  getAll: () => sbFetch('anggota?select=id,username,password_hash,nama_lengkap,role,jabatan,status,kelompok_id,desa_id,akses_menu,akses_lintas,no_hp,created_at&order=created_at.asc'),
+  // password_hash sengaja TIDAK diambil: daftar user tidak butuh, dan makin sedikit
+  // jalur baca hash makin kecil risikonya kalau database dikunci nanti.
+  getAll: () => sbFetch('anggota?select=id,username,nama_lengkap,role,jabatan,status,kelompok_id,desa_id,akses_menu,akses_lintas,no_hp,created_at&order=created_at.asc'),
   getPending: () => sbFetch('anggota?status=eq.pending&select=id,username,nama_lengkap,role,kelompok_id,desa_id,created_at&order=created_at.asc'),
   approve: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) }),
   reject: (id) => sbFetch(`anggota?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) }),
@@ -875,6 +922,7 @@ const sbActivityLog = {
 // Export semua
 window.SB = {
   login: sbLogin,
+  cekPassword: sbCekPassword,
   anggota: sbUsers,
   kelompok: sbKelompok,
   desa: sbDesa,
