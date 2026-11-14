@@ -6,3 +6,9 @@ node_modules/
 
 # File konfirmasi pembersihan data (berisi nama/tgl lahir/no HP -> jangan masuk repo publik)
 Konfirmasi_Pembersihan_Data_*.xlsx
+
+# Sumber lama yang isinya SUDAH ada di database (bukan dipakai aplikasi)
+# - BK/*.docx          -> sudah masuk tabel fgd_bk (3 tema, 184 baris)
+# - Laporan_Rekap_Jemundo_20260901.xlsx -> hanya ekspor rekap KBM; data mentahnya ada di pertemuan + absensi
+BK/
+Laporan_Rekap_Jemundo_*.xlsx
