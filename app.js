@@ -506,7 +506,14 @@ async function ensureMateriBulan(bulan) {
   const col = String(bulan).toLowerCase();
   if (!BULAN_KOLOM_MATERI.includes(col)) return;
   if (rows[0][col] !== undefined) return;
-  const partial = await SB.materi.getBulan(col) || [];
+  let partial = [];
+  try {
+    partial = await SB.materi.getBulan(col) || [];
+  } catch (e) {
+    // Jangan sampai halaman Rekap/Dashboard ikut blank gara-gara 1 request gagal.
+    console.warn('ensureMateriBulan gagal:', e.message);
+    return;
+  }
   const byId = new Map(partial.map(p => [p.id, p[col]]));
   rows.forEach(r => { r[col] = byId.get(r.id) || ''; });
 }
@@ -519,7 +526,13 @@ async function ensureMateriJenjangBulan(jenjang, semester) {
   const sampel = rows.find(r => r.jenjang === jenjang && String(r.semester) === String(semester));
   if (!sampel) return;
   if (BULAN_KOLOM_MATERI.every(m => sampel[m] !== undefined)) return;
-  const full = await SB.materi.getByJenjang(jenjang, semester) || [];
+  let full = [];
+  try {
+    full = await SB.materi.getByJenjang(jenjang, semester) || [];
+  } catch (e) {
+    console.warn('ensureMateriJenjangBulan gagal:', e.message);
+    return;
+  }
   const byId = new Map(full.map(f => [f.id, f]));
   rows.forEach(r => {
     const f = byId.get(r.id);

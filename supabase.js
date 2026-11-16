@@ -318,27 +318,21 @@ const sbMateri = {
   },
   // Dipakai halaman yang MEMBUTUHKAN isi target bulanan (Absensi & Jurnal, Kurikulum)
   // → ikutkan 12 kolom bulan. Query-nya per jenjang+semester (bukan seluruh 1552 baris
-  // kurikulum), jadi payload tetap kecil.
+  // kurikulum), jadi payload tetap kecil. Tanpa `limit`: sbFetch() sudah memaginasi
+  // GET sendiri lewat Range header (1000 baris/halaman).
   getByJenjang: (jenjang, semester) =>
-    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=${KOLOM_MATERI_BULAN}&order=id&limit=500`),
+    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=${KOLOM_MATERI_BULAN}&order=id`),
   // Hanya SATU kolom bulan untuk seluruh kurikulum (≈15 KB gzip) — dipakai halaman
   // Rekap/Dashboard yang cuma menilai target materi satu bulan tertentu. Hasilnya
   // [{id, november}, ...] untuk ditempel ke App.cache.materi lewat ensureMateriBulan().
-  // PENTING: PostgREST di server ini membatasi 1000 baris per request (db-max-rows)
-  // sedangkan `materi` ±1552 baris → wajib di-page, kalau tidak ~550 baris hilang
-  // dan target materi terbaca lebih kecil dari seharusnya.
-  getBulan: async (bulan) => {
+  // PENTING: jangan pasang `limit`/`offset` manual di sini. sbFetch() sudah memaginasi
+  // dengan header Range (0-999, 1000-1999, ...) karena max-rows server = 1000 dan
+  // tabel materi ±1552 baris. Kalau offset manual digabung dengan Range, PostgREST
+  // menolak dengan 416 / PGRST103 ("Requested range not satisfiable").
+  getBulan: (bulan) => {
     const col = String(bulan || '').toLowerCase();
-    if (!BULAN_MATERI.includes(col)) return [];
-    const PAGE = 1000;
-    let out = [], offset = 0;
-    for (;;) {
-      const chunk = await sbFetch(`materi?select=id,${col}&order=id&limit=${PAGE}&offset=${offset}`) || [];
-      out = out.concat(chunk);
-      if (chunk.length < PAGE) break;
-      offset += PAGE;
-    }
-    return out;
+    if (!BULAN_MATERI.includes(col)) return Promise.resolve([]);
+    return sbFetch(`materi?select=id,${col}&order=id`);
   },
   // Curriculum diedit lewat app — hapus cache localStorage biar edit langsung kebaca,
   // bukan nunggu TTL 6 jam habis dulu.
