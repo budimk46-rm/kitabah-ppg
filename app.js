@@ -488,6 +488,45 @@ function monthsForSemester(sem) {
   return sem === '1' ? SEM1_MONTHS : SEM2_MONTHS;
 }
 
+/* ── Isi target materi per bulan ───────────────────────────────────────────────
+   Tabel `materi` punya 12 kolom bulan (juli...juni) yang sengaja TIDAK ikut
+   SB.materi.getAll() supaya egress Supabase tetap hemat (lihat catatan
+   KOLOM_MATERI di supabase.js). Padahal isinya dipakai di banyak tempat:
+   Kurikulum, Absensi & Jurnal ("Materi yang Disampaikan"), Rekap KBM/Desa/Daerah,
+   dan Dashboard (target materi). Karena itu halaman-halaman tersebut memanggil
+   helper di bawah SEBELUM memakai r['november'] dkk.
+   Tanpa ini, materi tidak muncul / target materi terbaca 0. */
+const BULAN_KOLOM_MATERI = ['juli','agustus','september','oktober','november','desember','januari','februari','maret','april','mei','juni'];
+
+// Muat 1 kolom bulan saja untuk SELURUH kurikulum, lalu tempel ke App.cache.materi.
+// Hasilnya di-cache di objeknya sendiri (r[col] !== undefined = sudah dimuat).
+async function ensureMateriBulan(bulan) {
+  const rows = App.cache.materi;
+  if (!bulan || !Array.isArray(rows) || !rows.length) return;
+  const col = String(bulan).toLowerCase();
+  if (!BULAN_KOLOM_MATERI.includes(col)) return;
+  if (rows[0][col] !== undefined) return;
+  const partial = await SB.materi.getBulan(col) || [];
+  const byId = new Map(partial.map(p => [p.id, p[col]]));
+  rows.forEach(r => { r[col] = byId.get(r.id) || ''; });
+}
+
+// Muat SEMUA 12 kolom bulan untuk satu jenjang+semester (dipakai halaman Kurikulum
+// yang menampilkan grid 6 bulan sekaligus) — tetap hemat karena per jenjang.
+async function ensureMateriJenjangBulan(jenjang, semester) {
+  const rows = App.cache.materi;
+  if (!Array.isArray(rows) || !rows.length) return;
+  const sampel = rows.find(r => r.jenjang === jenjang && String(r.semester) === String(semester));
+  if (!sampel) return;
+  if (BULAN_KOLOM_MATERI.every(m => sampel[m] !== undefined)) return;
+  const full = await SB.materi.getByJenjang(jenjang, semester) || [];
+  const byId = new Map(full.map(f => [f.id, f]));
+  rows.forEach(r => {
+    const f = byId.get(r.id);
+    if (f) BULAN_KOLOM_MATERI.forEach(m => { r[m] = f[m] ?? ''; });
+  });
+}
+
 let toastTimer;
 function showToast(msg, isError = false) {
   const el = document.getElementById('toast');
@@ -2025,6 +2064,9 @@ async function hitungRingkasanKbm(kelompokIds, bulan) {
     // 1 bulan per panggilan, jadi tarik 1 bulan aja jauh lebih hemat egress Supabase.
     SB.progress.getByKelompokIds(progressFetchIds, getTahunAjaran(), bulan),
   ]);
+  // Target materi bulan ini dihitung dari isi kolom bulan (r['november'] dst) —
+  // kolom itu tidak ikut SB.materi.getAll(), jadi muat dulu 1 kolom bulan ini.
+  await ensureMateriBulan(bulan);
   const kelasDedupe = new Map();
   [...kelasOwn, ...kelasGabunganArr.flat()].forEach(k => kelasDedupe.set(k.id, k));
   const kelasRaw = [...kelasDedupe.values()];
@@ -2897,6 +2939,11 @@ async function renderKurikulum() {
   // Gunakan App.kurState supaya state tidak terjebak di closure lama
   const ks = App.kurState;
 
+  // Kolom bulan (juli...juni) sengaja tidak ikut SB.materi.getAll() demi hemat egress,
+  // tapi grid Kurikulum menampilkan target tiap bulan (r['november'] dst) — jadi muat
+  // dulu untuk jenjang+semester yang sedang dibuka.
+  await ensureMateriJenjangBulan(ks.jenjang, ks.sem);
+
   function render() {
     const currentJenjang = ks.jenjang;
     const currentSem = ks.sem;
@@ -3085,9 +3132,11 @@ async function renderKurikulum() {
 
   // Expose state setters ke global
   // KUR_setJenjang dan KUR_setSem panggil renderKurikulum() ulang
-  // supaya tidak terjebak closure render() dari instance lama
-  window.KUR_setJenjang = async (j) => { App.kurState.jenjang = j; App.kurState.sem = _defaultSem; App.kurState.month = _defaultMonth; App.cache.materi = null; await renderKurikulum(); };
-  window.KUR_setSem = async (s) => { App.kurState.sem = s; App.kurState.month = null; App.cache.materi = null; await renderKurikulum(); };
+  // supaya tidak terjebak closure render() dari instance lama.
+  // Cache materi TIDAK dikosongkan: renderKurikulum() sendiri yang memuat kolom bulan
+  // untuk jenjang+semester yang baru (ensureMateriJenjangBulan).
+  window.KUR_setJenjang = async (j) => { App.kurState.jenjang = j; App.kurState.sem = _defaultSem; App.kurState.month = _defaultMonth; await renderKurikulum(); };
+  window.KUR_setSem = async (s) => { App.kurState.sem = s; App.kurState.month = null; await renderKurikulum(); };
   window.KUR_setMonth = (m) => { App.kurState.month = m; render(); };
   window.KUR_search = (q) => { App.kurState.search = q; render(); };
 
@@ -5328,6 +5377,10 @@ async function renderAbsensi() {
   let absensiDiisiOleh = null; // {nama, waktu} — siapa & kapan terakhir isi absensi pertemuan ini
   let jurnalDiisiOleh = null; // {nama, waktu} — siapa & kapan terakhir isi jurnal pertemuan ini
 
+  // Bulan aktif untuk daftar "Materi yang Disampaikan" (di-set ulang setiap ganti
+  // kelas / buka pertemuan — lihat bulanDefaultUntuk()).
+  let jurnalBulan = currentMonthName();
+
   async function refreshProgress() {
     const kId = activeKelompokId || myKelompokId || null;
     if (!kId) { cachedProgressSet = new Set(); return; }
@@ -5342,6 +5395,9 @@ async function renderAbsensi() {
     await refreshProgress(); // load progress sebelum render
     const kls = kelasOptions.find(k => k.id === selectedKelasId);
     if (kls) await ensureMateriLoaded(kls.jenjang, kls.semester);
+    // Pertemuan baru / ganti kelas → bulan aktif ikut semester kelas terpilih,
+    // supaya daftar materi bulan itu langsung tampil.
+    jurnalBulan = bulanDefaultUntuk(kls);
     pertemuanList = await SB.pertemuan.getByKelas(selectedKelasId, getTahunAjaran());
     santriList = await SB.santri.getByKelas(selectedKelasId);
     // Default: tampilkan form pertemuan BARU (bukan data lama)
@@ -5361,6 +5417,7 @@ async function renderAbsensi() {
     // supaya target materi & progress kurikulum tercatat ke bulan yang benar saat edit pertemuan lama.
     const ptm = pertemuanList.find(p => p.id === pId);
     if (ptm?.bulan) jurnalBulan = ptm.bulan;
+    else jurnalBulan = bulanDefaultUntuk(kelasOptions.find(k => k.id === selectedKelasId));
     const [absen, jurnal] = await Promise.all([
       SB.absensi.getByPertemuan(pId),
       SB.jurnal.getByPertemuan(pId),
@@ -5374,6 +5431,16 @@ async function renderAbsensi() {
     selectedMateriIds = new Set(jurnalMateri.map(jm => jm.materi_id));
     materiStatus = Object.fromEntries(jurnalMateri.map(jm => [jm.materi_id, jm.status || 'tuntas']));
     renderMain();
+  }
+
+  // Bulan default untuk kelas terpilih: bulan berjalan kalau memang ada di semester
+  // kelas itu, kalau tidak pakai bulan pertama semester tsb. Dulu selalu bulan
+  // berjalan, jadi kelas semester 2 yang dibuka di bulan semester 1 tampil
+  // "Tidak ada target materi" tanpa satu pun chip bulan aktif.
+  function bulanDefaultUntuk(kelas) {
+    const months = String(kelas?.semester) === '2' ? SEM2_MONTHS : SEM1_MONTHS;
+    const now = currentMonthName();
+    return months.includes(now) ? now : months[0];
   }
 
   function getMateriForDisplay(bulan) {
@@ -5448,7 +5515,8 @@ async function renderAbsensi() {
       '<div class="empty-state"><p class="empty-title">Belum ada santri</p><p class="empty-desc">Tambahkan santri di menu Data Santri.</p></div>';
 
     // ── Materi bulan: chip filter ──
-    const allMonths = selectedKelas?.semester === '2' ? SEM2_MONTHS : SEM1_MONTHS;
+    // String(...) supaya semester yang tersimpan sebagai angka (2) tetap terbaca.
+    const allMonths = String(selectedKelas?.semester) === '2' ? SEM2_MONTHS : SEM1_MONTHS;
     const nowMonth = currentMonthName();
     const nowIdx = allMonths.indexOf(nowMonth);
     // Tampilkan bulan sebelum, berjalan, sesudah — selalu urut kronologis
@@ -5460,6 +5528,12 @@ async function renderAbsensi() {
     } else {
       // Bulan berjalan tidak ada di semester kelas ini — tampilkan semua bulan semester
       visibleMonths = [...allMonths];
+    }
+    // Bulan aktif (mis. pertemuan lama di bulan lain) wajib punya chip — kalau tidak,
+    // daftar materi bulan itu tampil tanpa satu chip pun yang menyala.
+    if (jurnalBulan && allMonths.includes(jurnalBulan) && !visibleMonths.includes(jurnalBulan)) {
+      visibleMonths.push(jurnalBulan);
+      visibleMonths.sort((a, b) => allMonths.indexOf(a) - allMonths.indexOf(b));
     }
 
     // Gunakan cached progress — tidak fetch ulang setiap render
@@ -5709,9 +5783,6 @@ async function renderAbsensi() {
     }
   }
 
-  // State bulan jurnal
-  let jurnalBulan = currentMonthName();
-
   window.ABS_setKelas = async (sel) => {
     selectedKelasId = sel.value;
     const opt = sel.options[sel.selectedIndex];
@@ -5731,6 +5802,9 @@ async function renderAbsensi() {
       jurnalData = null;
       selectedMateriIds = new Set();
       materiStatus = {};
+      // Bulan aktif kembali ke default semester kelas (bisa saja sebelumnya
+      // sedang membuka pertemuan lama di bulan lain).
+      jurnalBulan = bulanDefaultUntuk(kelasOptions.find(k => k.id === selectedKelasId));
       renderMain();
     } else {
       await loadDetail(id);
@@ -14537,6 +14611,10 @@ async function renderMusyawarah() {
     const idxKal = KALENDER_MONTHS.indexOf(now);
     const bulanLalu = idxKal > 0 ? KALENDER_MONTHS[idxKal - 1] : null;
     const bulanIni = now;
+    // Target materi per bulan (MUS/hitungKelompokStats) butuh isi kolom bulan
+    // (r['november'] dst) yang tidak ikut SB.materi.getAll() — muat bulan yg tampil.
+    if (!window._musRekapBulan) window._musRekapBulan = bulanIni;
+    await ensureMateriBulan(window._musRekapBulan);
 
     function pctColor(p) { return p>=80?'var(--green)':p>=50?'#e6a817':'var(--rose)'; }
     function pctBadge(p) {
@@ -17921,6 +17999,7 @@ async function renderRekap() {
 
   async function paint() {
     await loadBulanData(selectedBulan);
+    await ensureMateriBulan(selectedBulan);
     renderDashboard();
   }
 
@@ -18678,6 +18757,7 @@ async function renderRekapDesa() {
 
   async function paint() {
     await loadBulanData(selectedBulan);
+    await ensureMateriBulan(selectedBulan);
     renderDashboard();
   }
 
@@ -19227,6 +19307,7 @@ async function renderRekapDaerah() {
 
   async function paint() {
     await loadBulanData(selectedBulan);
+    await ensureMateriBulan(selectedBulan);
     renderDashboard();
   }
 

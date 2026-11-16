@@ -95,12 +95,24 @@ function lsCacheClear() {
 // Daftar kolom eksplisit untuk tabel besar. Kolom yang tidak pernah dibaca aplikasi
 // sengaja TIDAK diambil — ini penghemat egress Supabase free tier (batas 5 GB/bulan
 // pernah terlampaui sekali, jadi setiap KB di sini penting).
-// Yang paling besar: tabel `materi` punya 12 kolom bulan (juli...juni) yang tidak
-// dipakai di mana pun — 80% berat payload kurikulum. Terukur: 1082 KB -> 300 KB
-// (gzip 164 KB -> 16 KB) tiap kali kurikulum ditarik.
+// Yang paling besar: tabel `materi` punya 12 kolom bulan (juli...juni) — 80% berat
+// payload kurikulum. Terukur: 1082 KB -> 300 KB (gzip 164 KB -> 16 KB) tiap kali
+// daftar kurikulum ditarik, makanya `getAll()` sengaja TANPA kolom bulan.
+//
+// PENTING: isi kolom bulan itu TETAP DIPAKAI aplikasi (Kurikulum menampilkan target
+// per bulan, Absensi & Jurnal menampilkan "Materi yang Disampaikan", Rekap KBM /
+// Rekap Desa / Rekap Daerah / Dashboard menghitung target materi -> r['november']).
+// Halaman-halaman itu WAJIB memakai KOLOM_MATERI_BULAN (per jenjang+semester) atau
+// sbMateri.getBulan() (1 kolom bulan saja) — kalau tidak, materi tidak muncul dan
+// target materi terbaca 0 (bug yang pernah terjadi: 8012dd9 menghapus kolom ini).
+//
 // Kalau nanti ada fitur baru yang butuh kolom lain: tambahkan di sini, JANGAN balik
 // ke select=* — dengan select=*, tabel yang ditambah kolom baru otomatis membengkak.
 const KOLOM_MATERI = 'id,jenjang,semester,bab,bab_title,sub,sub_title,no,topik,poin,poin_title';
+// Nama kolom bulan di tabel `materi` (huruf kecil semua, dipakai sebagai key objek:
+// r['november']). Urut tahun ajaran: Juli..Juni.
+const BULAN_MATERI = ['juli','agustus','september','oktober','november','desember','januari','februari','maret','april','mei','juni'];
+const KOLOM_MATERI_BULAN = KOLOM_MATERI + ',' + BULAN_MATERI.join(',');
 // aktif & created_at/updated_at tidak pernah dibaca dari objek santri
 // (aktif cuma dipakai sebagai filter query) — hemat ~18% payload.
 const KOLOM_SANTRI = 'id,kelas_id,nama,nis,jenis_kel,no_hp,nama_ortu,tgl_lahir,tingkatan,tingkatan_override,kelompok_asal_id,simpatisan_wali_id';
@@ -304,8 +316,30 @@ const sbMateri = {
     lsCacheSet('materi', data);
     return data;
   },
+  // Dipakai halaman yang MEMBUTUHKAN isi target bulanan (Absensi & Jurnal, Kurikulum)
+  // → ikutkan 12 kolom bulan. Query-nya per jenjang+semester (bukan seluruh 1552 baris
+  // kurikulum), jadi payload tetap kecil.
   getByJenjang: (jenjang, semester) =>
-    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=${KOLOM_MATERI}&order=id&limit=500`),
+    sbFetch(`materi?jenjang=eq.${encodeURIComponent(jenjang)}&semester=eq.${semester}&select=${KOLOM_MATERI_BULAN}&order=id&limit=500`),
+  // Hanya SATU kolom bulan untuk seluruh kurikulum (≈15 KB gzip) — dipakai halaman
+  // Rekap/Dashboard yang cuma menilai target materi satu bulan tertentu. Hasilnya
+  // [{id, november}, ...] untuk ditempel ke App.cache.materi lewat ensureMateriBulan().
+  // PENTING: PostgREST di server ini membatasi 1000 baris per request (db-max-rows)
+  // sedangkan `materi` ±1552 baris → wajib di-page, kalau tidak ~550 baris hilang
+  // dan target materi terbaca lebih kecil dari seharusnya.
+  getBulan: async (bulan) => {
+    const col = String(bulan || '').toLowerCase();
+    if (!BULAN_MATERI.includes(col)) return [];
+    const PAGE = 1000;
+    let out = [], offset = 0;
+    for (;;) {
+      const chunk = await sbFetch(`materi?select=id,${col}&order=id&limit=${PAGE}&offset=${offset}`) || [];
+      out = out.concat(chunk);
+      if (chunk.length < PAGE) break;
+      offset += PAGE;
+    }
+    return out;
+  },
   // Curriculum diedit lewat app — hapus cache localStorage biar edit langsung kebaca,
   // bukan nunggu TTL 6 jam habis dulu.
   update: (id, data) => sbFetch(`materi?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }).then(r => { lsCacheClear(); return r; }),
