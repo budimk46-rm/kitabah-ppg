@@ -10,6 +10,7 @@
     "audit": "node scripts/audit-supabase.mjs",
     "audit:data": "node scripts/audit-data-cleanup.cjs",
     "repair:jamaah": "node scripts/repair-jamaah-kosong.cjs",
+    "normalize:submissions": "node scripts/normalize-submissions-data.cjs",
     "export:konfirmasi": "node scripts/export-konfirmasi-cleanup.cjs",
     "hashpw": "node scripts/hash-plaintext-passwords.cjs",
     "test:auth": "node scripts/test-auth.cjs",
