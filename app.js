@@ -983,7 +983,12 @@ async function renderPublicForm(jenis, scope) {
     const btn = document.getElementById('pfSubmitBtn');
     btn.disabled = true; btn.textContent = 'Mengirim...';
     try {
-      const payload = { jenis, data: JSON.stringify(data), status: 'pending' };
+      // PENTING: kolom form_submissions.data bertipe jsonb — kirim OBJEK-nya apa adanya.
+      // Dulu di-JSON.stringify dulu, jadi yang tersimpan adalah STRING JSON di dalam jsonb
+      // (double-encode). Akibatnya di menu Data Jamaah muncul "Menunggu Persetujuan" tapi
+      // namanya kosong ("-"), dan begitu disetujui yang masuk ke tabel jamaah adalah baris
+      // kosong (nama '', jenis kelamin null, dst) — persis keluhan "data terisi tapi kosong".
+      const payload = { jenis, data, status: 'pending' };
       if (scope.type === 'kelompok') payload.kelompok_id = scope.id;
       else if (scope.type === 'desa') payload.desa_id = scope.id;
       else payload.level_daerah = true;
@@ -1034,14 +1039,32 @@ window.SHARE_copy = () => {
   navigator.clipboard?.writeText(input.value).then(() => showToast('Link disalin ✓')).catch(() => showToast('Gagal menyalin, salin manual', true));
 };
 
-// Render bagian "Menunggu Persetujuan" — dipakai di renderSantri, renderMtMs, renderPengurus, renderGuruSekolah.
+// Data submission bisa tersimpan dalam 2 bentuk:
+//   1. objek JSON  → bentuk normal (kolom jsonb diisi objek)
+//   2. string JSON → data lama yang sempat ter-double-encode (kolom jsonb diisi hasil
+//      JSON.stringify, jadi jsonb-nya menyimpan scalar string)
+// Tanpa normalisasi, bentuk (2) terbaca sebagai string → field-nya undefined, tampilan
+// "Menunggu Persetujuan" jadi "-" dan approval menyimpan baris KOSONG ke tabel tujuan.
+function normalizeSubmissionData(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+    } catch { return {}; }
+  }
+  return (typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+}
+
+// Render bagian "Menunggu Persetujuan" — dipakai di renderSantri, renderMtMs, renderPengurus,
+// renderGuruSekolah, dan renderDataJamaah.
 // approveFn: async (submission) => { ...insert ke tabel asli... } — return true kalau berhasil.
 async function renderPendingSection(jenis, scopeType, scopeRef, config, approveFn) {
   const pending = await SB.formSubmissions.getPendingScoped(jenis, scopeType, scopeRef) || [];
   if (!pending.length) return '';
 
   const rows = pending.map(p => {
-    const data = p.data || {};
+    const data = normalizeSubmissionData(p.data);
     const ringkas = config.fields.slice(0,3).map(f => data[f.key]).filter(Boolean).join(' · ');
     return `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); flex-wrap:wrap;">
       <div style="flex:1; min-width:160px;">
@@ -1058,7 +1081,15 @@ async function renderPendingSection(jenis, scopeType, scopeRef, config, approveF
   window.PEND_approve = async (id, jns) => {
     const sub = pending.find(p => p.id === id);
     if (!sub) return;
-    const data = sub.data || {};
+    const data = normalizeSubmissionData(sub.data);
+    // Jangan pernah menyetujui data yang field utamanya kosong. Tanpa cek ini, data yang
+    // ter-double-encode (atau form yang dikirim tidak lengkap) berubah jadi baris kosong
+    // di tabel tujuan — lebih baik ditolak/biarkan menunggu daripada masuk data sampah.
+    const fieldUtama = config.fields[0];
+    if (!String(data[fieldUtama.key] || '').trim()) {
+      showToast(`Tidak bisa disetujui: "${fieldUtama.label}" kosong. Minta pengisi melengkapi, atau tolak data ini.`, true);
+      return;
+    }
     try {
       const ok = await approveFn(data, sub);
       if (ok === false) return; // approveFn sendiri yang urus alur (mis. butuh pilih kelas dulu)
@@ -10746,8 +10777,13 @@ async function renderJamaahEntry() {
   await refreshJamaahData();
 
   const pendingHtml = canEdit ? await renderPendingSection('jamaah', 'kelompok', u.kelompok_id, FORM_CONFIGS.jamaah, async (data) => {
+    const nama = toTitleCase(data.nama || '').trim();
+    if (!nama) {
+      showToast('Data tidak bisa disetujui: Nama Lengkap kosong. Minta jamaah mengisi ulang, atau tolak data ini.', true);
+      return false;
+    }
     await SB.jamaah.insert({
-      kelompok_id: u.kelompok_id, nama: toTitleCase(data.nama||''), jenis_kelamin: data.jenis_kelamin || null,
+      kelompok_id: u.kelompok_id, nama, jenis_kelamin: data.jenis_kelamin || null,
       tgl_lahir: data.tgl_lahir || null, status_menikah: data.status_menikah || null,
       no_hp: data.no_hp || null, keterangan: data.keterangan || null, aktif: true,
     });
